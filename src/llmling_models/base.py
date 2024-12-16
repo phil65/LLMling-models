@@ -1,5 +1,7 @@
 """Base class for YAML-configurable pydantic-ai models."""
 
+from __future__ import annotations
+
 from abc import ABC
 
 from pydantic import BaseModel, ConfigDict

@@ -33,11 +33,12 @@ async def test_random_model_basic(test_models: tuple[TestModel, TestModel]) -> N
     )
 
     # Create a simple agent with our random model
-    agent = Agent(model=random_model)
+    agent = Agent(random_model)
 
     # Run multiple times to collect different responses
     responses = set()
     for _ in range(10):
+        # Use await with run instead of run_sync
         result = await agent.run("Test prompt")
         responses.add(result.data)
 
@@ -65,13 +66,14 @@ async def test_random_model_with_tools(test_models: tuple[TestModel, TestModel])
 
     # Create agent with tool
     agent = Agent(
-        model=random_model,
-        tools=[Tool(test_tool, takes_ctx=False)],
+        random_model,
+        tools=[Tool(test_tool)],
     )
 
     # Run multiple times
     responses = set()
     for _ in range(10):
+        # Use await with run instead of run_sync
         result = await agent.run("Use the test tool")
         responses.add(result.data)
 
@@ -81,15 +83,20 @@ async def test_random_model_with_tools(test_models: tuple[TestModel, TestModel])
 def test_random_model_validation() -> None:
     """Test RandomMultiModel validation."""
     # Test empty models list
-    with pytest.raises(ValueError):  # noqa: PT011
+    with pytest.raises(
+        ValidationError, match=r"List should have at least 1 item after validation, not 0"
+    ):
         RandomMultiModel(type="random", models=[])
 
     # Test invalid model name
-    with pytest.raises(ValidationError):
-        RandomMultiModel(type="random", models=["invalid_model"])  # type: ignore
+    from pydantic_ai.exceptions import UserError
+
+    with pytest.raises(UserError, match="Unknown model: invalid_model"):
+        RandomMultiModel(type="random", models=["invalid_model"])
 
 
-def test_yaml_loading() -> None:
+@pytest.mark.asyncio
+async def test_yaml_loading() -> None:
     """Test loading RandomMultiModel from YAML configuration."""
     import yaml
 
@@ -105,5 +112,9 @@ def test_yaml_loading() -> None:
 
     assert model.type == "random"
     assert len(model.models) == 2  # noqa: PLR2004
-    assert "test" in model.models
-    assert "openai:gpt-4" in model.models
+
+    # Initialize models before checking names
+    model.initialize_models()  # type: ignore
+    model_names = [m.name() for m in model.available_models]
+    assert "test-model" in model_names
+    assert "openai:gpt-4" in model_names

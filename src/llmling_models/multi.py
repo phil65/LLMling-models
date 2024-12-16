@@ -3,54 +3,62 @@
 from __future__ import annotations
 
 import random
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Generic, Literal, Self
 
 from pydantic import Field, model_validator
-from pydantic_ai.models import AgentModel, KnownModelName, Model, infer_model
+from pydantic_ai.models import AgentModel, Model, infer_model
+from typing_extensions import TypeVar
 
 from llmling_models.base import PydanticModel
 from llmling_models.log import get_logger
 
 
 if TYPE_CHECKING:
-    from pydantic_ai.messages import Message, ModelAnyResponse
+    from pydantic_ai.messages import ModelMessage, ModelResponse
+    from pydantic_ai.result import Cost
+    from pydantic_ai.settings import ModelSettings
     from pydantic_ai.tools import ToolDefinition
 
-
 logger = get_logger(__name__)
+TModel = TypeVar("TModel", default=Model)
 
 
-class MultiModel(PydanticModel):
+class MultiModel(PydanticModel, Generic[TModel]):
     """Base for model configurations that combine multiple language models.
 
     This provides the base interface for YAML-configurable multi-model setups,
     allowing configuration of multiple models through LLMling's config system.
     """
 
-    type: str
-    """Discriminator field for multi-model types"""
-
-    models: list[KnownModelName | Model] = Field(default_factory=list)
-    """"List of models to use"."""
-
-    @property
-    def available_models(self) -> list[Model]:
-        """Convert model names/instances to pydantic-ai Model instances."""
-        return [
-            model if isinstance(model, Model) else infer_model(model)  # type: ignore[arg-type]
-            for model in self.models
-        ]
+    type: str = Field(description="Discriminator field for multi-model types")
+    models: list[str | TModel] = Field(
+        description="List of models to use",
+        min_length=1,
+    )
+    _initialized_models: list[TModel] | None = None
 
     @model_validator(mode="after")
-    def validate_models(self) -> MultiModel:
-        """Validate model configuration."""
-        if not self.models:
-            msg = "At least one model must be provided"
-            raise ValueError(msg)
+    def initialize_models(self) -> MultiModel[TModel]:
+        """Convert string model names to Model instances."""
+        models: list[TModel] = []
+        for model in self.models:
+            if isinstance(model, str):
+                models.append(infer_model(model))  # type: ignore[arg-type]
+            else:
+                models.append(model)
+        self._initialized_models = models
         return self
 
+    @property
+    def available_models(self) -> list[TModel]:
+        """Get initialized model instances."""
+        if self._initialized_models is None:
+            msg = "Models not initialized"
+            raise RuntimeError(msg)
+        return self._initialized_models
 
-class RandomMultiModel(MultiModel):
+
+class RandomMultiModel(MultiModel[TModel]):
     """Randomly selects from configured models.
 
     Example YAML configuration:
@@ -66,7 +74,7 @@ class RandomMultiModel(MultiModel):
     type: Literal["random"] = "random"
 
     @model_validator(mode="after")
-    def validate_models(self) -> RandomMultiModel:
+    def validate_models(self) -> Self:
         """Validate model configuration."""
         if not self.models:
             msg = "At least one model must be provided"
@@ -128,16 +136,17 @@ class RandomAgentModel(AgentModel):
 
     async def request(
         self,
-        messages: list[Message],
-    ) -> tuple[ModelAnyResponse, Any]:
+        messages: list[ModelMessage],
+        model_settings: ModelSettings | None = None,
+    ) -> tuple[ModelResponse, Cost]:
         """Make request using randomly selected model."""
         models = await self._initialize_models()
         selected = random.choice(models)
         logger.debug("Selected model: %s", selected)
-        return await selected.request(messages)
+        return await selected.request(messages, model_settings)
 
 
-class FallbackMultiModel(MultiModel):
+class FallbackMultiModel(MultiModel[TModel]):
     """Tries models in sequence until one succeeds.
 
     Example YAML configuration:
@@ -208,8 +217,9 @@ class FallbackAgentModel(AgentModel):
 
     async def request(
         self,
-        messages: list[Message],
-    ) -> tuple[ModelAnyResponse, Any]:
+        messages: list[ModelMessage],
+        model_settings: ModelSettings | None = None,
+    ) -> tuple[ModelResponse, Cost]:
         """Try each model in sequence until one succeeds."""
         models = await self._initialize_models()
         last_error = None
@@ -217,7 +227,7 @@ class FallbackAgentModel(AgentModel):
         for model in models:
             try:
                 logger.debug("Trying model: %s", model)
-                return await model.request(messages)
+                return await model.request(messages, model_settings)
             except Exception as e:  # noqa: BLE001
                 last_error = e
                 logger.debug("Model %s failed: %s", model, e)
