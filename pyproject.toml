@@ -36,7 +36,7 @@ license = { file = "LICENSE" }
 dependencies = [
     "pydantic",
     # Only add below (Copier)
-    "pydantic-ai>=0.0.12",
+    "pydantic-ai>=0.0.13",
 ]
 
 [tool.uv]
