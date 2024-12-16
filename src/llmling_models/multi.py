@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from pydantic_ai.tools import ToolDefinition
 
 logger = get_logger(__name__)
-TModel = TypeVar("TModel", default=Model)
+TModel = TypeVar("TModel", bound=Model)
 
 
 class MultiModel(PydanticModel, Generic[TModel]):
@@ -93,7 +93,7 @@ class RandomMultiModel(MultiModel[TModel]):
         result_tools: list[ToolDefinition],
     ) -> AgentModel:
         """Create agent model that randomly selects from available models."""
-        return RandomAgentModel(
+        return RandomAgentModel[TModel](
             models=self.available_models,
             function_tools=function_tools,
             allow_text_result=allow_text_result,
@@ -101,12 +101,12 @@ class RandomMultiModel(MultiModel[TModel]):
         )
 
 
-class RandomAgentModel(AgentModel):
+class RandomAgentModel[TModel: Model](AgentModel):
     """AgentModel that randomly selects from available models."""
 
     def __init__(
         self,
-        models: list[Model],
+        models: list[TModel],
         function_tools: list[ToolDefinition],
         allow_text_result: bool,
         result_tools: list[ToolDefinition],
@@ -174,7 +174,7 @@ class FallbackMultiModel(MultiModel[TModel]):
         result_tools: list[ToolDefinition],
     ) -> AgentModel:
         """Create agent model that implements fallback strategy."""
-        return FallbackAgentModel(
+        return FallbackAgentModel[TModel](
             models=self.available_models,
             function_tools=function_tools,
             allow_text_result=allow_text_result,
@@ -182,12 +182,12 @@ class FallbackMultiModel(MultiModel[TModel]):
         )
 
 
-class FallbackAgentModel(AgentModel):
+class FallbackAgentModel[TModel: Model](AgentModel):
     """AgentModel that implements fallback strategy."""
 
     def __init__(
         self,
-        models: list[Model],
+        models: list[TModel],
         function_tools: list[ToolDefinition],
         allow_text_result: bool,
         result_tools: list[ToolDefinition],
