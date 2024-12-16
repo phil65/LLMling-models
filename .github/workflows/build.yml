@@ -43,6 +43,8 @@ jobs:
 
       - name: Run tests
         run: uv run --no-group docs pytest --cov-report=xml --cov=src/llmling_models/ --cov-report=term-missing
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
       - name: Upload test results to Codecov
         uses: codecov/codecov-action@v5
