@@ -50,6 +50,7 @@ dev = [
     "devtools",
     # Only add below (Copier)
     "pytest-asyncio>=0.25.0",
+    "pyyaml>=6.0.2",
 ]
 benchmark = ["pyinstrument"]
 lint = [
