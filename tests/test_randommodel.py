@@ -17,6 +17,14 @@ if TYPE_CHECKING:
     from pydantic_ai.models import Model
 
 
+RANDOM_CFG = """
+type: random
+models:
+  - test
+  - openai:gpt-4
+"""
+
+
 @pytest.fixture
 def test_models() -> tuple[TestModel, TestModel]:
     """Create two test models with different responses."""
@@ -31,11 +39,7 @@ async def test_random_model_basic(test_models: tuple[TestModel, TestModel]) -> N
     """Test basic RandomMultiModel functionality with pydantic-ai Agent."""
     model1, model2 = test_models
     random_model: RandomMultiModel[Model] = RandomMultiModel(
-        type="random",
-        models=[
-            _TestModelWrapper(type="test", model=model1),
-            _TestModelWrapper(type="test", model=model2),
-        ],
+        models=[_TestModelWrapper(model=model1), _TestModelWrapper(model=model2)],
     )
 
     # Create a simple agent with our random model
@@ -59,11 +63,7 @@ async def test_random_model_with_tools(test_models: tuple[TestModel, TestModel])
     """Test RandomMultiModel with tool usage."""
     model1, model2 = test_models
     random_model: RandomMultiModel[Model] = RandomMultiModel(
-        type="random",
-        models=[
-            _TestModelWrapper(type="test", model=model1),
-            _TestModelWrapper(type="test", model=model2),
-        ],
+        models=[_TestModelWrapper(model=model1), _TestModelWrapper(model=model2)],
     )
 
     # Create test tool
@@ -71,10 +71,8 @@ async def test_random_model_with_tools(test_models: tuple[TestModel, TestModel])
         return f"Processed: {text}"
 
     # Create agent with tool
-    agent = Agent(
-        random_model,
-        tools=[Tool(test_tool)],
-    )
+    tool = Tool(test_tool)
+    agent = Agent(random_model, tools=[tool])
 
     # Run multiple times
     responses = set()
@@ -89,16 +87,14 @@ async def test_random_model_with_tools(test_models: tuple[TestModel, TestModel])
 def test_random_model_validation() -> None:
     """Test RandomMultiModel validation."""
     # Test empty models list
-    with pytest.raises(
-        ValidationError, match=r"List should have at least 1 item after validation, not 0"
-    ):
-        RandomMultiModel(type="random", models=[])
+    with pytest.raises(ValidationError, match=r"List should have at least 1 item"):
+        RandomMultiModel(models=[])
 
     # Test invalid model name
     from pydantic_ai.exceptions import UserError
 
     with pytest.raises(UserError, match="Unknown model: invalid_model"):
-        RandomMultiModel(type="random", models=["invalid_model"])
+        RandomMultiModel(models=["invalid_model"])
 
 
 @pytest.mark.asyncio
@@ -106,14 +102,7 @@ async def test_yaml_loading() -> None:
     """Test loading RandomMultiModel from YAML configuration."""
     import yaml
 
-    config = """
-    type: random
-    models:
-      - test
-      - openai:gpt-4
-    """
-
-    data = yaml.safe_load(config)
+    data = yaml.safe_load(RANDOM_CFG)
     model: RandomMultiModel[Model] = RandomMultiModel.model_validate(data)
 
     assert model.type == "random"

@@ -12,7 +12,7 @@ from llmling_models.base import PydanticModel
 class _TestModelWrapper(PydanticModel):
     """Wrapper for TestModel."""
 
-    type: Literal["test"] = "test"
+    type: Literal["test"] = Field(default="test", init=False)
     model: TestModel
 
     def name(self) -> str:
@@ -37,7 +37,7 @@ class _TestModelWrapper(PydanticModel):
 class StringModel(PydanticModel):
     """Wrapper for string model names."""
 
-    type: Literal["string"] = "string"
+    type: Literal["string"] = Field(default="string", init=False)
     identifier: KnownModelName  # renamed from name
 
     async def agent_model(
