@@ -11,12 +11,7 @@ from pydantic_ai.messages import (
     ModelResponse,
     UserPromptPart,
 )
-from pydantic_ai.models import (
-    AgentModel,
-    KnownModelName,
-    Model,
-    infer_model,
-)
+from pydantic_ai.models import AgentModel, KnownModelName, Model, infer_model
 from pydantic_ai.result import Cost
 
 from llmling_models.base import PydanticModel

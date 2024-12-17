@@ -5,8 +5,8 @@ from pydantic_ai.models import AgentModel, KnownModelName, Model, infer_model
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.tools import ToolDefinition
 
+from llmling_models import RandomMultiModel
 from llmling_models.base import PydanticModel
-from llmling_models.multi import RandomMultiModel
 
 
 class _TestModelWrapper(PydanticModel):

@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from pydantic import ValidationError
 from pydantic_ai import Agent, Tool
 from pydantic_ai.models.test import TestModel
 import pytest
 
-from llmling_models.multi import RandomMultiModel
+from llmling_models import RandomMultiModel
 from llmling_models.types import _TestModelWrapper
+
+
+if TYPE_CHECKING:
+    from pydantic_ai.models import Model
 
 
 @pytest.fixture
@@ -24,7 +30,7 @@ def test_models() -> tuple[TestModel, TestModel]:
 async def test_random_model_basic(test_models: tuple[TestModel, TestModel]) -> None:
     """Test basic RandomMultiModel functionality with pydantic-ai Agent."""
     model1, model2 = test_models
-    random_model = RandomMultiModel(
+    random_model: RandomMultiModel[Model] = RandomMultiModel(
         type="random",
         models=[
             _TestModelWrapper(type="test", model=model1),
@@ -52,7 +58,7 @@ async def test_random_model_basic(test_models: tuple[TestModel, TestModel]) -> N
 async def test_random_model_with_tools(test_models: tuple[TestModel, TestModel]) -> None:
     """Test RandomMultiModel with tool usage."""
     model1, model2 = test_models
-    random_model = RandomMultiModel(
+    random_model: RandomMultiModel[Model] = RandomMultiModel(
         type="random",
         models=[
             _TestModelWrapper(type="test", model=model1),
@@ -108,7 +114,7 @@ async def test_yaml_loading() -> None:
     """
 
     data = yaml.safe_load(config)
-    model = RandomMultiModel.model_validate(data)
+    model: RandomMultiModel[Model] = RandomMultiModel.model_validate(data)
 
     assert model.type == "random"
     assert len(model.models) == 2  # noqa: PLR2004
