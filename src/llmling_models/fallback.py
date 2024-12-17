@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
+from pydantic import Field
 from pydantic_ai.models import AgentModel, Model
 from typing_extensions import TypeVar
 
@@ -35,7 +36,7 @@ class FallbackMultiModel(MultiModel[TModel]):
         ```
     """
 
-    type: Literal["fallback"] = "fallback"
+    type: Literal["fallback"] = Field(default="fallback", init=False)
 
     def name(self) -> str:
         """Get descriptive model name."""

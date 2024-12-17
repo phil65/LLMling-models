@@ -5,7 +5,7 @@ from __future__ import annotations
 import random
 from typing import TYPE_CHECKING, Literal, Self
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 from pydantic_ai.models import AgentModel, Model
 from typing_extensions import TypeVar
 
@@ -36,7 +36,7 @@ class RandomMultiModel(MultiModel[TModel]):
         ```
     """
 
-    type: Literal["random"] = "random"
+    type: Literal["random"] = Field(default="random", init=False)
 
     @model_validator(mode="after")
     def validate_models(self) -> Self:
