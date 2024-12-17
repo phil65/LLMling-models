@@ -10,7 +10,7 @@ from pydantic_ai.models.test import TestModel
 import pytest
 
 from llmling_models import RandomMultiModel
-from llmling_models.types import _TestModelWrapper
+from llmling_models.model_types import _TestModelWrapper
 
 
 if TYPE_CHECKING:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
@@ -34,6 +34,8 @@ class PrePostPromptConfig(BaseModel):
         if isinstance(self.model, str):
             return infer_model(self.model)
         return self.model
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class AugmentedModel(PydanticModel):
@@ -95,7 +97,7 @@ class _AugmentedAgentModel(AgentModel):
         function_tools: list[ToolDefinition],
         allow_text_result: bool,
         result_tools: list[ToolDefinition],
-    ) -> None:
+    ):
         self.main_model = main_model
         self.pre_prompt = pre_prompt
         self.post_prompt = post_prompt
