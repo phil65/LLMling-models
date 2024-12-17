@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from pydantic_ai.tools import ToolDefinition
 
 
-class PromptConfig(BaseModel):
+class PrePostPromptConfig(BaseModel):
     """Configuration for pre/post prompts."""
 
     text: str
@@ -56,8 +56,8 @@ class AugmentedModel(PydanticModel):
 
     type: Literal["augmented"] = "augmented"
     main_model: KnownModelName | Model
-    pre_prompt: PromptConfig | None = None
-    post_prompt: PromptConfig | None = None
+    pre_prompt: PrePostPromptConfig | None = None
+    post_prompt: PrePostPromptConfig | None = None
 
     def name(self) -> str:
         """Get descriptive model name."""
@@ -74,7 +74,7 @@ class AugmentedModel(PydanticModel):
         result_tools: list[ToolDefinition],
     ) -> AgentModel:
         """Create agent model with prompt augmentation."""
-        return AugmentedAgentModel(
+        return _AugmentedAgentModel(
             main_model=infer_model(self.main_model),
             pre_prompt=self.pre_prompt,
             post_prompt=self.post_prompt,
@@ -84,14 +84,14 @@ class AugmentedModel(PydanticModel):
         )
 
 
-class AugmentedAgentModel(AgentModel):
+class _AugmentedAgentModel(AgentModel):
     """AgentModel implementation for augmented models."""
 
     def __init__(
         self,
         main_model: Model,
-        pre_prompt: PromptConfig | None,
-        post_prompt: PromptConfig | None,
+        pre_prompt: PrePostPromptConfig | None,
+        post_prompt: PrePostPromptConfig | None,
         function_tools: list[ToolDefinition],
         allow_text_result: bool,
         result_tools: list[ToolDefinition],
@@ -118,22 +118,20 @@ class AugmentedAgentModel(AgentModel):
 
             # Initialize pre/post models if needed
             if self.pre_prompt:
-                self._initialized_models[
-                    "pre"
-                ] = await self.pre_prompt.model_instance.agent_model(
+                pre_result = await self.pre_prompt.model_instance.agent_model(
                     function_tools=[],  # No tools for auxiliary prompts
                     allow_text_result=True,
                     result_tools=[],
                 )
+                self._initialized_models["pre"] = pre_result
 
             if self.post_prompt:
-                self._initialized_models[
-                    "post"
-                ] = await self.post_prompt.model_instance.agent_model(
+                post_result = await self.post_prompt.model_instance.agent_model(
                     function_tools=[],
                     allow_text_result=True,
                     result_tools=[],
                 )
+                self._initialized_models["post"] = post_result
 
         return self._initialized_models
 
@@ -161,22 +159,15 @@ class AugmentedAgentModel(AgentModel):
         # Pre-process if configured
         if self.pre_prompt:
             last_content = self._get_last_content(messages)
-            pre_request = ModelRequest(
-                parts=[
-                    UserPromptPart(
-                        content=self.pre_prompt.text.format(input=last_content)
-                    )
-                ]
-            )
-            pre_response, pre_cost = await models["pre"].request(
-                [pre_request], model_settings
-            )
+            content = self.pre_prompt.text.format(input=last_content)
+            part = UserPromptPart(content=content)
+            pre_req = ModelRequest(parts=[part])
+            pre_res, pre_cost = await models["pre"].request([pre_req], model_settings)
             total_cost += pre_cost
             # Replace last message with expanded version
-            messages = [
-                *messages[:-1],
-                ModelRequest(parts=[UserPromptPart(content=str(pre_response))]),
-            ]
+            part = UserPromptPart(content=str(pre_res))
+            request = ModelRequest(parts=[part])
+            messages = [*messages[:-1], request]
 
         # Main model processing
         response, main_cost = await models["main"].request(messages, model_settings)
@@ -184,17 +175,11 @@ class AugmentedAgentModel(AgentModel):
 
         # Post-process if configured
         if self.post_prompt:
-            post_request = ModelRequest(
-                parts=[
-                    UserPromptPart(
-                        content=self.post_prompt.text.format(output=str(response))
-                    )
-                ]
-            )
-            post_response, post_cost = await models["post"].request(
-                [post_request], model_settings
-            )
+            content = self.post_prompt.text.format(output=str(response))
+            p = UserPromptPart(content=content)
+            post_req = ModelRequest(parts=[p])
+            post_res, post_cost = await models["post"].request([post_req], model_settings)
             total_cost += post_cost
-            return post_response, total_cost
+            return post_res, total_cost
 
         return response, total_cost
