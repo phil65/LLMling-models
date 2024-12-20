@@ -41,27 +41,33 @@ class LLMAdapter(PydanticModel):
     key_env_var: str | None = None
     can_stream: bool = False
 
-    _sync_model: llm.Model | None = None
     _async_model: llm.AsyncModel | None = None
+    _sync_model: llm.Model | None = None
 
     def __init__(self, **data: Any) -> None:
         super().__init__(**data)
-        # Try to get both sync and async versions
-        try:
-            self._sync_model = llm.get_model(self.model_name)
-        except llm.UnknownModelError:
-            self._sync_model = None
 
+        # Try async first
         try:
             self._async_model = llm.get_async_model(self.model_name)
+            # If we got an async model, get its properties
+            self.needs_key = self._async_model.needs_key
+            self.key_env_var = self._async_model.key_env_var
+            self.can_stream = self._async_model.can_stream
         except llm.UnknownModelError:
-            self._async_model = None
-        # Get model properties from either version
-        model = self._async_model or self._sync_model
-        assert model
-        self.needs_key = model.needs_key
-        self.key_env_var = model.key_env_var
-        self.can_stream = model.can_stream
+            pass
+        else:
+            return
+
+        # Fall back to sync model if async not available
+        try:
+            self._sync_model = llm.get_model(self.model_name)
+            self.needs_key = self._sync_model.needs_key
+            self.key_env_var = self._sync_model.key_env_var
+            self.can_stream = self._sync_model.can_stream
+        except llm.UnknownModelError as e:
+            msg = f"No sync or async model found for {self.model_name}"
+            raise ValueError(msg) from e
 
     async def agent_model(
         self,
@@ -72,8 +78,8 @@ class LLMAdapter(PydanticModel):
     ) -> AgentModel:
         """Create an agent model - tools are ignored for now."""
         return LLMAgentModel(
-            sync_model=self._sync_model,
             async_model=self._async_model,
+            sync_model=self._sync_model,
         )
 
     def name(self) -> str:
@@ -85,8 +91,8 @@ class LLMAdapter(PydanticModel):
 class LLMAgentModel(AgentModel):
     """AgentModel implementation for LLM models."""
 
-    sync_model: llm.Model | None
     async_model: llm.AsyncModel | None
+    sync_model: llm.Model | None
 
     async def request(
         self,
@@ -99,20 +105,19 @@ class LLMAgentModel(AgentModel):
         if self.async_model:
             response = await self.async_model.prompt(prompt, system=system, stream=False)
             text = await response.text()
+            usage = await self._map_async_usage(response)
         elif self.sync_model:
             response = self.sync_model.prompt(prompt, system=system, stream=False)
             text = response.text()
+            usage = self._map_sync_usage(response)
         else:
             msg = "No model available"
             raise RuntimeError(msg)
 
-        model_response = ModelResponse(
+        return ModelResponse(
             parts=[TextPart(text)],
             timestamp=datetime.now(UTC),
-        )
-
-        usage = self._map_usage(response)
-        return model_response, usage
+        ), usage
 
     @asynccontextmanager
     async def request_stream(
@@ -125,15 +130,19 @@ class LLMAgentModel(AgentModel):
 
         if self.async_model:
             response = await self.async_model.prompt(prompt, system=system, stream=True)
-        elif self.sync_model:
+        elif self.sync_model and self.sync_model.can_stream:
             response = self.sync_model.prompt(prompt, system=system, stream=True)
         else:
-            msg = "No model available"
+            msg = (
+                "No streaming capable model available. "
+                "Either async model is missing or sync model doesn't support streaming."
+            )
             raise RuntimeError(msg)
 
         yield LLMStreamTextResponse(response)
 
-    def _build_prompt(self, messages: list[ModelMessage]) -> tuple[str, str | None]:
+    @staticmethod
+    def _build_prompt(messages: list[ModelMessage]) -> tuple[str, str | None]:
         """Build a prompt and optional system prompt from messages.
 
         Returns:
@@ -152,8 +161,21 @@ class LLMAgentModel(AgentModel):
 
         return "\n".join(prompt_parts), system
 
-    def _map_usage(self, response: llm.Response | llm.AsyncResponse) -> Usage:
-        """Map LLM usage to Pydantic-AI usage."""
+    @staticmethod
+    async def _map_async_usage(response: llm.AsyncResponse) -> Usage:
+        """Map async LLM usage to Pydantic-AI usage."""
+        await response._force()  # Ensure usage is available
+        return Usage(
+            request_tokens=response.input_tokens,
+            response_tokens=response.output_tokens,
+            total_tokens=((response.input_tokens or 0) + (response.output_tokens or 0)),
+            details=response.token_details,
+        )
+
+    @staticmethod
+    def _map_sync_usage(response: llm.Response) -> Usage:
+        """Map sync LLM usage to Pydantic-AI usage."""
+        response._force()  # Ensure usage is available
         return Usage(
             request_tokens=response.input_tokens,
             response_tokens=response.output_tokens,
