@@ -39,6 +39,9 @@ dependencies = [
     "pydantic-ai>=0.0.13",
 ]
 
+[project.optional-dependencies]
+llm = ["llm>=0.19.1"]
+
 [tool.uv]
 default-groups = ["dev", "lint", "docs"]
 
