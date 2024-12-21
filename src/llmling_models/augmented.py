@@ -221,7 +221,8 @@ class _AugmentedAgentModel(AgentModel):
             )
             total_cost += post_cost
             logger.debug(
-                "Post-processed response: %s", str(post_response.parts[0].content)
+                "Post-processed response: %s",
+                str(post_response.parts[0].content),  # type: ignore
             )
 
             # Add post-prompt messages to the chain
@@ -251,7 +252,7 @@ if __name__ == "__main__":
             main_model="openai:gpt-4o-mini",
             pre_prompt=pre,
         )
-        agent = Agent(model=augmented)
+        agent: Agent[None, str] = Agent(model=augmented)
 
         print("\nTesting Pre-Prompt Expansion Pipeline")
         print("=" * 60)

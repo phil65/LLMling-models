@@ -254,6 +254,6 @@ if __name__ == "__main__":
     from pydantic_ai import Agent
 
     model = LLMAdapter(model_name="gpt-4o-mini")
-    agent = Agent(model)
+    agent: Agent[None, str] = Agent(model)
     response = agent.run_sync("Say hello!")
     print(response)
