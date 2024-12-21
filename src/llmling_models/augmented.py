@@ -196,24 +196,22 @@ class _AugmentedAgentModel(AgentModel):
             total_cost += pre_cost
 
             # Replace original question with expanded version
-            expanded_question = str(pre_response.parts[0].content)
+            expanded_question = str(pre_response.parts[0].content)  # type: ignore
             logger.debug("Original question: %s", input_question)
             logger.debug("Expanded question: %s", expanded_question)
-            all_messages[-1] = ModelRequest(
-                parts=[UserPromptPart(content=expanded_question)]
-            )
+            expanded_part = UserPromptPart(content=expanded_question)
+            all_messages[-1] = ModelRequest(parts=[expanded_part])
 
         # Process with main model
         main_model = await self._get_agent_model("main")
         main_response, main_cost = await main_model.request(all_messages, model_settings)
-        logger.debug("Main response: %s", str(main_response.parts[0].content))
-        total_cost += main_cost
+        logger.debug("Main response: %s", str(main_response.parts[0].content))  # type: ignore
 
         # Post-process if configured
         if self.post_prompt:
             post_model = await self._get_agent_model("post")
             post_prompt = self.post_prompt.text.format(
-                output=str(main_response.parts[0].content)
+                output=str(main_response.parts[0].content)  # type: ignore
             )
 
             # Create post-processing request
@@ -264,7 +262,7 @@ if __name__ == "__main__":
         result = await agent.run(question)
 
         # Get expanded question from pre-prompt response
-        expanded = result._all_messages[0].parts[0].content
+        expanded = result._all_messages[0].parts[0].content  # type: ignore
 
         print("\nPipeline Steps:")
         print("\n1. Original Question:")

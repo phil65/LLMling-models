@@ -39,7 +39,7 @@ class MultiModel(PydanticModel, Generic[TModel]):
             if isinstance(model, str):
                 models.append(infer_model(model))  # type: ignore[arg-type]
             else:
-                models.append(model)
+                models.append(model)  # type: ignore
         self._initialized_models = models
         return self
 
