@@ -15,7 +15,10 @@ from pydantic_ai.models import AgentModel, KnownModelName, Model, infer_model
 from pydantic_ai.result import Usage
 
 from llmling_models.base import PydanticModel
+from llmling_models.log import get_logger
 
+
+logger = get_logger(__name__)
 
 if TYPE_CHECKING:
     from pydantic_ai.settings import ModelSettings
@@ -49,10 +52,10 @@ class AugmentedModel(PydanticModel):
             main_model: openai:gpt-4
             pre_prompt:
               text: "Expand this question: {input}"
-              model: openai:gpt-3.5-turbo
+              model: openai:gpt-4o-mini
             post_prompt:
               text: "Summarize your response."
-              model: openai:gpt-3.5-turbo
+              model: openai:gpt-4o-mini
         ```
     """
 
@@ -104,7 +107,28 @@ class _AugmentedAgentModel(AgentModel):
         self.function_tools = function_tools
         self.allow_text_result = allow_text_result
         self.result_tools = result_tools
-        self._initialized_models: dict[str, AgentModel] | None = None
+        self._initialized_models: dict[str, AgentModel] = {}
+
+    async def _get_agent_model(self, key: str) -> AgentModel:
+        """Get or initialize an agent model."""
+        if key not in self._initialized_models:
+            if key == "main":
+                model = self.main_model
+            elif key == "pre" and self.pre_prompt:
+                model = self.pre_prompt.model_instance
+            elif key == "post" and self.post_prompt:
+                model = self.post_prompt.model_instance
+            else:
+                msg = f"Unknown model key: {key}"
+                raise ValueError(msg)
+
+            self._initialized_models[key] = await model.agent_model(
+                function_tools=self.function_tools if key == "main" else [],
+                allow_text_result=True,
+                result_tools=self.result_tools if key == "main" else [],
+            )
+
+        return self._initialized_models[key]
 
     async def _initialize_models(self) -> dict[str, AgentModel]:
         """Initialize all required models."""
@@ -154,34 +178,105 @@ class _AugmentedAgentModel(AgentModel):
         messages: list[ModelMessage],
         model_settings: ModelSettings | None = None,
     ) -> tuple[ModelResponse, Usage]:
-        """Process request with optional pre/post prompting."""
-        models = await self._initialize_models()
+        """Process request with pre/post prompting."""
         total_cost = Usage()
+        all_messages = messages.copy()
 
-        # Pre-process if configured
+        # Pre-process the question if configured
         if self.pre_prompt:
-            last_content = self._get_last_content(messages)
-            content = self.pre_prompt.text.format(input=last_content)
-            part = UserPromptPart(content=content)
-            pre_req = ModelRequest(parts=[part])
-            pre_res, pre_cost = await models["pre"].request([pre_req], model_settings)
-            total_cost += pre_cost
-            # Replace last message with expanded version
-            part = UserPromptPart(content=str(pre_res))
-            request = ModelRequest(parts=[part])
-            messages = [*messages[:-1], request]
+            pre_model = await self._get_agent_model("pre")
+            input_question = self._get_last_content(messages)
+            pre_prompt = self.pre_prompt.text.format(input=input_question)
 
-        # Main model processing
-        response, main_cost = await models["main"].request(messages, model_settings)
+            # Get expanded question
+            pre_request = ModelRequest(parts=[UserPromptPart(content=pre_prompt)])
+            pre_response, pre_cost = await pre_model.request(
+                [pre_request], model_settings
+            )
+            total_cost += pre_cost
+
+            # Replace original question with expanded version
+            expanded_question = str(pre_response.parts[0].content)
+            logger.debug("Original question: %s", input_question)
+            logger.debug("Expanded question: %s", expanded_question)
+            all_messages[-1] = ModelRequest(
+                parts=[UserPromptPart(content=expanded_question)]
+            )
+
+        # Process with main model
+        main_model = await self._get_agent_model("main")
+        main_response, main_cost = await main_model.request(all_messages, model_settings)
+        logger.debug("Main response: %s", str(main_response.parts[0].content))
         total_cost += main_cost
 
         # Post-process if configured
         if self.post_prompt:
-            content = self.post_prompt.text.format(output=str(response))
-            p = UserPromptPart(content=content)
-            post_req = ModelRequest(parts=[p])
-            post_res, post_cost = await models["post"].request([post_req], model_settings)
-            total_cost += post_cost
-            return post_res, total_cost
+            post_model = await self._get_agent_model("post")
+            post_prompt = self.post_prompt.text.format(
+                output=str(main_response.parts[0].content)
+            )
 
-        return response, total_cost
+            # Create post-processing request
+            post_request = ModelRequest(parts=[UserPromptPart(content=post_prompt)])
+            post_response, post_cost = await post_model.request(
+                [post_request], model_settings
+            )
+            total_cost += post_cost
+            logger.debug(
+                "Post-processed response: %s", str(post_response.parts[0].content)
+            )
+
+            # Add post-prompt messages to the chain
+            all_messages.extend([main_response, post_request, post_response])
+            return post_response, total_cost
+
+        # If no post-processing, add main response to message chain
+        all_messages.append(main_response)
+        return main_response, total_cost
+
+
+if __name__ == "__main__":
+    import asyncio
+
+    from pydantic_ai import Agent
+
+    async def test():
+        pre = PrePostPromptConfig(
+            text=(
+                "Your task is to rewrite '{input}' as a more detailed "
+                "philosophical question. Do not answer it. Only return the expanded "
+                "question."
+            ),
+            model="openai:gpt-4o-mini",
+        )
+        augmented = AugmentedModel(
+            main_model="openai:gpt-4o-mini",
+            pre_prompt=pre,
+        )
+        agent = Agent(model=augmented)
+
+        print("\nTesting Pre-Prompt Expansion Pipeline")
+        print("=" * 60)
+
+        question = "What is the meaning of life?"
+        print(f"Original Question: {question}")
+
+        result = await agent.run(question)
+
+        # Get expanded question from pre-prompt response
+        expanded = result._all_messages[0].parts[0].content
+
+        print("\nPipeline Steps:")
+        print("\n1. Original Question:")
+        print("-" * 40)
+        print(question)
+
+        print("\n2. Expanded Question:")
+        print("-" * 40)
+        print(expanded)
+
+        print("\n3. Main Model Response:")
+        print("-" * 40)
+        print(result.data)
+
+    asyncio.run(test())
