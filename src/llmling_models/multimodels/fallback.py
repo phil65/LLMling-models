@@ -14,7 +14,7 @@ from llmling_models.multi import MultiModel
 
 if TYPE_CHECKING:
     from pydantic_ai.messages import ModelMessage, ModelResponse
-    from pydantic_ai.result import Cost
+    from pydantic_ai.result import Usage
     from pydantic_ai.settings import ModelSettings
     from pydantic_ai.tools import ToolDefinition
 
@@ -95,7 +95,7 @@ class FallbackAgentModel[TModel: Model](AgentModel):
         self,
         messages: list[ModelMessage],
         model_settings: ModelSettings | None = None,
-    ) -> tuple[ModelResponse, Cost]:
+    ) -> tuple[ModelResponse, Usage]:
         """Try each model in sequence until one succeeds."""
         models = await self._initialize_models()
         last_error = None

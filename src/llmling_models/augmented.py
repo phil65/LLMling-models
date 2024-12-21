@@ -12,7 +12,7 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 from pydantic_ai.models import AgentModel, KnownModelName, Model, infer_model
-from pydantic_ai.result import Cost
+from pydantic_ai.result import Usage
 
 from llmling_models.base import PydanticModel
 
@@ -153,10 +153,10 @@ class _AugmentedAgentModel(AgentModel):
         self,
         messages: list[ModelMessage],
         model_settings: ModelSettings | None = None,
-    ) -> tuple[ModelResponse, Cost]:
+    ) -> tuple[ModelResponse, Usage]:
         """Process request with optional pre/post prompting."""
         models = await self._initialize_models()
-        total_cost = Cost()
+        total_cost = Usage()
 
         # Pre-process if configured
         if self.pre_prompt:
