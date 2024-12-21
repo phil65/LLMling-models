@@ -65,6 +65,7 @@ usage = result.usage()
 print(f"Request tokens: {usage.request_tokens}")
 print(f"Response tokens: {usage.response_tokens}")
 ```
+(Examples need to be wrapped in async function and run with `asyncio.run`)
 
 ### Multi-Models
 
