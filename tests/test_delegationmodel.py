@@ -39,7 +39,7 @@ async def test_delegation_with_list() -> None:
         selection_prompt="Pick first model for complex, second for simple tasks.",
     )
 
-    agent = Agent(delegation_model)
+    agent: Agent[None, str] = Agent(delegation_model)
     result = await agent.run("A complex task")
     assert result.data == "Model 1 response"
 

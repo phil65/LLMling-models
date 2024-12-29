@@ -229,7 +229,7 @@ if __name__ == "__main__":
             selection_prompt=PROMPT,
         )
 
-        agent = Agent(delegation_model)
+        agent: Agent[None, str] = Agent(delegation_model)
         result = await agent.run("Find the highest prime number known to mankind")
         print(result.data)
 
