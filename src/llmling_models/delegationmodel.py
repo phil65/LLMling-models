@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_ai.messages import ModelRequest, ModelResponse, UserPromptPart
 from pydantic_ai.models import AgentModel, Model, infer_model
 from typing_extensions import TypeVar
@@ -46,10 +46,31 @@ class ModelDelegationModel(MultiModel[TModel]):
     selection_prompt: str = Field(
         description="Instructions for model selection based on task type"
     )
+    model_descriptions: dict[str | Model, str] | None = Field(default=None, exclude=True)
 
     def name(self) -> str:
         """Get descriptive model name."""
         return f"delegation({len(self.models)})"
+
+    @model_validator(mode="before")
+    @classmethod
+    def handle_model_dict(cls, data: dict[str, Any]) -> dict[str, Any]:
+        """Handle both list of models and dict[model, description]."""
+        if isinstance(data.get("models"), dict):
+            data["_model_descriptions"] = data["models"]
+            data["models"] = list(data["models"].keys())
+        return data
+
+    def _format_selection_text(self, base_prompt: str) -> str:
+        """Format selection text using prompt and optional model descriptions."""
+        if not self.model_descriptions:
+            return base_prompt
+
+        model_hints = "\n".join(
+            f"Pick '{model}' for: {desc}"
+            for model, desc in self.model_descriptions.items()
+        )
+        return f"{model_hints}\n\n{base_prompt}"
 
     async def agent_model(
         self,
@@ -68,7 +89,7 @@ class ModelDelegationModel(MultiModel[TModel]):
         return DelegationAgentModel[TModel](
             selector_model=selector,
             choice_models=self.available_models,
-            selection_prompt=self.selection_prompt,
+            selection_prompt=self._format_selection_text(self.selection_prompt),
             function_tools=function_tools,
             allow_text_result=allow_text_result,
             result_tools=result_tools,
@@ -190,9 +211,11 @@ class DelegationAgentModel[TModel: Model](AgentModel):
 
 if __name__ == "__main__":
     import asyncio
+    import logging
 
     from pydantic_ai import Agent
 
+    logging.basicConfig(level=logging.DEBUG)
     PROMPT = (
         "Pick 'openai:gpt-4o-mini' for complex reasoning, math, or coding tasks. "
         "Pick 'openai:gpt-3.5-turbo' for simple queries and chat."
