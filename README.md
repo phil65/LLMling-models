@@ -131,6 +131,40 @@ agent = Agent(model)
 result = await agent.run("What is AI?")
 ```
 
+#### Model Delegation
+
+Dynamically selects models based on given prompt. Uses a selector model to choose the most appropriate model for each task:
+
+```python
+from pydantic_ai import Agent
+from llmling_models import DelegationMultiModel
+
+# Basic setup with model list
+delegation_model = DelegationMultiModel(
+    selector_model="openai:gpt-4-turbo",
+    models=["openai:gpt-4", "openai:gpt-3.5-turbo"],
+    selection_prompt="Pick gpt-4 for complex tasks, gpt-3.5-turbo for simple queries."
+)
+
+# Advanced setup with model descriptions
+delegation_model = DelegationMultiModel(
+    selector_model="openai:gpt-4-turbo",
+    models=["openai:gpt-4", "anthropic:claude-2", "openai:gpt-3.5-turbo"],
+    model_descriptions={
+        "openai:gpt-4": "Complex reasoning, math problems, and coding tasks",
+        "anthropic:claude-2": "Long-form analysis and research synthesis",
+        "openai:gpt-3.5-turbo": "Simple queries, chat, and basic information"
+    },
+    selection_prompt="Select the most appropriate model for the task."
+)
+
+agent = Agent(delegation_model)
+
+# The selector model will analyze the prompt and choose the most suitable model
+result = await agent.run("Solve this complex mathematical proof...")
+```
+
+
 ## Installation
 
 ```bash

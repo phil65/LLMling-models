@@ -8,7 +8,7 @@ from pydantic_ai import Agent
 from pydantic_ai.models.test import TestModel
 import pytest
 
-from llmling_models.delegationmodel import ModelDelegationModel
+from llmling_models.multimodels import DelegationMultiModel
 
 
 class ComplexTestModel(TestModel):
@@ -33,7 +33,7 @@ async def test_delegation_with_list() -> None:
         TestModel(custom_result_text="Model 2 response"),
     ]
 
-    delegation_model: ModelDelegationModel[Any] = ModelDelegationModel(
+    delegation_model: DelegationMultiModel[Any] = DelegationMultiModel(
         selector_model=TestModel(custom_result_text=test_models[0].name()),
         models=test_models,  # type: ignore
         selection_prompt="Pick first model for complex, second for simple tasks.",
@@ -59,7 +59,7 @@ async def test_delegation_with_descriptions() -> None:
     # Selector that will pick the complex model
     selector = TestModel(custom_result_text="complex-test-model")
 
-    delegation_model: ModelDelegationModel[Any] = ModelDelegationModel(
+    delegation_model: DelegationMultiModel[Any] = DelegationMultiModel(
         selector_model=selector,
         models=[complex_model, simple_model],
         model_descriptions=test_models,  # type: ignore
@@ -82,7 +82,7 @@ async def test_delegation_invalid_selection() -> None:
     # Create selector that returns invalid model name
     selector = TestModel(custom_result_text="invalid_model")
 
-    delegation_model: ModelDelegationModel[Any] = ModelDelegationModel(
+    delegation_model: DelegationMultiModel[Any] = DelegationMultiModel(
         selector_model=selector,
         models=test_models,  # type: ignore
         selection_prompt="Pick a model.",

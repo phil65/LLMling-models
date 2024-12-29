@@ -25,7 +25,7 @@ logger = get_logger(__name__)
 TModel = TypeVar("TModel", bound=Model)
 
 
-class ModelDelegationModel(MultiModel[TModel]):
+class DelegationMultiModel(MultiModel[TModel]):
     """Meta-model that dynamically selects models based on a user prompt.
 
     Example YAML configuration:
@@ -223,7 +223,7 @@ if __name__ == "__main__":
 
     async def test():
         # Create delegation model
-        delegation_model: ModelDelegationModel[Any] = ModelDelegationModel(
+        delegation_model: DelegationMultiModel[Any] = DelegationMultiModel(
             selector_model="openai:gpt-4o-mini",
             models=["openai:gpt-4o-mini", "openai:gpt-3.5-turbo"],
             selection_prompt=PROMPT,
