@@ -33,13 +33,13 @@ async def test_delegation_with_list() -> None:
         TestModel(custom_result_text="Model 2 response"),
     ]
 
-    delegation_model: DelegationMultiModel[Any] = DelegationMultiModel(
+    delegation_model = DelegationMultiModel[Any](
         selector_model=TestModel(custom_result_text=test_models[0].name()),
         models=test_models,  # type: ignore
         selection_prompt="Pick first model for complex, second for simple tasks.",
     )
 
-    agent: Agent[None, str] = Agent(delegation_model)
+    agent = Agent[None, str](delegation_model)
     result = await agent.run("A complex task")
     assert result.data == "Model 1 response"
 
@@ -59,14 +59,14 @@ async def test_delegation_with_descriptions() -> None:
     # Selector that will pick the complex model
     selector = TestModel(custom_result_text="complex-test-model")
 
-    delegation_model: DelegationMultiModel[Any] = DelegationMultiModel(
+    delegation_model = DelegationMultiModel[Any](
         selector_model=selector,
         models=[complex_model, simple_model],
         model_descriptions=test_models,  # type: ignore
         selection_prompt="Select appropriate model.",
     )
 
-    agent = Agent(delegation_model)
+    agent = Agent[None, str](delegation_model)
     result = await agent.run("A complex calculation")
     assert result.data == "Complex response"
 
@@ -82,7 +82,7 @@ async def test_delegation_invalid_selection() -> None:
     # Create selector that returns invalid model name
     selector = TestModel(custom_result_text="invalid_model")
 
-    delegation_model: DelegationMultiModel[Any] = DelegationMultiModel(
+    delegation_model = DelegationMultiModel[Any](
         selector_model=selector,
         models=test_models,  # type: ignore
         selection_prompt="Pick a model.",
