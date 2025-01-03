@@ -64,7 +64,7 @@ def estimate_tokens(messages: list[ModelMessage]) -> int:
     if importlib.util.find_spec("transformers"):
         from transformers import AutoTokenizer
 
-        tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-v0.1")
+        tokenizer = AutoTokenizer.from_pretrained("facebook/opt-125m")
         return len(tokenizer.encode(content))
 
     # Fallback to simple character-based estimation
