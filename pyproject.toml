@@ -37,11 +37,14 @@ dependencies = [
     "pydantic",
     # Only add below (Copier)
     "pydantic-ai>=0.0.13",
+    "tokonomics>=0.2.1",
 ]
 
 [project.optional-dependencies]
 llm = ["llm>=0.19.1"]
 aisuite = ["aisuite"]
+tokenizers = ["tokenizers"]
+transformers = ["transformers"]
 
 [tool.uv]
 default-groups = ["dev", "lint", "docs"]
