@@ -5,7 +5,12 @@ from pydantic_ai.models import AgentModel, KnownModelName, Model, infer_model
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.tools import ToolDefinition
 
-from llmling_models import RandomMultiModel
+from llmling_models import (
+    CostOptimizedMultiModel,
+    DelegationMultiModel,
+    FallbackMultiModel,
+    TokenOptimizedMultiModel,
+)
 from llmling_models.base import PydanticModel
 
 
@@ -64,5 +69,11 @@ type ModelInput = str | KnownModelName | Model | PydanticModel
 """Type for internal model handling (after validation)."""
 
 AnyModel = Annotated[
-    StringModel | RandomMultiModel | _TestModelWrapper, Field(discriminator="type")
+    StringModel
+    | DelegationMultiModel
+    | CostOptimizedMultiModel
+    | TokenOptimizedMultiModel
+    | FallbackMultiModel
+    | _TestModelWrapper,
+    Field(discriminator="type"),
 ]

@@ -57,6 +57,8 @@ async def test_usage_tracking() -> None:
     result = await agent.run("Test prompt")
     usage = result.usage()
     assert usage
+    assert usage.request_tokens
+    assert usage.response_tokens
     assert usage.request_tokens > 5  # noqa: PLR2004
     assert usage.response_tokens > 5  # noqa: PLR2004
 

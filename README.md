@@ -28,16 +28,14 @@
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![PyUp](https://pyup.io/repos/github/phil65/llmling-models/shield.svg)](https://pyup.io/repos/github/phil65/llmling-models/)
 
-[Read the documentation!](https://phil65.github.io/llmling-models/)
-
 # llmling-models
 
-Collection of model wrappers and adapters for use with Pydantic-AI.
+Collection of model wrappers and adapters for use with [LLMling-Agent](https://github.com/phil65/llmling-agent), but should work with the underlying pydantic-ai API without issues.
 
 **WARNING**:
 
-This is just a quick first shot for now and will likely change in the future.
-Also, pydantic-ais APIs dont seem stable yet, so things might not work across all pydantic-ai version.
+This is just a prototype for now and will likely change in the future.
+Also, pydantic-ais APIs dont seem stable yet, so things might not work across all pydantic-ai versions.
 I will try to keep this up to date as fast as possible.
 
 ## Available Models
@@ -52,13 +50,13 @@ from llmling_models.llm_adapter import LLMAdapter
 
 # Basic usage
 adapter = LLMAdapter(model_name="gpt-4o-mini")
-agent = Agent(adapter)
+agent = Agent(model=adapter)
 result = await agent.run("Write a short poem")
 
 # Streaming support
 async with agent.run_stream("Test prompt") as response:
-    async for chunk in response.stream_text():
-        print(chunk, end="")
+    async for chunk in response.stream():
+        print(chunk)
 
 # Usage statistics
 result = await agent.run("Test prompt")
@@ -77,22 +75,10 @@ from pydantic_ai import Agent
 from llmling_models.aisuite_adapter import AISuiteAdapter
 
 # Basic usage
-adapter = AISuiteAdapter(
-    model="anthropic:claude-3-opus-20240229",
-    config={
-        "anthropic": {
-            "api_key": "your-api-key"
-        }
-    }
-)
+adapter = AISuiteAdapter(model="model_name")
 agent = Agent(adapter)
 result = await agent.run("Write a story")
-
-# Supports model settings
-result = await agent.run(
-    "Write a creative story",
-    model_settings={"temperature": 0.9, "max_tokens": 1000}
-)
+```
 
 ### Multi-Models
 
@@ -112,24 +98,6 @@ fallback_model = FallbackMultiModel(
 )
 agent = Agent(fallback_model)
 result = await agent.run("Complex question")
-```
-
-#### Random Model
-
-Randomly selects from a pool of models for each request. Useful for load balancing or A/B testing:
-
-```python
-from pydantic_ai import Agent
-from llmling_models import RandomMultiModel
-
-# Create random model with multiple options
-random_model = RandomMultiModel(
-    models=["openai:gpt-4", "openai:gpt-3.5-turbo"]
-)
-agent = Agent(random_model)
-
-# Each call will randomly use one of the models
-result = await agent.run("What is AI?")
 ```
 
 
