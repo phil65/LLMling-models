@@ -23,10 +23,6 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 TModel = TypeVar("TModel", bound=Model)
 
-STRATEGY_DESCRIPTION = """\
-"'efficient' uses smallest sufficient model, 'maximum_context' uses largest available"
-"""
-
 
 class TokenOptimizedMultiModel[TModel: Model](MultiModel[TModel]):
     """Multi-model that selects based on input token count.
@@ -44,10 +40,9 @@ class TokenOptimizedMultiModel[TModel: Model](MultiModel[TModel]):
     """
 
     type: Literal["token-optimized"] = Field(default="token-optimized", init=False)
-    strategy: Literal["efficient", "maximum_context"] = Field(
-        default="efficient",
-        description=STRATEGY_DESCRIPTION,
-    )
+
+    strategy: Literal["efficient", "maximum_context"] = Field(default="efficient")
+    """Model selection strategy."""
 
     def name(self) -> str:
         """Get descriptive model name."""

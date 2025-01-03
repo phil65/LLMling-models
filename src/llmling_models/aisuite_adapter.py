@@ -44,11 +44,12 @@ class AISuiteAdapter(PydanticModel):
     """
 
     type: Literal["aisuite"] = Field(default="aisuite", init=False)
-    model: str = Field(description="Model identifier in provider:model format")
-    config: dict[str, dict[str, Any]] = Field(
-        default_factory=dict,
-        description="Provider configurations",
-    )
+
+    model: str
+    """Model identifier in provider:model format"""
+
+    config: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    """"Provider configurations."""
 
     _client: aisuite.Client | None = None
 

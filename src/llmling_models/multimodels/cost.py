@@ -34,14 +34,12 @@ class CostOptimizedMultiModel[TModel: Model](MultiModel[TModel]):
     """Multi-model that selects based on cost and token limits."""
 
     type: Literal["cost-optimized"] = Field(default="cost-optimized", init=False)
-    max_input_cost: float = Field(
-        description="Maximum allowed cost in USD per request",
-        gt=0,
-    )
-    strategy: Literal["cheapest_possible", "best_within_budget"] = Field(
-        default="best_within_budget",
-        description="Strategy for model selection",
-    )
+
+    max_input_cost: float = Field(gt=0)
+    """Maximum allowed cost in USD per request"""
+
+    strategy: Literal["cheapest_possible", "best_within_budget"] = "best_within_budget"
+    """Strategy for model selection."""
 
     def name(self) -> str:
         """Get descriptive model name."""

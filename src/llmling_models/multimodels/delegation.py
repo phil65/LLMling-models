@@ -42,10 +42,13 @@ class DelegationMultiModel(MultiModel[TModel]):
     """
 
     type: Literal["delegation"] = Field(default="delegation", init=False)
+
     selector_model: str | Model
-    selection_prompt: str = Field(
-        description="Instructions for model selection based on task type"
-    )
+    """Model to use for delegation."""
+
+    selection_prompt: str
+    """Instructions for model selection based on task type."""
+
     model_descriptions: dict[str | Model, str] | None = Field(default=None, exclude=True)
 
     def name(self) -> str:
