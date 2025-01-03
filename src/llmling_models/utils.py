@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 import importlib.util
+import logging
 from typing import TYPE_CHECKING
 
 from pydantic_ai.messages import (
@@ -14,6 +15,8 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from tokonomics import ModelCosts, TokenLimits
@@ -69,14 +72,29 @@ def estimate_tokens(messages: list[ModelMessage]) -> int:
 
 
 def estimate_request_cost(
-    costs: ModelCosts,
+    costs: dict[str, str] | ModelCosts,
     token_count: int,
 ) -> Decimal:
-    """Estimate total cost for a request.
+    """Estimate input cost for a request.
 
-    Assumes similar input/output token counts.
+    Args:
+        costs: Cost information (dict or ModelCosts object)
+        token_count: Number of tokens in the request
+
+    Returns:
+        Decimal: Estimated input cost in USD
     """
-    return (
-        Decimal(str(costs["input_cost_per_token"])) * token_count
-        + Decimal(str(costs["output_cost_per_token"])) * token_count
+    # Extract input cost per token
+    if isinstance(costs, dict):
+        input_cost = Decimal(costs["input_cost_per_token"])
+    else:
+        input_cost = Decimal(str(costs.input_cost_per_token))
+
+    estimated_cost = input_cost * token_count
+    logger.debug(
+        "Estimated cost: %s * %d tokens = %s",
+        input_cost,
+        token_count,
+        estimated_cost,
     )
+    return estimated_cost

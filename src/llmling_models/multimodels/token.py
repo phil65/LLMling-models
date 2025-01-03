@@ -62,7 +62,7 @@ class TokenOptimizedMultiModel[TModel: Model](MultiModel[TModel]):
     ) -> AgentModel:
         """Create agent model that implements token-based selection."""
         return TokenOptimizedAgentModel[TModel](
-            models=list(reversed(self.available_models)),
+            models=self.available_models,
             strategy=self.strategy,
             function_tools=function_tools,
             allow_text_result=allow_text_result,
@@ -96,12 +96,21 @@ class TokenOptimizedAgentModel[TModel: Model](AgentModel):
         self,
         messages: list[ModelMessage],
     ) -> AgentModel:
-        """Select appropriate model based on token count."""
+        """Select appropriate model based on token counts."""
         token_estimate = estimate_tokens(messages)
         logger.debug("Estimated token count: %d", token_estimate)
 
+        # Define model capabilities order (smaller number = less capable)
+        model_capabilities = {
+            "gpt-3.5-turbo": 1,  # Base model
+            "gpt-3.5-turbo-16k": 2,  # Same but larger context
+            "gpt-4-turbo": 3,  # More capable and largest context
+        }
+
         # Get available models that can handle the token count
-        model_options: list[tuple[AgentModel, int]] = []
+        model_options: list[
+            tuple[AgentModel, int, int]
+        ] = []  # (model, capability, limit)
         for model in self.models:
             model_name = model.name()
             if model_name not in self._initialized_models:
@@ -118,14 +127,17 @@ class TokenOptimizedAgentModel[TModel: Model](AgentModel):
                 continue
 
             if token_estimate <= limits.input_tokens:
+                capability = model_capabilities.get(model_name, 0)
                 model_estimates = (
                     self._initialized_models[model_name],
+                    capability,
                     limits.input_tokens,
                 )
                 model_options.append(model_estimates)
                 logger.debug(
-                    "Model %s can handle %d tokens (limit: %d)",
+                    "Model %s (capability %d) can handle %d tokens (limit: %d)",
                     model_name,
+                    capability,
                     token_estimate,
                     limits.input_tokens,
                 )
@@ -134,19 +146,20 @@ class TokenOptimizedAgentModel[TModel: Model](AgentModel):
             msg = f"No suitable model found for {token_estimate} tokens"
             raise RuntimeError(msg)
 
-        # Sort by context window size
-        model_options.sort(key=lambda x: x[1])
+        # Sort first by capability, then by limit
+        model_options.sort(key=lambda x: (x[1], x[2]))
 
         if self.strategy == "efficient":
-            # Use model with smallest sufficient context window
-            selected, limit = model_options[0]
+            # Use least capable model that can handle the input
+            selected, capability, limit = model_options[0]
         else:  # maximum_context
-            # Use model with largest context window
-            selected, limit = model_options[-1]
+            # Use most capable model available
+            selected, capability, limit = model_options[-1]
 
         logger.info(
-            "Selected %s with %d token limit",
+            "Selected %s (capability %d) with %d token limit",
             selected.__class__.__name__,
+            capability,
             limit,
         )
         return selected
