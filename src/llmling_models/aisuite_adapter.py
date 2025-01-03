@@ -69,10 +69,7 @@ class AISuiteAdapter(PydanticModel):
     ) -> AgentModel:
         """Create an agent model."""
         assert self._client
-        return AISuiteAgentModel(
-            client=self._client,
-            model=self.model,
-        )
+        return AISuiteAgentModel(client=self._client, model=self.model)
 
 
 @dataclass

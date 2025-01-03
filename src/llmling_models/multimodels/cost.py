@@ -161,12 +161,8 @@ class CostOptimizedAgentModel[TModel: Model](AgentModel):
             selected, cost = model_options[0]
         else:  # best_within_budget
             selected, cost = model_options[-1]
-
-        logger.info(
-            "Selected %s with estimated cost $%s",
-            selected.__class__.__name__,
-            cost,
-        )
+        msg = "Selected %s with estimated cost $%s"
+        logger.info(msg, selected.__class__.__name__, cost)
         return selected
 
     async def request(

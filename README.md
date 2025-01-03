@@ -88,21 +88,10 @@ adapter = AISuiteAdapter(
 agent = Agent(adapter)
 result = await agent.run("Write a story")
 
-# Or configure via YAML:
-"""
-models:
-  my-claude:
-    type: aisuite
-    model: anthropic:claude-3-opus-20240229
-    config:
-      anthropic:
-        api_key: your-api-key-here
-"""
-
 # Supports model settings
 result = await agent.run(
     "Write a creative story",
-    settings={"temperature": 0.9, "max_tokens": 1000}
+    model_settings={"temperature": 0.9, "max_tokens": 1000}
 )
 
 ### Multi-Models
