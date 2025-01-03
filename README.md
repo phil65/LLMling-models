@@ -243,6 +243,8 @@ pip install llmling-models
 - Python 3.12+
 - pydantic-ai
 - llm (optional, for LLM adapter)
+- aisuite (optional, for aisuite adapter)
+- Either tokenizers or transformers for improved token calculation
 
 ## License
 
