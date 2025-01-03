@@ -232,6 +232,8 @@ result = await agent.run("Very long document..." * 1000)
 
 The cost-optimized model ensures you stay within budget while getting the best possible model for your needs, while the token-optimized model automatically handles varying input lengths by selecting models with appropriate context windows.
 
+All multi models are generically typed to follow pydantic best practices. Usefulness for that is debatable though. :P
+
 ## Installation
 
 ```bash
