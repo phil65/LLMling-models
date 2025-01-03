@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Generic
+from typing import TYPE_CHECKING
 
 from pydantic import Field, model_validator
 from pydantic_ai.models import Model, infer_model
@@ -12,11 +12,15 @@ from llmling_models.base import PydanticModel
 from llmling_models.log import get_logger
 
 
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+
 logger = get_logger(__name__)
 TModel = TypeVar("TModel", bound=Model)
 
 
-class MultiModel(PydanticModel, Generic[TModel]):
+class MultiModel[TModel](PydanticModel):
     """Base for model configurations that combine multiple language models.
 
     This provides the base interface for YAML-configurable multi-model setups,
@@ -44,7 +48,7 @@ class MultiModel(PydanticModel, Generic[TModel]):
         return self
 
     @property
-    def available_models(self) -> list[TModel]:
+    def available_models(self) -> Sequence[TModel]:
         """Get initialized model instances."""
         if self._initialized_models is None:
             msg = "Models not initialized"

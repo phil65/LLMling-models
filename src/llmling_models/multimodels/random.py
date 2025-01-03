@@ -14,6 +14,8 @@ from llmling_models.multi import MultiModel
 
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from pydantic_ai.messages import ModelMessage, ModelResponse
     from pydantic_ai.result import Usage
     from pydantic_ai.settings import ModelSettings
@@ -71,7 +73,7 @@ class RandomAgentModel[TModel: Model](AgentModel):
 
     def __init__(
         self,
-        models: list[TModel],
+        models: Sequence[TModel],
         function_tools: list[ToolDefinition],
         allow_text_result: bool,
         result_tools: list[ToolDefinition],

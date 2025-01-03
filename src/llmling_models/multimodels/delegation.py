@@ -102,7 +102,7 @@ class DelegationAgentModel[TModel: Model](AgentModel):
     def __init__(
         self,
         selector_model: Model,
-        choice_models: list[TModel],
+        choice_models: Sequence[TModel],
         selection_prompt: str,
         function_tools: list[ToolDefinition],
         allow_text_result: bool,

@@ -13,6 +13,8 @@ from llmling_models.multi import MultiModel
 
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from pydantic_ai.messages import ModelMessage, ModelResponse
     from pydantic_ai.result import Usage
     from pydantic_ai.settings import ModelSettings
@@ -63,7 +65,7 @@ class FallbackAgentModel[TModel: Model](AgentModel):
 
     def __init__(
         self,
-        models: list[TModel],
+        models: Sequence[TModel],
         function_tools: list[ToolDefinition],
         allow_text_result: bool,
         result_tools: list[ToolDefinition],
@@ -76,9 +78,9 @@ class FallbackAgentModel[TModel: Model](AgentModel):
         self.function_tools = function_tools
         self.allow_text_result = allow_text_result
         self.result_tools = result_tools
-        self._initialized_models: list[AgentModel] | None = None
+        self._initialized_models: Sequence[AgentModel] | None = None
 
-    async def _initialize_models(self) -> list[AgentModel]:
+    async def _initialize_models(self) -> Sequence[AgentModel]:
         """Initialize all agent models."""
         if self._initialized_models is None:
             self._initialized_models = []
