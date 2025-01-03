@@ -68,6 +68,43 @@ print(f"Response tokens: {usage.response_tokens}")
 ```
 (Examples need to be wrapped in async function and run with `asyncio.run`)
 
+### AISuite Adapter
+
+Adapter to use models from [AISuite](https://github.com/andrewyng/aisuite) with Pydantic-AI:
+
+```python
+from pydantic_ai import Agent
+from llmling_models.aisuite_adapter import AISuiteAdapter
+
+# Basic usage
+adapter = AISuiteAdapter(
+    model="anthropic:claude-3-opus-20240229",
+    config={
+        "anthropic": {
+            "api_key": "your-api-key"
+        }
+    }
+)
+agent = Agent(adapter)
+result = await agent.run("Write a story")
+
+# Or configure via YAML:
+"""
+models:
+  my-claude:
+    type: aisuite
+    model: anthropic:claude-3-opus-20240229
+    config:
+      anthropic:
+        api_key: your-api-key-here
+"""
+
+# Supports model settings
+result = await agent.run(
+    "Write a creative story",
+    settings={"temperature": 0.9, "max_tokens": 1000}
+)
+
 ### Multi-Models
 
 #### Fallback Model
