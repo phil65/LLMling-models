@@ -111,9 +111,9 @@ class AISuiteAgentModel(AgentModel):
         kwargs = {}
         if model_settings:
             if hasattr(model_settings, "temperature"):
-                kwargs["temperature"] = model_settings.temperature  # pyright: ignore
+                kwargs["temperature"] = model_settings.temperature  # type: ignore
             if hasattr(model_settings, "max_tokens"):
-                kwargs["max_tokens"] = model_settings.max_tokens  # pyright: ignore
+                kwargs["max_tokens"] = model_settings.max_tokens  # type: ignore
 
         # Make request to AISuite
         response = self.client.chat.completions.create(
