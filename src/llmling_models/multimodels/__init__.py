@@ -7,10 +7,12 @@ from llmling_models.multimodels.random import RandomMultiModel
 from llmling_models.multimodels.fallback import FallbackMultiModel
 from llmling_models.multimodels.delegation import DelegationMultiModel
 from llmling_models.multimodels.cost import CostOptimizedMultiModel
+from llmling_models.multimodels.token import TokenOptimizedMultiModel
 
 __all__ = [
     "CostOptimizedMultiModel",
     "DelegationMultiModel",
     "FallbackMultiModel",
     "RandomMultiModel",
+    "TokenOptimizedMultiModel",
 ]
