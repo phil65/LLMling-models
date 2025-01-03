@@ -41,6 +41,7 @@ dependencies = [
 
 [project.optional-dependencies]
 llm = ["llm>=0.19.1"]
+aisuite = ["aisuite"]
 
 [tool.uv]
 default-groups = ["dev", "lint", "docs"]
