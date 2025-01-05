@@ -5,24 +5,31 @@ from __future__ import annotations
 import sys
 from typing import TYPE_CHECKING, Annotated, Protocol, runtime_checkable
 
-from pydantic import BaseModel, Field, ImportString
-from pydantic_ai.messages import ModelMessage, SystemPromptPart, TextPart, UserPromptPart
+from pydantic import ImportString
+from pydantic_ai.messages import (
+    ModelMessage,
+    SystemPromptPart,
+    TextPart,
+    UserPromptPart,
+)
 
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
+    from collections.abc import AsyncIterator, Awaitable
 
 
 @runtime_checkable
 class InputHandler(Protocol):
     """Protocol for input handlers."""
 
-    def get_input(self, prompt: str) -> str:
-        """Get single input response."""
+    def get_input(self, prompt: str) -> str | Awaitable[str]:
+        """Get single input response. Can be sync or async."""
         ...
 
-    def stream_input(self, prompt: str) -> AsyncIterator[str]:
-        """Stream input character by character."""
+    def stream_input(
+        self, prompt: str
+    ) -> AsyncIterator[str] | Awaitable[AsyncIterator[str]]:
+        """Stream input character by character. Can be sync or async."""
         ...
 
     def format_messages(
@@ -43,11 +50,8 @@ class DefaultInputHandler:
         """Get input using basic console input."""
         return input(prompt).strip()
 
-    def stream_input(self, prompt: str) -> AsyncIterator[str]:
-        """Simulate streaming input using standard input.
-
-        Yields each character as it's typed. Empty line ends input.
-        """
+    async def stream_input(self, prompt: str) -> AsyncIterator[str]:
+        """Simulate streaming input using standard input."""
         print(prompt, end="", flush=True)
 
         async def char_iterator():
@@ -85,26 +89,3 @@ class DefaultInputHandler:
 
 
 HandlerType = Annotated[type[InputHandler], ImportString]
-
-
-class InputConfig(BaseModel):
-    """Configuration for input handling."""
-
-    prompt: str = Field(
-        default="Your response: ",
-        description="Prompt to show when requesting input",
-    )
-    handler: HandlerType = Field(
-        default=DefaultInputHandler,
-        description="Input handler class to use",
-    )
-
-    def get_handler(self) -> InputHandler:
-        """Get configured input handler."""
-        return self.handler()
-
-
-if __name__ == "__main__":
-    cfg = InputConfig(prompt="Your response: ")
-    handler = cfg.get_handler()
-    print(handler.get_input("What is your favorite color?"))

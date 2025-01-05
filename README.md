@@ -138,7 +138,7 @@ from llmling_models import InputModel
 model = InputModel(
     prompt_template="🤖 Question: {prompt}",
     show_system=True,
-    input=InputConfig(prompt="Your answer: ")
+    input_prompt="Your answer: ",
 )
 
 # Create agent with system context
@@ -165,15 +165,14 @@ models:
     type: input
     prompt_template: "🤖 Please respond to: {prompt}"
     show_system: true
-    input:
-      prompt: "Your response: "
-      # Optional custom handler:
-      # handler: my_package.inputs:MyCustomHandler
+    input_prompt: "Your response: "
+    # Optional custom handler:
+    handler: my_package.inputs:MyCustomHandler
 ```
 
 Features:
 - Interactive console input for testing and debugging
-- Support for streaming input (character by character) (not "true" async)
+- Support for streaming input (character by character, but not "true" async with default handler)
 - Configurable message formatting
 - Custom input handlers for different input sources
 - System message display control
