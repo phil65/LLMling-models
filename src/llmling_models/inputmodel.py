@@ -92,10 +92,11 @@ class InputModel(PydanticModel):
         result_tools: list[ToolDefinition],
     ) -> AgentModel:
         """Create agent model implementation."""
+        handler = self.handler() if isinstance(self.handler, type) else self.handler
         return InputAgentModel(
             prompt_template=self.prompt_template,
             show_system=self.show_system,
-            input_handler=self.handler(),
+            input_handler=handler,
             input_prompt=self.input_prompt,
         )
 
