@@ -9,9 +9,11 @@ from llmling_models import (
     CostOptimizedMultiModel,
     DelegationMultiModel,
     FallbackMultiModel,
+    ImportModel,
+    InputModel,
+    PydanticModel,
     TokenOptimizedMultiModel,
 )
-from llmling_models.base import PydanticModel
 
 
 class _TestModelWrapper(PydanticModel):
@@ -74,6 +76,8 @@ AnyModel = Annotated[
     | CostOptimizedMultiModel
     | TokenOptimizedMultiModel
     | FallbackMultiModel
+    | InputModel
+    | ImportModel
     | _TestModelWrapper,
     Field(discriminator="type"),
 ]
