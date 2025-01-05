@@ -126,6 +126,67 @@ agent = Agent(model)
 result = await agent.run("What is AI?")
 ```
 
+### Input Model
+
+A model that delegates responses to human input, useful for testing, debugging, or creating hybrid human-AI workflows:
+
+```python
+from pydantic_ai import Agent
+from llmling_models import InputModel
+
+# Basic usage with default console input
+model = InputModel(
+    prompt_template="🤖 Question: {prompt}",
+    show_system=True,
+    input=InputConfig(prompt="Your answer: ")
+)
+
+# Create agent with system context
+agent = Agent(
+    model=model,
+    system_prompt="You are helping test an input model. Be concise.",
+)
+
+# Run interactive conversation
+result = await agent.run("What's your favorite color?")
+print(f"You responded: {result.data}")
+
+# Supports streaming input
+async with agent.run_stream("Tell me a story...") as response:
+    async for chunk in response.stream():
+        print(chunk, end="", flush=True)
+```
+
+The InputModel can be configured via YAML:
+
+```yaml
+models:
+  input:
+    type: input
+    prompt_template: "🤖 Please respond to: {prompt}"
+    show_system: true
+    input:
+      prompt: "Your response: "
+      # Optional custom handler:
+      # handler: my_package.inputs:MyCustomHandler
+```
+
+Features:
+- Interactive console input for testing and debugging
+- Support for streaming input (character by character) (not "true" async)
+- Configurable message formatting
+- Custom input handlers for different input sources
+- System message display control
+- Full conversation context support
+
+This model is particularly useful for:
+- Testing complex prompt chains
+- Creating hybrid human-AI workflows
+- Debugging agent behavior
+- Collecting human feedback
+- Educational scenarios where human input is needed
+
+
 #### Model Delegation
 
 Dynamically selects models based on given prompt. Uses a selector model to choose the most appropriate model for each task:
