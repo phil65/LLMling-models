@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal
+from typing import Any, Literal
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect, status
+from fastapi.security import HTTPBearer
 from pydantic import BaseModel
 
 from llmling_models.log import get_logger
@@ -73,29 +73,43 @@ class ModelServer:
     def _setup_routes(self):
         """Configure API routes."""
 
-        @self.app.post(
-            "/v1/chat/completions",
-            response_model=CompletionResponse,
-        )
+        @self.app.post("/v1/chat/completions", response_model=CompletionResponse)
         async def create_completion(
-            request: CompletionRequest,
-            auth: Annotated[HTTPAuthorizationCredentials, security],
+            request: CompletionRequest,  # Changed from Annotated
+            auth: str = Header(..., alias="Authorization"),
         ) -> CompletionResponse:
             """Handle completion requests via REST."""
             try:
+                # Validate auth token
+                if not auth.startswith("Bearer "):
+                    raise HTTPException(  # noqa: TRY301
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Invalid authentication credentials",
+                    )
+
+                # Log received request for debugging
+                logger.debug("Received request: %s", request.model_dump_json())
+
                 # Display conversation and prompt to operator
                 print("\n" + "=" * 80)
-                print(format_conversation(request.prompt, request.conversation))
+                print("New request received:")
+                print(f"Prompt: {request.prompt}")
+                if request.conversation:
+                    print("\nConversation history:")
+                    for msg in request.conversation:
+                        prefix = "👤" if msg.role == "user" else "🤖"
+                        print(f"{prefix} {msg.content}")
+                print("-" * 80)
+                response_text = input("Your response: ").strip()
 
-                # Get operator's response
-                response = input().strip()
-
-                return CompletionResponse(content=response)
+                return CompletionResponse(content=response_text)
 
             except Exception as e:
                 logger.exception("Error processing completion request")
-                code = status.HTTP_500_INTERNAL_SERVER_ERROR
-                raise HTTPException(code, detail=str(e)) from e
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=str(e),
+                ) from e
 
         @self.app.websocket("/v1/chat/stream")
         async def websocket_endpoint(websocket: WebSocket):
@@ -141,7 +155,11 @@ class ModelServer:
 if __name__ == "__main__":
     import logging
 
-    logging.basicConfig(level=logging.INFO)
+    # Set up logging
+    logging.basicConfig(
+        level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+
     server = ModelServer(
         title="Remote Input Server",
         description="Server that delegates to human operator",

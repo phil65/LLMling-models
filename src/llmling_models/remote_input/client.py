@@ -114,16 +114,43 @@ class RestRemoteAgent(AgentModel):
                         prompt += str(part.content)  # pyright: ignore
 
             # Extract conversation history
-            conversation = extract_conversation(messages[:-1])
-            data = {"prompt": prompt, "conversation": conversation}
+            conversation = []
+            if len(messages) > 1:  # Only if there's history
+                for message in messages[:-1]:  # Exclude the current prompt
+                    for part in message.parts:
+                        if hasattr(part, "content"):
+                            role = (
+                                "assistant"
+                                if isinstance(message, ModelResponse)
+                                else "user"
+                            )
+                            conversation.append({
+                                "role": role,
+                                "content": str(part.content),  # pyright: ignore
+                            })
+
+            # Log request data for debugging
+            request_data = {"prompt": prompt, "conversation": conversation}
+            logger.debug("Sending request data: %s", request_data)
+
             # Make request
-            response = await self.client.post("/completions", json=data)
+            response = await self.client.post(
+                "/v1/chat/completions",
+                json=request_data,
+                timeout=30.0,  # Add timeout
+            )
             response.raise_for_status()
-            data = response.json()
-            part = TextPart(data["content"])
-            return (ModelResponse(parts=[part]), Usage())  # No usage for human input
+
+            response_data = response.json()
+            logger.debug("Received response: %s", response_data)
+
+            part = TextPart(response_data["content"])
+            return ModelResponse(parts=[part]), Usage()
 
         except httpx.HTTPError as e:
+            # Log the full error response if available
+            if hasattr(e, "response") and e.response is not None:  # type: ignore
+                logger.exception("Error response: %s", e.response.text)  # type: ignore
             msg = f"HTTP error: {e}"
             raise RuntimeError(msg) from e
 
@@ -183,6 +210,7 @@ class WebSocketRemoteAgent(AgentModel):
         """Initialize with configuration."""
         self.url = url
         self.api_key = api_key
+        self.client = httpx.AsyncClient(headers={"Authorization": f"Bearer {api_key}"})
 
     async def request(
         self,
@@ -261,23 +289,38 @@ class WebSocketRemoteAgent(AgentModel):
         finally:
             await websocket.close()
 
+    async def __aenter__(self):
+        """Enter async context."""
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Exit async context."""
+        await self.client.aclose()
+
 
 if __name__ == "__main__":
     import asyncio
+    import logging
 
     from pydantic_ai import Agent
 
+    # Set up logging
+    logging.basicConfig(
+        level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+
     async def test():
         # Test both protocols
-        for protocol in ["rest", "websocket"]:
-            print(f"\nTesting {protocol} protocol:")
-            model = RemoteInputModel(
-                url=f"{'ws' if protocol == 'websocket' else 'http'}://localhost:8000/v1/chat",
-                protocol=protocol,  # type: ignore
-                api_key="test-key",
-            )
-            agent: Agent[None, str] = Agent(model=model)
-            response = await agent.run("Hello! How are you?")
-            print(f"Response: {response.data}")
+        print("\nTesting REST protocol:")
+        model = RemoteInputModel(
+            url="http://localhost:8000",  # Base URL only
+            protocol="rest",
+            api_key="test-key",
+        )
+        agent: Agent[None, str] = Agent(
+            model=model, system_prompt="You are a helpful assistant."
+        )
+        response = await agent.run("Hello! How are you?")
+        print(f"\nResponse: {response.data}")
 
     asyncio.run(test())
