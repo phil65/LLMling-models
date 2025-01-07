@@ -40,11 +40,20 @@ dependencies = [
     "tokonomics>=0.2.1",
 ]
 
+[tool.hatch.metadata]
+allow-direct-references = true
+
+
 [project.optional-dependencies]
 llm = ["llm>=0.19.1"]
 aisuite = ["aisuite"]
 tokenizers = ["tokenizers"]
 transformers = ["transformers"]
+remote = [
+    "fastapi",
+    "uvicorn",
+    "websockets@git+https://github.com/python-websockets/websockets.git@main",
+]
 
 [tool.uv]
 default-groups = ["dev", "lint", "docs"]
