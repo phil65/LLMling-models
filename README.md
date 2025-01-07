@@ -157,19 +157,6 @@ async with agent.run_stream("Tell me a story...") as response:
         print(chunk, end="", flush=True)
 ```
 
-The InputModel can be configured via YAML:
-
-```yaml
-models:
-  input:
-    type: input
-    prompt_template: "🤖 Please respond to: {prompt}"
-    show_system: true
-    input_prompt: "Your response: "
-    # Optional custom handler:
-    handler: my_package.inputs:MyCustomHandler
-```
-
 Features:
 - Interactive console input for testing and debugging
 - Support for streaming input (character by character, but not "true" async with default handler)
@@ -347,15 +334,6 @@ async with agent.run_stream("Tell me a story...") as response:
         print(chunk, end="", flush=True)
 ```
 
-YAML configuration:
-```yaml
-models:
-  remote-human:
-    type: remote-input
-    url: ws://operator:8000/v1/chat/stream  # or http:// for REST
-    protocol: websocket  # or rest
-    api_key: your-api-key
-```
 
 Features:
 - Distributed human-in-the-loop operations
@@ -419,7 +397,7 @@ server.run(
 )
 ```
 
-Both implementations support both REST and WebSocket protocols, with WebSocket being preferred for streaming capabilities. They also maintain the full pydantic-ai message protocol, ensuring compatibility with all features of the framework.
+Both REST and WebSocket protocols are supported, with WebSocket being preferred for streaming capabilities. They also maintain the full pydantic-ai message protocol, ensuring compatibility with all features of the framework.
 
 
 
