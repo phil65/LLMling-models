@@ -188,10 +188,8 @@ class WebSocketProxyAgent(AgentModel):
         model_settings: ModelSettings | None = None,
     ) -> tuple[ModelResponse, Usage]:
         """Make request using WebSocket connection."""
-        async with websockets.connect(
-            self.url,
-            extra_headers={"Authorization": f"Bearer {self.api_key}"},
-        ) as websocket:
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        async with websockets.connect(self.url, extra_headers=headers) as websocket:
             try:
                 # Serialize and send messages
                 await websocket.send(ModelMessagesTypeAdapter.dump_json(messages))
@@ -231,10 +229,8 @@ class WebSocketProxyAgent(AgentModel):
         model_settings: ModelSettings | None = None,
     ) -> AsyncIterator[EitherStreamedResponse]:
         """Stream responses using WebSocket connection."""
-        websocket = await websockets.connect(
-            self.url,
-            extra_headers={"Authorization": f"Bearer {self.api_key}"},
-        )
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        websocket = await websockets.connect(self.url, extra_headers=headers)
 
         try:
             # Send messages

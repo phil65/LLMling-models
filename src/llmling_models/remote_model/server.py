@@ -90,12 +90,8 @@ class ConnectionManager:
     ) -> None:
         """Send error message and close connection."""
         try:
-            await websocket.send_json(
-                StreamResponse(
-                    error=error,
-                    done=True,
-                ).model_dump(exclude_none=True),
-            )
+            response = StreamResponse(error=error, done=True)
+            await websocket.send_json(response.model_dump(exclude_none=True))
             await websocket.close(code=code)
         except WebSocketDisconnect:
             pass
@@ -151,18 +147,12 @@ class ModelServer:
 
                 # Track basic usage
                 usage = Usage(requests=1)
-
-                return {
-                    "content": response,
-                    "usage": usage.to_dict(),
-                }
+                return {"content": response, "usage": usage.to_dict()}
 
             except Exception as e:
                 logger.exception("Error processing completion request")
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=str(e),
-                ) from e
+                stat = status.HTTP_500_INTERNAL_SERVER_ERROR
+                raise HTTPException(status_code=stat, detail=str(e)) from e
 
         @self.app.websocket("/v1/completion/stream")
         async def websocket_endpoint(websocket: WebSocket) -> None:
@@ -197,26 +187,19 @@ class ModelServer:
                                 response.append(line)
                                 # Create and send part
                                 part = TextPart(content=line + "\n")
-                                await websocket.send_json(
-                                    StreamResponse(
-                                        part=self.response_part_adapter.dump_python(part),
-                                    ).model_dump(exclude_none=True),
-                                )
+                                py_part = self.response_part_adapter.dump_python(part)
+                                r = StreamResponse(part=py_part)
+                                await websocket.send_json(r.model_dump(exclude_none=True))
 
                         # Send final message with usage
-                        await websocket.send_json(
-                            StreamResponse(
-                                done=True,
-                                usage=usage.to_dict(),
-                            ).model_dump(exclude_none=True),
-                        )
+                        dct = usage.to_dict()
+                        reponse = StreamResponse(done=True, usage=dct)
+                        await websocket.send_json(reponse.model_dump(exclude_none=True))
 
                     except ValueError as e:
-                        await self.manager.send_error(
-                            websocket,
-                            f"Invalid request: {e}",
-                            status.WS_1003_UNSUPPORTED_DATA,
-                        )
+                        error_msg = f"Invalid request: {e}"
+                        code = status.WS_1003_UNSUPPORTED_DATA
+                        await self.manager.send_error(websocket, error_msg, code)
 
             except WebSocketDisconnect:
                 logger.info("WebSocket disconnected: %s", connection_id)
@@ -225,12 +208,7 @@ class ModelServer:
                 if connection_id:
                     self.manager.disconnect(connection_id)
 
-    def run(
-        self,
-        host: str = "0.0.0.0",
-        port: int = 8000,
-        **kwargs: Any,
-    ) -> None:
+    def run(self, host: str = "0.0.0.0", port: int = 8000, **kwargs: Any):
         """Start the server."""
         import uvicorn
 
@@ -241,8 +219,5 @@ if __name__ == "__main__":
     import logging
 
     logging.basicConfig(level=logging.INFO)
-    server = ModelServer(
-        title="Remote Model Server",
-        description="Server that supports full model protocol",
-    )
+    server = ModelServer(title="Remote Model Server")
     server.run(port=8000)
