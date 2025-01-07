@@ -98,10 +98,8 @@ class ModelServer:
 
             except Exception as e:
                 logger.exception("Error processing completion request")
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=str(e),
-                ) from e
+                code = status.HTTP_500_INTERNAL_SERVER_ERROR
+                raise HTTPException(code, detail=str(e)) from e
 
         @self.app.websocket("/v1/chat/stream")
         async def websocket_endpoint(websocket: WebSocket) -> None:
@@ -131,9 +129,8 @@ class ModelServer:
                         await websocket.send_json(StreamResponse(chunk=char).model_dump())
 
                     # Send completion
-                    await websocket.send_json(
-                        StreamResponse(chunk="", done=True).model_dump()
-                    )
+                    data = StreamResponse(chunk="", done=True).model_dump()
+                    await websocket.send_json(data)
 
             except WebSocketDisconnect:
                 logger.info("WebSocket disconnected")

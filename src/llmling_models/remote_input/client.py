@@ -95,8 +95,7 @@ class RestRemoteAgent(AgentModel):
     def __init__(self, url: str, api_key: str) -> None:
         """Initialize with configuration."""
         self.client = httpx.AsyncClient(
-            base_url=url,
-            headers={"Authorization": f"Bearer {api_key}"},
+            base_url=url, headers={"Authorization": f"Bearer {api_key}"}
         )
 
     async def request(
@@ -116,25 +115,13 @@ class RestRemoteAgent(AgentModel):
 
             # Extract conversation history
             conversation = extract_conversation(messages[:-1])
-
+            data = {"prompt": prompt, "conversation": conversation}
             # Make request
-            response = await self.client.post(
-                "/completions",
-                json={
-                    "prompt": prompt,
-                    "conversation": conversation,
-                },
-            )
+            response = await self.client.post("/completions", json=data)
             response.raise_for_status()
             data = response.json()
-
-            return (
-                ModelResponse(
-                    parts=[TextPart(data["content"])],
-                    timestamp=datetime.now(UTC),
-                ),
-                Usage(),  # No usage tracking for human input
-            )
+            part = TextPart(data["content"])
+            return (ModelResponse(parts=[part]), Usage())  # No usage for human input
 
         except httpx.HTTPError as e:
             msg = f"HTTP error: {e}"
@@ -170,11 +157,7 @@ class WebSocketStreamResponse(StreamTextResponse):
 
             self._buffer.append(data["chunk"])
 
-        except (
-            websockets.ConnectionClosed,
-            ValueError,
-            KeyError,
-        ) as e:
+        except (websockets.ConnectionClosed, ValueError, KeyError) as e:
             msg = f"Stream error: {e}"
             raise RuntimeError(msg) from e
 
@@ -221,43 +204,27 @@ class WebSocketRemoteAgent(AgentModel):
                             prompt += str(part.content)  # pyright: ignore
 
                 conversation = extract_conversation(messages[:-1])
-
+                data = json.dumps({"prompt": prompt, "conversation": conversation})
                 # Send request
-                await websocket.send(
-                    json.dumps({
-                        "prompt": prompt,
-                        "conversation": conversation,
-                    })
-                )
+                await websocket.send(data)
 
                 # Accumulate response characters
                 response_text = ""
                 while True:
                     raw_data = await websocket.recv()
-                    data = json.loads(raw_data)
-
-                    if data.get("error"):
-                        msg = f"Server error: {data['error']}"
+                    dct = json.loads(raw_data)
+                    if dct.get("error"):
+                        msg = f"Server error: {dct['error']}"
                         raise RuntimeError(msg)
 
-                    if data["done"]:
+                    if dct["done"]:
                         break
 
-                    response_text += data["chunk"]
+                    response_text += dct["chunk"]
+                part = TextPart(response_text)
+                return (ModelResponse(parts=[part]), Usage())
 
-                return (
-                    ModelResponse(
-                        parts=[TextPart(response_text)],
-                        timestamp=datetime.now(UTC),
-                    ),
-                    Usage(),
-                )
-
-            except (
-                websockets.ConnectionClosed,
-                ValueError,
-                KeyError,
-            ) as e:
+            except (websockets.ConnectionClosed, ValueError, KeyError) as e:
                 msg = f"WebSocket error: {e}"
                 raise RuntimeError(msg) from e
 
@@ -283,13 +250,8 @@ class WebSocketRemoteAgent(AgentModel):
                         prompt += str(part.content)  # pyright: ignore
 
             conversation = extract_conversation(messages[:-1])
-
-            await websocket.send(
-                json.dumps({
-                    "prompt": prompt,
-                    "conversation": conversation,
-                })
-            )
+            data = json.dumps({"prompt": prompt, "conversation": conversation})
+            await websocket.send(data)
 
             yield WebSocketStreamResponse(websocket)
 

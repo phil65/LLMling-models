@@ -81,10 +81,8 @@ class RestProxyAgent(AgentModel):
 
     def __init__(self, url: str, api_key: str) -> None:
         """Initialize with configuration."""
-        self.client = httpx.AsyncClient(
-            base_url=url,
-            headers={"Authorization": f"Bearer {api_key}"},
-        )
+        headers = {"Authorization": f"Bearer {api_key}"}
+        self.client = httpx.AsyncClient(base_url=url, headers=headers)
 
     async def request(
         self,
@@ -95,11 +93,9 @@ class RestProxyAgent(AgentModel):
         try:
             # Serialize complete message history
             payload = ModelMessagesTypeAdapter.dump_json(messages)
-
+            headers = {"Content-Type": "application/json"}
             response = await self.client.post(
-                "/completion",
-                content=payload,
-                headers={"Content-Type": "application/json"},
+                "/completion", content=payload, headers=headers
             )
             response.raise_for_status()
 
@@ -157,11 +153,7 @@ class WebSocketStreamResponse(StreamTextResponse):
             else:
                 self._buffer.append(data["chunk"])
 
-        except (
-            websockets.ConnectionClosed,
-            ValueError,
-            KeyError,
-        ) as e:
+        except (websockets.ConnectionClosed, ValueError, KeyError) as e:
             msg = f"Stream error: {e}"
             raise RuntimeError(msg) from e
 
@@ -228,11 +220,7 @@ class WebSocketProxyAgent(AgentModel):
 
                 return ModelResponse(parts=parts), usage
 
-            except (
-                websockets.ConnectionClosed,
-                ValueError,
-                KeyError,
-            ) as e:
+            except (websockets.ConnectionClosed, ValueError, KeyError) as e:
                 msg = f"WebSocket error: {e}"
                 raise RuntimeError(msg) from e
 
