@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Literal
 
 import httpx
 from pydantic import Field, TypeAdapter
+from pydantic_ai import Agent
 from pydantic_ai.messages import (
     ModelMessage,
     ModelMessagesTypeAdapter,
@@ -103,7 +104,7 @@ class RestProxyAgent(AgentModel):
             logger.debug("Request payload: %s", payload)
 
             response = await self.client.post(
-                "/completion",
+                "/v1/completion",
                 content=payload,
                 headers={"Content-Type": "application/json"},
             )
@@ -138,56 +139,52 @@ class RestProxyAgent(AgentModel):
 class WebSocketStreamResponse(StreamTextResponse):
     """Stream implementation for WebSocket responses."""
 
-    response_part_adapter = TypeAdapter(ModelResponsePart)
-
     def __init__(self, websocket: ClientConnection):
         """Initialize with active WebSocket."""
         self.websocket = websocket
         self._buffer: list[str] = []
         self._complete = False
         self._timestamp = datetime.now(UTC)
-        self._accumulated_parts: list[ModelResponsePart] = []
+        self._usage: Usage | None = None
 
     async def __anext__(self):
-        """Get next response chunk."""
+        """Get next chunk from the stream."""
         if self._complete:
             raise StopAsyncIteration
 
         try:
             raw_data = await self.websocket.recv()
             data = json.loads(raw_data)
+            logger.debug("Received stream data: %s", data)
 
             if data.get("error"):
                 msg = f"Server error: {data['error']}"
                 raise RuntimeError(msg)
 
-            if data["done"]:
+            if data.get("usage"):
+                self._usage = Usage(**data["usage"])
+
+            if data.get("done", False):
                 self._complete = True
                 raise StopAsyncIteration
 
-            # Handle streamed response parts
-            if "part" in data:
-                part = self.response_part_adapter.validate_python(data["part"])
-                self._accumulated_parts.append(part)
-                # Extract text content if available
-                if hasattr(part, "content"):
-                    self._buffer.append(str(part.content))
-            else:
-                self._buffer.append(data["chunk"])
+            chunk = data.get("chunk")
+            if chunk:
+                self._buffer.append(chunk)
 
         except (websockets.ConnectionClosed, ValueError, KeyError) as e:
             msg = f"Stream error: {e}"
             raise RuntimeError(msg) from e
 
     def get(self, *, final: bool = False) -> Iterable[str]:
-        """Get accumulated response chunks."""
+        """Get accumulated chunks."""
         chunks = self._buffer.copy()
         self._buffer.clear()
         return chunks
 
     def usage(self) -> Usage:
         """Get usage statistics."""
-        return Usage()
+        return self._usage or Usage()
 
     def timestamp(self) -> datetime:
         """Get response timestamp."""
@@ -213,7 +210,7 @@ class WebSocketProxyAgent(AgentModel):
         """Make request using WebSocket connection."""
         async with websockets.connect(
             self.url,
-            extra_headers=self.headers,
+            additional_headers=self.headers,
         ) as websocket:
             try:
                 # Serialize and send messages
@@ -221,8 +218,8 @@ class WebSocketProxyAgent(AgentModel):
                 logger.debug("Sending WebSocket request: %s", payload)
                 await websocket.send(payload)
 
-                # Accumulate response parts
-                parts: list[ModelResponsePart] = []
+                # Accumulate response chunks
+                chunks: list[str] = []
                 usage = Usage()
 
                 while True:
@@ -237,14 +234,19 @@ class WebSocketProxyAgent(AgentModel):
                     if data.get("usage"):
                         usage = Usage(**data["usage"])
 
-                    if "part" in data:
-                        part = self.response_part_adapter.validate_python(data["part"])
-                        parts.append(part)
+                    chunk = data.get("chunk")
+                    if chunk is not None:  # Include empty strings but not None
+                        chunks.append(chunk)
 
                     if data.get("done", False):
                         break
 
-                return ModelResponse(parts=parts), usage
+                content = "".join(chunks)
+                if not content:
+                    msg = "Received empty response from server"
+                    raise RuntimeError(msg)
+
+                return ModelResponse.from_text(content), usage
 
             except (websockets.ConnectionClosed, ValueError, KeyError) as e:
                 msg = f"WebSocket error: {e}"
@@ -259,7 +261,7 @@ class WebSocketProxyAgent(AgentModel):
         """Stream responses using WebSocket connection."""
         websocket = await websockets.connect(
             self.url,
-            extra_headers=self.headers,
+            additional_headers=self.headers,
         )
 
         try:
@@ -277,17 +279,33 @@ class WebSocketProxyAgent(AgentModel):
 
 if __name__ == "__main__":
     import asyncio
+    import logging
 
-    from pydantic_ai import Agent
+    # Set up logging
+    logging.basicConfig(level=logging.DEBUG)
+    logger.info("Starting client test...")
 
     async def test():
         model = RemoteProxyModel(
-            url="ws://localhost:8000/v1/completion",
+            url="ws://localhost:8000/v1/completion/stream",
             protocol="websocket",
             api_key="test-key",
         )
         agent: Agent[None, str] = Agent(model=model)
+
+        # Test normal request
+        logger.info("Testing normal request...")
         response = await agent.run("Hello! How are you?")
-        print(f"Response: {response.data}")
+        logger.info("Got response: %s", response.data)
+
+        # Test streaming
+        logger.info("\nTesting streaming...")
+        chunks = []
+        async with agent.run_stream("Tell me a story...") as response:
+            async for chunk in response.stream():
+                chunks.append(chunk)
+                print(chunk, end="", flush=True)
+        print("\nStreaming complete!")
+        logger.info("Total chunks received: %d", len(chunks))
 
     asyncio.run(test())

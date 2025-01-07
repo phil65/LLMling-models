@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import contextlib
 from dataclasses import asdict
 from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect, status
-from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
+from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter, ModelResponse
 
 from llmling_models.log import get_logger
 
@@ -101,6 +102,7 @@ class ModelServer:
 
                 # Accept connection
                 await websocket.accept()
+                logger.debug("WebSocket connection accepted")
 
                 # Initialize model
                 agent_model = await self.model.agent_model(
@@ -111,28 +113,108 @@ class ModelServer:
 
                 while True:
                     # Receive and parse messages
-                    raw_messages = await websocket.receive_text()
-                    messages = ModelMessagesTypeAdapter.validate_json(raw_messages)
+                    try:
+                        data = await websocket.receive()
+                        logger.debug("Received WebSocket data: %s", data)
 
-                    # Use model's streaming capability
-                    async with agent_model.request_stream(
-                        messages,
-                        model_settings=None,  # Add this parameter
-                    ) as stream:
-                        async for chunk in stream:
-                            await websocket.send_json({"chunk": chunk})
+                        if data["type"] == "websocket.disconnect":
+                            break
 
-                    # Send completion
-                    usage = stream.usage()
-                    await websocket.send_json({"done": True, "usage": asdict(usage)})
+                        if data["type"] != "websocket.receive":
+                            continue
+
+                        if "bytes" in data:
+                            raw_messages = data["bytes"].decode("utf-8")
+                        elif "text" in data:
+                            raw_messages = data["text"]
+                        else:
+                            continue
+
+                        messages = ModelMessagesTypeAdapter.validate_json(raw_messages)
+                        logger.debug("Parsed messages: %s", messages)
+
+                        # Get streaming response
+                        async with agent_model.request_stream(
+                            messages,
+                            model_settings=None,
+                        ) as stream:
+                            content_sent = False
+
+                            # Get initial response chunks
+                            chunks = stream.get()
+                            if chunks:
+                                content_sent = True
+                                chunk_text = (
+                                    str(chunks.parts[0].content)  # type: ignore
+                                    if isinstance(chunks, ModelResponse)
+                                    else "".join(chunks)
+                                )
+                                await websocket.send_json({
+                                    "chunk": chunk_text,
+                                    "done": False,
+                                })
+
+                            # Stream remaining chunks
+                            async for chunk in stream:
+                                if chunk:  # Skip empty chunks
+                                    content_sent = True
+                                    await websocket.send_json({
+                                        "chunk": chunk,
+                                        "done": False,
+                                    })
+
+                            # Get final chunks if any
+                            final_chunks = stream.get(final=True)
+                            if final_chunks:
+                                content_sent = True
+                                final_text = (
+                                    str(final_chunks.parts[0].content)  # type: ignore
+                                    if isinstance(final_chunks, ModelResponse)
+                                    else "".join(final_chunks)
+                                )
+                                await websocket.send_json({
+                                    "chunk": final_text,
+                                    "done": False,
+                                })
+                            # If no content was sent, send error
+                            if not content_sent:
+                                await websocket.send_json({
+                                    "error": "Model returned no content",
+                                    "done": True,
+                                })
+                                continue
+
+                            # Send completion with usage info
+                            await websocket.send_json({
+                                "chunk": "",
+                                "done": True,
+                                "usage": asdict(stream.usage()),
+                            })
+
+                    except Exception as e:
+                        logger.exception("Error processing message")
+                        await websocket.send_json({
+                            "error": str(e),
+                            "done": True,
+                        })
+                        break
 
             except WebSocketDisconnect:
                 logger.info("WebSocket disconnected")
+            except Exception as e:
+                logger.exception("Error in WebSocket connection")
+                with contextlib.suppress(WebSocketDisconnect):
+                    await websocket.send_json({
+                        "error": str(e),
+                        "done": True,
+                    })
 
     def run(self, host: str = "0.0.0.0", port: int = 8000, **kwargs: Any):
         """Start the server."""
         import uvicorn
 
+        kwargs.pop("reload", None)
+        kwargs.pop("workers", None)
         uvicorn.run(self.app, host=host, port=port, **kwargs)
 
 
@@ -143,6 +225,7 @@ if __name__ == "__main__":
 
     # Set up logging
     logging.basicConfig(level=logging.INFO)
+    logger.info("Starting model server...")
 
     # Create server with a model
     server = ModelServer(
@@ -153,8 +236,5 @@ if __name__ == "__main__":
     )
 
     # Run server
-    server.run(
-        host="localhost",
-        port=8000,
-        reload=True,  # Enable auto-reload for development
-    )
+    logger.info("Server running at http://localhost:8000")
+    server.run(host="localhost", port=8000)
