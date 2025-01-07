@@ -1,3 +1,4 @@
+import importlib.util
 from typing import Annotated, Literal
 
 from pydantic import Field
@@ -70,14 +71,32 @@ class StringModel(PydanticModel):
 type ModelInput = str | KnownModelName | Model | PydanticModel
 """Type for internal model handling (after validation)."""
 
-AnyModel = Annotated[
-    StringModel
-    | DelegationMultiModel
-    | CostOptimizedMultiModel
-    | TokenOptimizedMultiModel
-    | FallbackMultiModel
-    | InputModel
-    | ImportModel
-    | _TestModelWrapper,
-    Field(discriminator="type"),
-]
+if importlib.util.find_spec("fastapi"):
+    from llmling_models.remote_input.client import RemoteInputModel
+    from llmling_models.remote_model.client import RemoteProxyModel
+
+    AnyModel = Annotated[
+        StringModel
+        | DelegationMultiModel
+        | CostOptimizedMultiModel
+        | TokenOptimizedMultiModel
+        | FallbackMultiModel
+        | InputModel
+        | ImportModel
+        | _TestModelWrapper
+        | RemoteInputModel
+        | RemoteProxyModel,
+        Field(discriminator="type"),
+    ]
+else:
+    AnyModel = Annotated[  # type: ignore
+        StringModel
+        | DelegationMultiModel
+        | CostOptimizedMultiModel
+        | TokenOptimizedMultiModel
+        | FallbackMultiModel
+        | InputModel
+        | ImportModel
+        | _TestModelWrapper,
+        Field(discriminator="type"),
+    ]
