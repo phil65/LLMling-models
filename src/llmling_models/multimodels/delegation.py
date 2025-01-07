@@ -110,7 +110,7 @@ class DelegationAgentModel[TModel: Model](AgentModel):
         function_tools: list[ToolDefinition],
         allow_text_result: bool,
         result_tools: list[ToolDefinition],
-    ) -> None:
+    ):
         """Initialize with models and selection configuration."""
         if not choice_models:
             msg = "At least one choice model must be provided"
@@ -127,7 +127,7 @@ class DelegationAgentModel[TModel: Model](AgentModel):
         self._initialized_selector: AgentModel | None = None
         self._initialized_choices: dict[str, AgentModel] = {}
 
-    async def _initialize_models(self) -> None:
+    async def _initialize_models(self):
         """Initialize selector and choice models if needed."""
         if self._initialized_selector is None:
             # Initialize selector with basic config (no tools needed)

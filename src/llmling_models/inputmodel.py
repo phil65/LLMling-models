@@ -43,7 +43,7 @@ class InputStreamResponse(StreamTextResponse):
     _timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     _buffer: list[str] = field(default_factory=list)
 
-    async def __anext__(self) -> None:
+    async def __anext__(self):
         """Get next character from stream."""
         char = await self._stream.__anext__()
         self._buffer.append(char)
@@ -110,7 +110,7 @@ class InputAgentModel(AgentModel):
         show_system: bool,
         input_handler: InputHandler,
         input_prompt: str,
-    ) -> None:
+    ):
         """Initialize with configuration."""
         self.prompt_template = prompt_template
         self.show_system = show_system

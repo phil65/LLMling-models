@@ -11,14 +11,14 @@ from llmling_models.llm_adapter import LLMAdapter
 TEST_MODEL = "gpt-4o-mini"
 
 
-def test_adapter_initialization() -> None:
+def test_adapter_initialization():
     """Test basic adapter initialization."""
     adapter = LLMAdapter(model_name=TEST_MODEL)
     assert adapter.name() == "llm:gpt-4o-mini"
 
 
 @pytest.mark.asyncio
-async def test_async_basic_usage() -> None:
+async def test_async_basic_usage():
     """Test basic async usage with an agent."""
     adapter = LLMAdapter(model_name=TEST_MODEL)
     agent = Agent(adapter)
@@ -27,7 +27,7 @@ async def test_async_basic_usage() -> None:
     assert result.data.count(" ") > 3  # noqa: PLR2004
 
 
-def test_sync_basic_usage() -> None:
+def test_sync_basic_usage():
     """Test basic sync usage with an agent."""
     adapter = LLMAdapter(model_name=TEST_MODEL)
     agent = Agent(adapter)
@@ -37,7 +37,7 @@ def test_sync_basic_usage() -> None:
 
 
 @pytest.mark.asyncio
-async def test_streaming() -> None:
+async def test_streaming():
     """Test streaming functionality."""
     adapter = LLMAdapter(model_name=TEST_MODEL)
     agent = Agent(adapter)
@@ -49,7 +49,7 @@ async def test_streaming() -> None:
 
 
 @pytest.mark.asyncio
-async def test_usage_tracking() -> None:
+async def test_usage_tracking():
     """Test usage information is properly tracked."""
     adapter = LLMAdapter(model_name=TEST_MODEL)
     agent = Agent(adapter)

@@ -28,7 +28,7 @@ class ImportModel(PydanticModel):
     # _instance: Model | None = Field(default=None, exclude=True)
     # """Cached model instance."""
 
-    def model_post_init(self, __context: dict[str, Any], /) -> None:
+    def model_post_init(self, __context: dict[str, Any], /):
         """Initialize model instance if needed."""
         self._instance = self.model() if isinstance(self.model, type) else self.model
 

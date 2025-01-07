@@ -79,7 +79,7 @@ class RemoteProxyModel(PydanticModel):
 class RestProxyAgent(AgentModel):
     """Agent implementation using REST API."""
 
-    def __init__(self, url: str, api_key: str) -> None:
+    def __init__(self, url: str, api_key: str):
         """Initialize with configuration."""
         headers = {"Authorization": f"Bearer {api_key}"}
         self.client = httpx.AsyncClient(base_url=url, headers=headers)
@@ -118,7 +118,7 @@ class WebSocketStreamResponse(StreamTextResponse):
 
     response_part_adapter = TypeAdapter(ModelResponsePart)
 
-    def __init__(self, websocket: ClientConnection) -> None:
+    def __init__(self, websocket: ClientConnection):
         """Initialize with active WebSocket."""
         self.websocket = websocket
         self._buffer: list[str] = []
@@ -126,7 +126,7 @@ class WebSocketStreamResponse(StreamTextResponse):
         self._timestamp = datetime.now(UTC)
         self._accumulated_parts: list[ModelResponsePart] = []
 
-    async def __anext__(self) -> None:
+    async def __anext__(self):
         """Get next response chunk."""
         if self._complete:
             raise StopAsyncIteration
@@ -177,7 +177,7 @@ class WebSocketProxyAgent(AgentModel):
 
     response_part_adapter = TypeAdapter(ModelResponsePart)
 
-    def __init__(self, url: str, api_key: str) -> None:
+    def __init__(self, url: str, api_key: str):
         """Initialize with configuration."""
         self.url = url
         self.api_key = api_key

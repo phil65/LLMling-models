@@ -87,7 +87,7 @@ def mock_get_costs() -> AsyncMock:
 async def test_cost_optimized_token_limit(
     mock_get_limits: AsyncMock,
     mock_get_costs: AsyncMock,
-) -> None:
+):
     """Test cost-optimized model respecting token limits."""
 
     # Override the mock limits for this test
@@ -128,7 +128,7 @@ async def test_cost_optimized_token_limit(
 async def test_cost_optimized_budget_limit(
     mock_get_limits: AsyncMock,
     mock_get_costs: AsyncMock,
-) -> None:
+):
     """Test cost-optimized model respecting budget limit."""
 
     # Override the mock costs for this test
@@ -167,7 +167,7 @@ async def test_cost_optimized_budget_limit(
 async def test_cost_optimized_cheapest(
     mock_get_limits: AsyncMock,
     mock_get_costs: AsyncMock,
-) -> None:
+):
     """Test cost-optimized model selecting cheapest option."""
     with (
         patch("llmling_models.multimodels.cost.get_model_limits", mock_get_limits),
@@ -200,7 +200,7 @@ async def test_cost_optimized_cheapest(
 async def test_cost_optimized_best_within_budget(
     mock_get_limits: AsyncMock,
     mock_get_costs: AsyncMock,
-) -> None:
+):
     """Test cost-optimized model selecting best within budget."""
     with (
         patch("llmling_models.multimodels.cost.get_model_limits", mock_get_limits),

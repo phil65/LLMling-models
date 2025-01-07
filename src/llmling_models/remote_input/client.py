@@ -92,7 +92,7 @@ def extract_conversation(messages: list[ModelMessage]) -> list[dict[str, str]]:
 class RestRemoteAgent(AgentModel):
     """Agent implementation using REST API."""
 
-    def __init__(self, url: str, api_key: str) -> None:
+    def __init__(self, url: str, api_key: str):
         """Initialize with configuration."""
         self.client = httpx.AsyncClient(
             base_url=url, headers={"Authorization": f"Bearer {api_key}"}
@@ -131,14 +131,14 @@ class RestRemoteAgent(AgentModel):
 class WebSocketStreamResponse(StreamTextResponse):
     """Stream implementation for WebSocket responses."""
 
-    def __init__(self, websocket: ClientConnection) -> None:
+    def __init__(self, websocket: ClientConnection):
         """Initialize with active WebSocket."""
         self.websocket = websocket
         self._buffer: list[str] = []
         self._complete = False
         self._timestamp = datetime.now(UTC)
 
-    async def __anext__(self) -> None:
+    async def __anext__(self):
         """Get next character from operator."""
         if self._complete:
             raise StopAsyncIteration
@@ -179,7 +179,7 @@ class WebSocketStreamResponse(StreamTextResponse):
 class WebSocketRemoteAgent(AgentModel):
     """Agent implementation using WebSocket connection."""
 
-    def __init__(self, url: str, api_key: str) -> None:
+    def __init__(self, url: str, api_key: str):
         """Initialize with configuration."""
         self.url = url
         self.api_key = api_key

@@ -44,7 +44,7 @@ class LLMAdapter(PydanticModel):
     _async_model: llm.AsyncModel | None = None
     _sync_model: llm.Model | None = None
 
-    def __init__(self, **data: Any) -> None:
+    def __init__(self, **data: Any):
         super().__init__(**data)
 
         # Try async first
@@ -195,7 +195,7 @@ class LLMStreamTextResponse(StreamTextResponse):
     _accumulated_text: str = field(default="")
     _usage: Usage = field(default_factory=Usage)
 
-    async def __anext__(self) -> None:
+    async def __anext__(self):
         """Process the next chunk without returning it.
 
         Chunks are accumulated and made available via get().

@@ -75,7 +75,7 @@ class TokenOptimizedAgentModel[TModel: Model](AgentModel):
         function_tools: list[ToolDefinition],
         allow_text_result: bool,
         result_tools: list[ToolDefinition],
-    ) -> None:
+    ):
         """Initialize with models and selection strategy."""
         if not models:
             msg = "At least one model must be provided"

@@ -53,7 +53,7 @@ class AISuiteAdapter(PydanticModel):
 
     _client: aisuite.Client | None = None
 
-    def __init__(self, **data: Any) -> None:
+    def __init__(self, **data: Any):
         super().__init__(**data)
         self._client = aisuite.Client(self.config)
 

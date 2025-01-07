@@ -16,7 +16,7 @@ from llmling_models.multimodels import TokenOptimizedMultiModel
 logging.basicConfig(level=logging.DEBUG)
 
 
-async def print_model_limits(model_name: str) -> None:
+async def print_model_limits(model_name: str):
     """Debug helper to print model limits."""
     limits = await get_model_limits(model_name)
     print(f"\nModel {model_name} limits:")
@@ -46,7 +46,7 @@ class StandardModel(TestModel):
 
 
 @pytest.mark.asyncio
-async def test_token_optimized_efficient() -> None:
+async def test_token_optimized_efficient():
     """Test token-optimized model selecting smallest sufficient model."""
     # Print limits for debugging
     for model in ["gpt-3.5-turbo", "gpt-3.5-turbo-16k", "gpt-4-turbo"]:
@@ -70,7 +70,7 @@ async def test_token_optimized_efficient() -> None:
 
 
 @pytest.mark.asyncio
-async def test_token_optimized_exceeds_limits() -> None:
+async def test_token_optimized_exceeds_limits():
     """Test token-optimized model handling too-long inputs."""
     # Create models
     large = LargeModel(custom_result_text="Large model response")

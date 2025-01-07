@@ -65,16 +65,12 @@ def format_conversation(
 class ModelServer:
     """Server that delegates to human operator."""
 
-    def __init__(
-        self,
-        title: str = "Remote Input Server",
-        description: str | None = None,
-    ) -> None:
+    def __init__(self, title: str = "Input Server", description: str | None = None):
         """Initialize server with configuration."""
         self.app = FastAPI(title=title, description=description or "No description")
         self._setup_routes()
 
-    def _setup_routes(self) -> None:
+    def _setup_routes(self):
         """Configure API routes."""
 
         @self.app.post(
@@ -102,7 +98,7 @@ class ModelServer:
                 raise HTTPException(code, detail=str(e)) from e
 
         @self.app.websocket("/v1/chat/stream")
-        async def websocket_endpoint(websocket: WebSocket) -> None:
+        async def websocket_endpoint(websocket: WebSocket):
             """Handle streaming conversation via WebSocket."""
             await websocket.accept()
 
@@ -135,12 +131,7 @@ class ModelServer:
             except WebSocketDisconnect:
                 logger.info("WebSocket disconnected")
 
-    def run(
-        self,
-        host: str = "0.0.0.0",
-        port: int = 8000,
-        **kwargs: Any,
-    ) -> None:
+    def run(self, host: str = "0.0.0.0", port: int = 8000, **kwargs: Any):
         """Start the server."""
         import uvicorn
 

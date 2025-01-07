@@ -67,7 +67,7 @@ class StreamResponse(BaseModel):
 class ConnectionManager:
     """Manages WebSocket connections."""
 
-    def __init__(self) -> None:
+    def __init__(self):
         """Initialize connection store."""
         self.active_connections: dict[str, WebSocket] = {}
 
@@ -78,7 +78,7 @@ class ConnectionManager:
         self.active_connections[connection_id] = websocket
         return connection_id
 
-    def disconnect(self, connection_id: str) -> None:
+    def disconnect(self, connection_id: str):
         """Remove stored connection."""
         self.active_connections.pop(connection_id, None)
 
@@ -87,7 +87,7 @@ class ConnectionManager:
         websocket: WebSocket,
         error: str,
         code: int = status.WS_1011_INTERNAL_ERROR,
-    ) -> None:
+    ):
         """Send error message and close connection."""
         try:
             response = StreamResponse(error=error, done=True)
@@ -115,17 +115,13 @@ class ModelServer:
 
     response_part_adapter = TypeAdapter(ModelResponsePart)
 
-    def __init__(
-        self,
-        title: str = "Remote Model Server",
-        description: str | None = None,
-    ) -> None:
+    def __init__(self, title: str = "Model Server", description: str | None = None):
         """Initialize server with configuration."""
         self.app = FastAPI(title=title, description=description or "No description")
         self.manager = ConnectionManager()
         self._setup_routes()
 
-    def _setup_routes(self) -> None:
+    def _setup_routes(self):
         """Configure API routes."""
 
         @self.app.post("/v1/completion")
@@ -155,7 +151,7 @@ class ModelServer:
                 raise HTTPException(status_code=stat, detail=str(e)) from e
 
         @self.app.websocket("/v1/completion/stream")
-        async def websocket_endpoint(websocket: WebSocket) -> None:
+        async def websocket_endpoint(websocket: WebSocket):
             """Handle streaming conversation via WebSocket."""
             connection_id = None
             usage = Usage(requests=1)
