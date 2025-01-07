@@ -52,7 +52,7 @@ transformers = ["transformers"]
 remote = [
     "fastapi",
     "uvicorn",
-    "websockets@git+https://github.com/python-websockets/websockets.git@main",
+    # "websockets@git+https://github.com/python-websockets/websockets.git@main",
 ]
 
 [tool.uv]
