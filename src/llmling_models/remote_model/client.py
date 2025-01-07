@@ -81,8 +81,13 @@ class RestProxyAgent(AgentModel):
 
     def __init__(self, url: str, api_key: str):
         """Initialize with configuration."""
-        headers = {"Authorization": f"Bearer {api_key}"}
-        self.client = httpx.AsyncClient(base_url=url, headers=headers)
+        self.url = url
+        self.api_key = api_key
+        self.client = httpx.AsyncClient(
+            base_url=url,
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=30.0,
+        )
 
     async def request(
         self,
@@ -93,24 +98,41 @@ class RestProxyAgent(AgentModel):
         try:
             # Serialize complete message history
             payload = ModelMessagesTypeAdapter.dump_json(messages)
-            headers = {"Content-Type": "application/json"}
+
+            logger.debug("Sending request to %s", self.url)
+            logger.debug("Request payload: %s", payload)
+
             response = await self.client.post(
-                "/completion", content=payload, headers=headers
+                "/completion",
+                content=payload,
+                headers={"Content-Type": "application/json"},
             )
             response.raise_for_status()
 
             # Deserialize response
             data = response.json()
+            logger.debug("Received response: %s", data)
+
             model_response = ModelResponse.from_text(
                 data["content"],
                 timestamp=datetime.now(UTC),
             )
             usage = Usage(**data.get("usage", {}))
         except httpx.HTTPError as e:
+            if hasattr(e, "response") and e.response is not None:  # pyright: ignore
+                logger.exception("Error response: %s", e.response.text)  # pyright: ignore
             msg = f"HTTP error: {e}"
             raise RuntimeError(msg) from e
         else:
             return model_response, usage
+
+    async def __aenter__(self):
+        """Enter async context."""
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Exit async context and cleanup resources."""
+        await self.client.aclose()
 
 
 class WebSocketStreamResponse(StreamTextResponse):
@@ -181,6 +203,7 @@ class WebSocketProxyAgent(AgentModel):
         """Initialize with configuration."""
         self.url = url
         self.api_key = api_key
+        self.headers = {"Authorization": f"Bearer {api_key}"}
 
     async def request(
         self,
@@ -188,11 +211,15 @@ class WebSocketProxyAgent(AgentModel):
         model_settings: ModelSettings | None = None,
     ) -> tuple[ModelResponse, Usage]:
         """Make request using WebSocket connection."""
-        headers = {"Authorization": f"Bearer {self.api_key}"}
-        async with websockets.connect(self.url, extra_headers=headers) as websocket:
+        async with websockets.connect(
+            self.url,
+            extra_headers=self.headers,
+        ) as websocket:
             try:
                 # Serialize and send messages
-                await websocket.send(ModelMessagesTypeAdapter.dump_json(messages))
+                payload = ModelMessagesTypeAdapter.dump_json(messages)
+                logger.debug("Sending WebSocket request: %s", payload)
+                await websocket.send(payload)
 
                 # Accumulate response parts
                 parts: list[ModelResponsePart] = []
@@ -201,6 +228,7 @@ class WebSocketProxyAgent(AgentModel):
                 while True:
                     raw_data = await websocket.recv()
                     data = json.loads(raw_data)
+                    logger.debug("Received WebSocket data: %s", data)
 
                     if data.get("error"):
                         msg = f"Server error: {data['error']}"
@@ -229,12 +257,15 @@ class WebSocketProxyAgent(AgentModel):
         model_settings: ModelSettings | None = None,
     ) -> AsyncIterator[EitherStreamedResponse]:
         """Stream responses using WebSocket connection."""
-        headers = {"Authorization": f"Bearer {self.api_key}"}
-        websocket = await websockets.connect(self.url, extra_headers=headers)
+        websocket = await websockets.connect(
+            self.url,
+            extra_headers=self.headers,
+        )
 
         try:
             # Send messages
-            await websocket.send(ModelMessagesTypeAdapter.dump_json(messages))
+            payload = ModelMessagesTypeAdapter.dump_json(messages)
+            await websocket.send(payload)
             yield WebSocketStreamResponse(websocket)
 
         except websockets.ConnectionClosed as e:

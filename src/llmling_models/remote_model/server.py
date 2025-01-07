@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from typing import Annotated, Any
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect, status
+from fastapi.security import HTTPBearer
 from pydantic import BaseModel, TypeAdapter
 from pydantic_ai.messages import (
     ModelMessage,
@@ -127,10 +127,15 @@ class ModelServer:
         @self.app.post("/v1/completion")
         async def create_completion(
             messages: Annotated[list[ModelMessage], ModelMessagesTypeAdapter],
-            auth: Annotated[HTTPAuthorizationCredentials, security],
+            auth: str = Header(..., alias="Authorization"),
         ) -> dict[str, Any]:
             """Handle completion requests via REST."""
             try:
+                if not auth.startswith("Bearer "):
+                    detail = "Invalid authentication credentials"
+                    code = status.HTTP_401_UNAUTHORIZED
+                    raise HTTPException(status_code=code, detail=detail)  # noqa: TRY301
+
                 # Display conversation to operator
                 print("\n" + "=" * 80)
                 print("Conversation history:")
@@ -147,8 +152,10 @@ class ModelServer:
 
             except Exception as e:
                 logger.exception("Error processing completion request")
-                stat = status.HTTP_500_INTERNAL_SERVER_ERROR
-                raise HTTPException(status_code=stat, detail=str(e)) from e
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=str(e),
+                ) from e
 
         @self.app.websocket("/v1/completion/stream")
         async def websocket_endpoint(websocket: WebSocket):
@@ -157,6 +164,12 @@ class ModelServer:
             usage = Usage(requests=1)
 
             try:
+                # Validate auth header
+                auth = websocket.headers.get("Authorization", "")
+                if not auth.startswith("Bearer "):
+                    await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                    return
+
                 connection_id = await self.manager.connect(websocket)
                 logger.info("New WebSocket connection: %s", connection_id)
 
@@ -173,7 +186,7 @@ class ModelServer:
                         print("-" * 80)
                         print("Type your response (press Enter twice when done):")
 
-                        # Get response character by character
+                        # Get response line by line
                         response: list[str] = []
                         while True:
                             line = input()
@@ -184,13 +197,11 @@ class ModelServer:
                                 # Create and send part
                                 part = TextPart(content=line + "\n")
                                 py_part = self.response_part_adapter.dump_python(part)
-                                r = StreamResponse(part=py_part)
-                                await websocket.send_json(r.model_dump(exclude_none=True))
+                                await websocket.send_json({"part": py_part})
 
                         # Send final message with usage
                         dct = usage.to_dict()
-                        reponse = StreamResponse(done=True, usage=dct)
-                        await websocket.send_json(reponse.model_dump(exclude_none=True))
+                        await websocket.send_json({"done": True, "usage": dct})
 
                     except ValueError as e:
                         error_msg = f"Invalid request: {e}"
