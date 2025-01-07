@@ -5,10 +5,13 @@ from llmling_models.base import PydanticModel
 from llmling_models.multi import MultiModel
 from llmling_models.inputmodel import InputModel
 from llmling_models.importmodel import ImportModel
-from llmling_models.multimodels.fallback import FallbackMultiModel
-from llmling_models.multimodels.token_optimized import TokenOptimizedMultiModel
-from llmling_models.multimodels.cost import CostOptimizedMultiModel
-from llmling_models.multimodels.delegation import DelegationMultiModel
+from llmling_models.multimodels import (
+    FallbackMultiModel,
+    TokenOptimizedMultiModel,
+    CostOptimizedMultiModel,
+    DelegationMultiModel,
+    UserSelectModel,
+)
 
 __all__ = [
     "CostOptimizedMultiModel",
@@ -19,4 +22,5 @@ __all__ = [
     "MultiModel",
     "PydanticModel",
     "TokenOptimizedMultiModel",
+    "UserSelectModel",
 ]

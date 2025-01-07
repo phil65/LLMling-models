@@ -186,6 +186,26 @@ This model is particularly useful for:
 - Educational scenarios where human input is needed
 
 
+### User Select Model
+
+An interactive model that lets users manually choose which model to use for each prompt:
+
+```python
+from pydantic_ai import Agent
+from llmling_models import UserSelectModel
+
+# Basic setup with model list
+model = UserSelectModel(
+    models=["openai:gpt-4o-mini", "openai:gpt-3.5-turbo", "anthropic:claude-3"]
+)
+
+agent = Agent(model)
+
+# The user will be shown the prompt and available models,
+# and can choose which one to use for the response
+result = await agent.run("What is the meaning of life?")
+```
+
 #### Model Delegation
 
 Dynamically selects models based on given prompt. Uses a selector model to choose the most appropriate model for each task:
