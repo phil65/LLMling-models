@@ -142,20 +142,20 @@ class WebSocketStreamResponse(StreamTextResponse):
     def __init__(self, websocket: ClientConnection):
         """Initialize with active WebSocket."""
         self.websocket = websocket
-        self._buffer: list[str] = []
         self._complete = False
         self._timestamp = datetime.now(UTC)
         self._usage: Usage | None = None
+        self._current_chunk: list[str] = []
 
-    async def __anext__(self):
-        """Get next chunk from the stream."""
+    async def __anext__(self) -> None:
+        """Process next chunk."""
         if self._complete:
             raise StopAsyncIteration
 
         try:
             raw_data = await self.websocket.recv()
             data = json.loads(raw_data)
-            logger.debug("Received stream data: %s", data)
+            logger.debug("Stream received: %s", data)
 
             if data.get("error"):
                 msg = f"Server error: {data['error']}"
@@ -169,17 +169,18 @@ class WebSocketStreamResponse(StreamTextResponse):
                 raise StopAsyncIteration
 
             chunk = data.get("chunk")
-            if chunk:
-                self._buffer.append(chunk)
-
+            if chunk:  # Only store non-empty chunks
+                self._current_chunk = [chunk]
         except (websockets.ConnectionClosed, ValueError, KeyError) as e:
             msg = f"Stream error: {e}"
             raise RuntimeError(msg) from e
+        else:
+            return
 
     def get(self, *, final: bool = False) -> Iterable[str]:
-        """Get accumulated chunks."""
-        chunks = self._buffer.copy()
-        self._buffer.clear()
+        """Get new chunks since last call."""
+        chunks = self._current_chunk
+        self._current_chunk = []
         return chunks
 
     def usage(self) -> Usage:
@@ -293,19 +294,17 @@ if __name__ == "__main__":
         )
         agent: Agent[None, str] = Agent(model=model)
 
-        # Test normal request
-        logger.info("Testing normal request...")
-        response = await agent.run("Hello! How are you?")
-        logger.info("Got response: %s", response.data)
-
         # Test streaming
         logger.info("\nTesting streaming...")
-        chunks = []
-        async with agent.run_stream("Tell me a story...") as response:
-            async for chunk in response.stream():
-                chunks.append(chunk)
+        print("Streaming response:")
+        chunk_count = 0
+
+        async with agent.run_stream("Tell me a story about a brave knight") as response:
+            # Use stream_text with delta=True instead of stream()
+            async for chunk in response.stream_text(delta=True):
+                chunk_count += 1
                 print(chunk, end="", flush=True)
-        print("\nStreaming complete!")
-        logger.info("Total chunks received: %d", len(chunks))
+
+        print(f"\nStreaming complete! Received {chunk_count} chunks")
 
     asyncio.run(test())

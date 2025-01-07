@@ -112,14 +112,12 @@ class ModelServer:
                 )
 
                 while True:
-                    # Receive and parse messages
                     try:
                         data = await websocket.receive()
-                        logger.debug("Received WebSocket data: %s", data)
+                        logger.debug("Received request data: %s", data)
 
                         if data["type"] == "websocket.disconnect":
                             break
-
                         if data["type"] != "websocket.receive":
                             continue
 
@@ -131,76 +129,45 @@ class ModelServer:
                             continue
 
                         messages = ModelMessagesTypeAdapter.validate_json(raw_messages)
-                        logger.debug("Parsed messages: %s", messages)
+                        logger.debug("Starting stream for messages: %s", messages)
 
-                        # Get streaming response
+                        # Use actual streaming from the model
                         async with agent_model.request_stream(
                             messages,
                             model_settings=None,
                         ) as stream:
-                            content_sent = False
+                            logger.debug("Stream started")
 
-                            # Get initial response chunks
-                            chunks = stream.get()
-                            if chunks:
-                                content_sent = True
-                                chunk_text = (
-                                    str(chunks.parts[0].content)  # type: ignore
-                                    if isinstance(chunks, ModelResponse)
-                                    else "".join(chunks)
-                                )
-                                await websocket.send_json({
-                                    "chunk": chunk_text,
-                                    "done": False,
-                                })
+                            # Stream chunks
+                            async for _ in stream:
+                                chunks = stream.get()
+                                if isinstance(chunks, ModelResponse):
+                                    # Handle ModelResponse
+                                    if chunks.parts and hasattr(
+                                        chunks.parts[0], "content"
+                                    ):
+                                        await websocket.send_json({
+                                            "chunk": str(chunks.parts[0].content),  # pyright: ignore
+                                            "done": False,
+                                        })
+                                else:
+                                    # Handle Iterable[str]
+                                    for chunk in chunks:
+                                        if chunk:  # Only send non-empty chunks
+                                            await websocket.send_json({
+                                                "chunk": chunk,
+                                                "done": False,
+                                            })
 
-                            # Stream remaining chunks
-                            async for chunk in stream:
-                                if chunk:  # Skip empty chunks
-                                    content_sent = True
-                                    await websocket.send_json({
-                                        "chunk": chunk,
-                                        "done": False,
-                                    })
-
-                            # Get final chunks if any
-                            final_chunks = stream.get(final=True)
-                            if final_chunks:
-                                content_sent = True
-                                final_text = (
-                                    str(final_chunks.parts[0].content)  # type: ignore
-                                    if isinstance(final_chunks, ModelResponse)
-                                    else "".join(final_chunks)
-                                )
-                                await websocket.send_json({
-                                    "chunk": final_text,
-                                    "done": False,
-                                })
-                            # If no content was sent, send error
-                            if not content_sent:
-                                await websocket.send_json({
-                                    "error": "Model returned no content",
-                                    "done": True,
-                                })
-                                continue
-
-                            # Send completion with usage info
+                            # Send completion with usage
                             await websocket.send_json({
                                 "chunk": "",
                                 "done": True,
                                 "usage": asdict(stream.usage()),
                             })
 
-                    except Exception as e:
-                        logger.exception("Error processing message")
-                        await websocket.send_json({
-                            "error": str(e),
-                            "done": True,
-                        })
-                        break
-
-            except WebSocketDisconnect:
-                logger.info("WebSocket disconnected")
+                    except WebSocketDisconnect:
+                        logger.info("WebSocket disconnected")
             except Exception as e:
                 logger.exception("Error in WebSocket connection")
                 with contextlib.suppress(WebSocketDisconnect):
@@ -224,7 +191,7 @@ if __name__ == "__main__":
     from pydantic_ai.models import infer_model
 
     # Set up logging
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
     logger.info("Starting model server...")
 
     # Create server with a model
