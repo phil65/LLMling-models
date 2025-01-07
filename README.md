@@ -364,66 +364,60 @@ Features:
 - Full conversation context support
 - Secure authentication via API keys
 
-### Remote Model Proxy
+#### Setting up a Remote Model Server
 
-A model that proxies requests to a remote model server, allowing distributed model deployments:
+Setting up a remote model server is straightforward. You just need a pydantic-ai model and can start serving it:
 
 ```python
-from pydantic_ai import Agent
-from llmling_models import RemoteProxyModel
+from pydantic_ai.models import infer_model
+from llmling_models.remote_model.server import ModelServer
 
-# Basic setup with WebSocket (preferred for streaming)
-model = RemoteProxyModel(
-    url="ws://model-server:8000/v1/completion",
-    protocol="websocket",
-    api_key="your-api-key"
+# Get any pydantic-ai model
+model = infer_model("openai:gpt-4")
+
+# Create and start server
+server = ModelServer(
+    model=model,
+    api_key="your-secret-key",  # Optional authentication
 )
-
-# Or use REST API
-model = RemoteProxyModel(
-    url="http://model-server:8000/v1/completion",
-    protocol="rest",
-    api_key="your-api-key"
-)
-
-agent = Agent(model)
-
-# The request will be forwarded to the remote model server
-result = await agent.run("What's 2+2?")
-print(f"Remote model responded: {result.data}")
-
-# Usage statistics are forwarded from the remote model
-print(f"Tokens used: {result.usage().total_tokens}")
-
-# Streaming works with WebSocket protocol
-async with agent.run_stream("Generate a story...") as response:
-    async for chunk in response.stream():
-        print(chunk, end="", flush=True)
+server.run(port=8000)
 ```
 
-YAML configuration:
-```yaml
-models:
-  remote-gpt4:
-    type: remote-proxy
-    url: ws://model-server:8000/v1/completion  # or http:// for REST
-    protocol: websocket  # or rest
-    api_key: your-api-key
-```
+That's it! The server now accepts both REST and WebSocket connections and handles all the message protocol details for you.
 
 Features:
-- Distributed model deployment support
+- Simple setup - just provide a model
+- Optional API key authentication
+- Automatic handling of both REST and WebSocket protocols
 - Full pydantic-ai message protocol support
-- WebSocket streaming capabilities
-- REST API for simpler setups
 - Usage statistics forwarding
-- Secure authentication via API keys
-- Supports all message part types
+- Built-in error handling and logging
+
+For development, you might want to run the server locally:
+
+```python
+server = ModelServer(
+    model=infer_model("openai:gpt-4"),
+    api_key="dev-key"
+)
+server.run(host="localhost", port=8000)
 ```
 
-These models enable distributed setups where:
-1. `RemoteInputModel` allows human operators to work from different locations
-2. `RemoteProxyModel` allows models to be deployed on separate servers
+For production, you'll typically want to run it on a public server with proper authentication:
+
+```python
+server = ModelServer(
+    model=infer_model("openai:gpt-4"),
+    api_key="your-secure-key",  # Make sure to use a strong key
+    title="Production GPT-4 Server",
+    description="Serves GPT-4 model for production use"
+)
+server.run(
+    host="0.0.0.0",  # Accept connections from anywhere
+    port=8000,
+    workers=4  # Multiple workers for better performance
+)
+```
 
 Both implementations support both REST and WebSocket protocols, with WebSocket being preferred for streaming capabilities. They also maintain the full pydantic-ai message protocol, ensuring compatibility with all features of the framework.
 

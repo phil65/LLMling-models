@@ -1,155 +1,89 @@
-"""FastAPI server implementation for full model protocol support."""
-
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Annotated, Any
-from uuid import uuid4
+from dataclasses import asdict
+from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect, status
-from fastapi.security import HTTPBearer
-from pydantic import BaseModel, TypeAdapter
-from pydantic_ai.messages import (
-    ModelMessage,
-    ModelMessagesTypeAdapter,
-    ModelResponse,
-    ModelResponsePart,
-    TextPart,
-)
+from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
 
 from llmling_models.log import get_logger
 
 
+if TYPE_CHECKING:
+    from pydantic_ai.models import Model
+
+
 logger = get_logger(__name__)
-security = HTTPBearer()
-
-
-@dataclass
-class Usage:
-    """LLM usage tracking."""
-
-    requests: int = 0
-    request_tokens: int | None = None
-    response_tokens: int | None = None
-    total_tokens: int | None = None
-    details: dict[str, Any] | None = None
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert usage to dict for serialization."""
-        return {
-            "requests": self.requests,
-            "request_tokens": self.request_tokens,
-            "response_tokens": self.response_tokens,
-            "total_tokens": self.total_tokens,
-            "details": self.details,
-        }
-
-
-class StreamResponse(BaseModel):
-    """Streaming response chunk."""
-
-    part: ModelResponsePart | None = None
-    """Response part if available."""
-
-    chunk: str | None = None
-    """Text chunk if not a full part."""
-
-    done: bool = False
-    """Whether this is the final chunk."""
-
-    error: str | None = None
-    """Optional error message."""
-
-    usage: dict[str, Any] | None = None
-    """Optional usage information."""
-
-
-class ConnectionManager:
-    """Manages WebSocket connections."""
-
-    def __init__(self):
-        """Initialize connection store."""
-        self.active_connections: dict[str, WebSocket] = {}
-
-    async def connect(self, websocket: WebSocket) -> str:
-        """Accept and store new connection."""
-        await websocket.accept()
-        connection_id = str(uuid4())
-        self.active_connections[connection_id] = websocket
-        return connection_id
-
-    def disconnect(self, connection_id: str):
-        """Remove stored connection."""
-        self.active_connections.pop(connection_id, None)
-
-    async def send_error(
-        self,
-        websocket: WebSocket,
-        error: str,
-        code: int = status.WS_1011_INTERNAL_ERROR,
-    ):
-        """Send error message and close connection."""
-        try:
-            response = StreamResponse(error=error, done=True)
-            await websocket.send_json(response.model_dump(exclude_none=True))
-            await websocket.close(code=code)
-        except WebSocketDisconnect:
-            pass
-
-
-def format_conversation(messages: list[ModelMessage]) -> str:
-    """Format conversation history for display."""
-    lines = []
-
-    for message in messages:
-        for part in message.parts:
-            if hasattr(part, "content"):
-                prefix = "🤖" if isinstance(message, ModelResponse) else "👤"
-                lines.append(f"{prefix} {part.content}")  # pyright: ignore
-
-    return "\n".join(lines)
 
 
 class ModelServer:
-    """FastAPI server with full model protocol support."""
+    """FastAPI server that serves a pydantic-ai model."""
 
-    response_part_adapter = TypeAdapter(ModelResponsePart)
+    def __init__(
+        self,
+        model: Model,
+        *,
+        title: str = "Model Server",
+        description: str | None = None,
+        api_key: str | None = None,
+    ):
+        """Initialize server with a pydantic-ai model.
 
-    def __init__(self, title: str = "Model Server", description: str | None = None):
-        """Initialize server with configuration."""
-        self.app = FastAPI(title=title, description=description or "No description")
-        self.manager = ConnectionManager()
+        Args:
+            model: The model to serve
+            title: Server title for OpenAPI docs
+            description: Server description
+            api_key: Optional API key for authentication
+        """
+        self.app = FastAPI(title=title, description=description or "")
+        self.model = model
+        self.api_key = api_key
         self._setup_routes()
+
+    def _verify_auth(self, auth: str | None) -> None:
+        """Verify authentication header if API key is set."""
+        if not self.api_key:
+            return
+        if not auth or not auth.startswith("Bearer "):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication header",
+            )
+        token = auth.removeprefix("Bearer ")
+        if token != self.api_key:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid API key",
+            )
 
     def _setup_routes(self):
         """Configure API routes."""
 
         @self.app.post("/v1/completion")
         async def create_completion(
-            messages: Annotated[list[ModelMessage], ModelMessagesTypeAdapter],
-            auth: str = Header(..., alias="Authorization"),
+            messages: list[ModelMessage],
+            auth: str | None = Header(None, alias="Authorization"),
         ) -> dict[str, Any]:
             """Handle completion requests via REST."""
             try:
-                if not auth.startswith("Bearer "):
-                    detail = "Invalid authentication credentials"
-                    code = status.HTTP_401_UNAUTHORIZED
-                    raise HTTPException(status_code=code, detail=detail)  # noqa: TRY301
-
-                # Display conversation to operator
-                print("\n" + "=" * 80)
-                print("Conversation history:")
-                print(format_conversation(messages))
-                print("-" * 80)
-                print("Your response: ")
-
-                # Get operator's response
-                response = input().strip()
-
-                # Track basic usage
-                usage = Usage(requests=1)
-                return {"content": response, "usage": usage.to_dict()}
-
+                self._verify_auth(auth)
+                # Initialize model if needed
+                agent_model = await self.model.agent_model(
+                    function_tools=[],
+                    allow_text_result=True,
+                    result_tools=[],
+                )
+                # Get response
+                response, usage = await agent_model.request(
+                    messages,
+                    model_settings=None,  # Add this parameter
+                )
+                content = (
+                    str(response.parts[0].content)  # pyright: ignore
+                    if hasattr(response.parts[0], "content")
+                    else ""
+                )
+                return {"content": content, "usage": asdict(usage)}
             except Exception as e:
                 logger.exception("Error processing completion request")
                 raise HTTPException(
@@ -160,60 +94,40 @@ class ModelServer:
         @self.app.websocket("/v1/completion/stream")
         async def websocket_endpoint(websocket: WebSocket):
             """Handle streaming conversation via WebSocket."""
-            connection_id = None
-            usage = Usage(requests=1)
-
             try:
-                # Validate auth header
-                auth = websocket.headers.get("Authorization", "")
-                if not auth.startswith("Bearer "):
-                    await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-                    return
+                # Check auth
+                auth = websocket.headers.get("Authorization")
+                self._verify_auth(auth)
 
-                connection_id = await self.manager.connect(websocket)
-                logger.info("New WebSocket connection: %s", connection_id)
+                # Accept connection
+                await websocket.accept()
+
+                # Initialize model
+                agent_model = await self.model.agent_model(
+                    function_tools=[],
+                    allow_text_result=True,
+                    result_tools=[],
+                )
 
                 while True:
-                    try:
-                        # Receive and parse messages
-                        raw_messages = await websocket.receive_text()
-                        messages = ModelMessagesTypeAdapter.validate_json(raw_messages)
+                    # Receive and parse messages
+                    raw_messages = await websocket.receive_text()
+                    messages = ModelMessagesTypeAdapter.validate_json(raw_messages)
 
-                        # Display conversation
-                        print("\n" + "=" * 80)
-                        print("Conversation history:")
-                        print(format_conversation(messages))
-                        print("-" * 80)
-                        print("Type your response (press Enter twice when done):")
+                    # Use model's streaming capability
+                    async with agent_model.request_stream(
+                        messages,
+                        model_settings=None,  # Add this parameter
+                    ) as stream:
+                        async for chunk in stream:
+                            await websocket.send_json({"chunk": chunk})
 
-                        # Get response line by line
-                        response: list[str] = []
-                        while True:
-                            line = input()
-                            if not line and response:  # Empty line after content
-                                break
-                            if line:
-                                response.append(line)
-                                # Create and send part
-                                part = TextPart(content=line + "\n")
-                                py_part = self.response_part_adapter.dump_python(part)
-                                await websocket.send_json({"part": py_part})
-
-                        # Send final message with usage
-                        dct = usage.to_dict()
-                        await websocket.send_json({"done": True, "usage": dct})
-
-                    except ValueError as e:
-                        error_msg = f"Invalid request: {e}"
-                        code = status.WS_1003_UNSUPPORTED_DATA
-                        await self.manager.send_error(websocket, error_msg, code)
+                    # Send completion
+                    usage = stream.usage()
+                    await websocket.send_json({"done": True, "usage": asdict(usage)})
 
             except WebSocketDisconnect:
-                logger.info("WebSocket disconnected: %s", connection_id)
-
-            finally:
-                if connection_id:
-                    self.manager.disconnect(connection_id)
+                logger.info("WebSocket disconnected")
 
     def run(self, host: str = "0.0.0.0", port: int = 8000, **kwargs: Any):
         """Start the server."""
@@ -225,6 +139,22 @@ class ModelServer:
 if __name__ == "__main__":
     import logging
 
+    from pydantic_ai.models import infer_model
+
+    # Set up logging
     logging.basicConfig(level=logging.INFO)
-    server = ModelServer(title="Remote Model Server")
-    server.run(port=8000)
+
+    # Create server with a model
+    server = ModelServer(
+        model=infer_model("openai:gpt-4o-mini"),
+        api_key="test-key",  # Enable authentication
+        title="Test Model Server",
+        description="Test server serving GPT-4-mini",
+    )
+
+    # Run server
+    server.run(
+        host="localhost",
+        port=8000,
+        reload=True,  # Enable auto-reload for development
+    )
