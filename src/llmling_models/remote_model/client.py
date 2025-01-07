@@ -5,7 +5,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 import json
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import httpx
 from pydantic import Field, TypeAdapter
@@ -195,7 +195,7 @@ class WebSocketStreamResponse(StreamTextResponse):
 class WebSocketProxyAgent(AgentModel):
     """Agent implementation using WebSocket connection."""
 
-    response_part_adapter = TypeAdapter(ModelResponsePart)
+    response_part_adapter: TypeAdapter[Any] = TypeAdapter(ModelResponsePart)
 
     def __init__(self, url: str, api_key: str):
         """Initialize with configuration."""
