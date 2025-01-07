@@ -312,6 +312,123 @@ result = await agent.run("Very long document..." * 1000)
 
 The cost-optimized model ensures you stay within budget while getting the best possible model for your needs, while the token-optimized model automatically handles varying input lengths by selecting models with appropriate context windows.
 
+
+### Remote Input Model
+
+A model that connects to a remote human operator, allowing distributed human-in-the-loop operations:
+
+```python
+from pydantic_ai import Agent
+from llmling_models import RemoteInputModel
+
+# Basic setup with WebSocket (preferred for streaming)
+model = RemoteInputModel(
+    url="ws://operator:8000/v1/chat/stream",
+    protocol="websocket",
+    api_key="your-api-key"
+)
+
+# Or use REST API
+model = RemoteInputModel(
+    url="http://operator:8000/v1/chat",
+    protocol="rest",
+    api_key="your-api-key"
+)
+
+agent = Agent(model)
+
+# The request will be forwarded to the remote operator
+result = await agent.run("What's the meaning of life?")
+print(f"Remote operator responded: {result.data}")
+
+# Streaming also works with WebSocket protocol
+async with agent.run_stream("Tell me a story...") as response:
+    async for chunk in response.stream():
+        print(chunk, end="", flush=True)
+```
+
+YAML configuration:
+```yaml
+models:
+  remote-human:
+    type: remote-input
+    url: ws://operator:8000/v1/chat/stream  # or http:// for REST
+    protocol: websocket  # or rest
+    api_key: your-api-key
+```
+
+Features:
+- Distributed human-in-the-loop operations
+- WebSocket support for real-time streaming
+- REST API for simpler setups
+- Full conversation context support
+- Secure authentication via API keys
+
+### Remote Model Proxy
+
+A model that proxies requests to a remote model server, allowing distributed model deployments:
+
+```python
+from pydantic_ai import Agent
+from llmling_models import RemoteProxyModel
+
+# Basic setup with WebSocket (preferred for streaming)
+model = RemoteProxyModel(
+    url="ws://model-server:8000/v1/completion",
+    protocol="websocket",
+    api_key="your-api-key"
+)
+
+# Or use REST API
+model = RemoteProxyModel(
+    url="http://model-server:8000/v1/completion",
+    protocol="rest",
+    api_key="your-api-key"
+)
+
+agent = Agent(model)
+
+# The request will be forwarded to the remote model server
+result = await agent.run("What's 2+2?")
+print(f"Remote model responded: {result.data}")
+
+# Usage statistics are forwarded from the remote model
+print(f"Tokens used: {result.usage().total_tokens}")
+
+# Streaming works with WebSocket protocol
+async with agent.run_stream("Generate a story...") as response:
+    async for chunk in response.stream():
+        print(chunk, end="", flush=True)
+```
+
+YAML configuration:
+```yaml
+models:
+  remote-gpt4:
+    type: remote-proxy
+    url: ws://model-server:8000/v1/completion  # or http:// for REST
+    protocol: websocket  # or rest
+    api_key: your-api-key
+```
+
+Features:
+- Distributed model deployment support
+- Full pydantic-ai message protocol support
+- WebSocket streaming capabilities
+- REST API for simpler setups
+- Usage statistics forwarding
+- Secure authentication via API keys
+- Supports all message part types
+```
+
+These models enable distributed setups where:
+1. `RemoteInputModel` allows human operators to work from different locations
+2. `RemoteProxyModel` allows models to be deployed on separate servers
+
+Both implementations support both REST and WebSocket protocols, with WebSocket being preferred for streaming capabilities. They also maintain the full pydantic-ai message protocol, ensuring compatibility with all features of the framework.
+
+
+
 All multi models are generically typed to follow pydantic best practices. Usefulness for that is debatable though. :P
 
 ## Installation
