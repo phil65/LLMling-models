@@ -111,22 +111,25 @@ class _AugmentedAgentModel(AgentModel):
 
     async def _get_agent_model(self, key: str) -> AgentModel:
         """Get or initialize an agent model."""
-        if key not in self._initialized_models:
-            if key == "main":
+        if key in self._initialized_models:
+            return self._initialized_models[key]
+
+        match key:
+            case "main":
                 model = self.main_model
-            elif key == "pre" and self.pre_prompt:
+            case "pre" if self.pre_prompt:
                 model = self.pre_prompt.model_instance
-            elif key == "post" and self.post_prompt:
+            case "post" if self.post_prompt:
                 model = self.post_prompt.model_instance
-            else:
+            case _:
                 msg = f"Unknown model key: {key}"
                 raise ValueError(msg)
 
-            self._initialized_models[key] = await model.agent_model(
-                function_tools=self.function_tools if key == "main" else [],
-                allow_text_result=True,
-                result_tools=self.result_tools if key == "main" else [],
-            )
+        self._initialized_models[key] = await model.agent_model(
+            function_tools=self.function_tools if key == "main" else [],
+            allow_text_result=True,
+            result_tools=self.result_tools if key == "main" else [],
+        )
 
         return self._initialized_models[key]
 
