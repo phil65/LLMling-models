@@ -3,14 +3,20 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 import json
 from typing import TYPE_CHECKING, Literal
 
 import httpx
 from pydantic import Field
-from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
-from pydantic_ai.models import AgentModel, EitherStreamedResponse, StreamTextResponse
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelResponse,
+    ModelResponseStreamEvent,
+    TextPart,
+)
+from pydantic_ai.models import AgentModel, StreamedResponse
 from pydantic_ai.result import Usage
 import websockets
 
@@ -19,7 +25,7 @@ from llmling_models.log import get_logger
 
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Iterable
+    from collections.abc import AsyncIterator
 
     from pydantic_ai.settings import ModelSettings
     from pydantic_ai.tools import ToolDefinition
@@ -155,48 +161,45 @@ class RestRemoteAgent(AgentModel):
             raise RuntimeError(msg) from e
 
 
-class WebSocketStreamResponse(StreamTextResponse):
+@dataclass
+class WebSocketStreamedResponse(StreamedResponse):
     """Stream implementation for WebSocket responses."""
 
-    def __init__(self, websocket: ClientConnection):
-        """Initialize with active WebSocket."""
-        self.websocket = websocket
-        self._buffer: list[str] = []
-        self._complete = False
-        self._timestamp = datetime.now(UTC)
+    websocket: ClientConnection
+    _timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
 
-    async def __anext__(self):
-        """Get next character from operator."""
-        if self._complete:
-            raise StopAsyncIteration
+    def __post_init__(self):
+        """Initialize usage tracking."""
+        self._usage = Usage()
 
+    async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
+        """Stream responses as events."""
         try:
-            raw_data = await self.websocket.recv()
-            data = json.loads(raw_data)
+            while True:
+                try:
+                    raw_data = await self.websocket.recv()
+                    data = json.loads(raw_data)
 
-            if data.get("error"):
-                msg = f"Server error: {data['error']}"
-                raise RuntimeError(msg)
+                    if data.get("error"):
+                        msg = f"Server error: {data['error']}"
+                        raise RuntimeError(msg)
 
-            if data["done"]:
-                self._complete = True
-                raise StopAsyncIteration
+                    if data["done"]:
+                        break
 
-            self._buffer.append(data["chunk"])
+                    # Emit text delta event for each chunk
+                    yield self._parts_manager.handle_text_delta(
+                        vendor_part_id="content",
+                        content=data["chunk"],
+                    )
 
-        except (websockets.ConnectionClosed, ValueError, KeyError) as e:
+                except (websockets.ConnectionClosed, ValueError, KeyError) as e:
+                    msg = f"Stream error: {e}"
+                    raise RuntimeError(msg) from e
+
+        except Exception as e:
             msg = f"Stream error: {e}"
             raise RuntimeError(msg) from e
-
-    def get(self, *, final: bool = False) -> Iterable[str]:
-        """Get accumulated response chunks."""
-        chunks = self._buffer.copy()
-        self._buffer.clear()
-        return chunks
-
-    def usage(self) -> Usage:
-        """Get usage statistics."""
-        return Usage()
 
     def timestamp(self) -> datetime:
         """Get response timestamp."""
@@ -261,7 +264,7 @@ class WebSocketRemoteAgent(AgentModel):
         self,
         messages: list[ModelMessage],
         model_settings: ModelSettings | None = None,
-    ) -> AsyncIterator[EitherStreamedResponse]:
+    ) -> AsyncIterator[StreamedResponse]:
         """Stream responses from operator."""
         websocket = await websockets.connect(
             self.url,
@@ -281,7 +284,7 @@ class WebSocketRemoteAgent(AgentModel):
             data = json.dumps({"prompt": prompt, "conversation": conversation})
             await websocket.send(data)
 
-            yield WebSocketStreamResponse(websocket)
+            yield WebSocketStreamedResponse(websocket)
 
         except websockets.ConnectionClosed as e:
             msg = f"WebSocket error: {e}"

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -12,11 +12,12 @@ from pydantic import Field
 from pydantic_ai.messages import (
     ModelMessage,
     ModelResponse,
+    ModelResponseStreamEvent,
     SystemPromptPart,
     TextPart,
     UserPromptPart,
 )
-from pydantic_ai.models import AgentModel, EitherStreamedResponse
+from pydantic_ai.models import AgentModel, StreamedResponse
 from pydantic_ai.result import Usage
 
 from llmling_models.base import PydanticModel
@@ -26,6 +27,31 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Sequence
 
     from pydantic_ai.settings import ModelSettings
+
+
+@dataclass
+class AISuiteStreamedResponse(StreamedResponse):
+    """Stream implementation for AISuite."""
+
+    _timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
+    """Timestamp of when the response was created."""
+
+    def __post_init__(self):
+        """Initialize usage."""
+        self._usage = Usage()  # Initialize with empty usage
+
+    async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
+        """Not supported yet."""
+        msg = "Streaming not supported by AISuite adapter"
+        raise NotImplementedError(msg) from None
+        # Need to yield even though we raise an error
+        # to satisfy the async iterator protocol
+        if False:  # pragma: no cover
+            yield None  # type: ignore
+
+    def timestamp(self) -> datetime:
+        """Get response timestamp."""
+        return self._timestamp
 
 
 class AISuiteAdapter(PydanticModel):
@@ -136,14 +162,14 @@ class AISuiteAgentModel(AgentModel):
         self,
         messages: list[ModelMessage],
         model_settings: ModelSettings | None = None,
-    ) -> AsyncIterator[EitherStreamedResponse]:
+    ) -> AsyncIterator[StreamedResponse]:
         """Streaming is not supported yet."""
         msg = "Streaming not supported by AISuite adapter"
         raise NotImplementedError(msg) from None
         # Need to yield even though we raise an error
         # to satisfy the async context manager protocol
         if False:  # pragma: no cover
-            yield None
+            yield AISuiteStreamedResponse()
 
 
 if __name__ == "__main__":

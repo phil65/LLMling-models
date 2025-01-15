@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 import json
 from typing import TYPE_CHECKING, Any, Literal
@@ -15,8 +16,9 @@ from pydantic_ai.messages import (
     ModelMessagesTypeAdapter,
     ModelResponse,
     ModelResponsePart,
+    ModelResponseStreamEvent,
 )
-from pydantic_ai.models import AgentModel, EitherStreamedResponse, StreamTextResponse
+from pydantic_ai.models import AgentModel, StreamedResponse
 from pydantic_ai.result import Usage
 import websockets
 
@@ -25,7 +27,7 @@ from llmling_models.log import get_logger
 
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Iterable
+    from collections.abc import AsyncIterator
 
     from pydantic_ai.settings import ModelSettings
     from pydantic_ai.tools import ToolDefinition
@@ -136,56 +138,45 @@ class RestProxyAgent(AgentModel):
         await self.client.aclose()
 
 
-class WebSocketStreamResponse(StreamTextResponse):
+@dataclass
+class WebSocketStreamedResponse(StreamedResponse):
     """Stream implementation for WebSocket responses."""
 
-    def __init__(self, websocket: ClientConnection):
-        """Initialize with active WebSocket."""
-        self.websocket = websocket
-        self._complete = False
-        self._timestamp = datetime.now(UTC)
-        self._usage: Usage | None = None
-        self._current_chunk: list[str] = []
+    websocket: ClientConnection
+    _timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
 
-    async def __anext__(self) -> None:
-        """Process next chunk."""
-        if self._complete:
-            raise StopAsyncIteration
+    def __post_init__(self):
+        """Initialize the usage tracker."""
+        self._usage = Usage()
 
+    async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
+        """Stream responses as events."""
         try:
-            raw_data = await self.websocket.recv()
-            data = json.loads(raw_data)
-            logger.debug("Stream received: %s", data)
+            while True:
+                raw_data = await self.websocket.recv()
+                data = json.loads(raw_data)
+                logger.debug("Stream received: %s", data)
 
-            if data.get("error"):
-                msg = f"Server error: {data['error']}"
-                raise RuntimeError(msg)
+                if data.get("error"):
+                    msg = f"Server error: {data['error']}"
+                    raise RuntimeError(msg)
 
-            if data.get("usage"):
-                self._usage = Usage(**data["usage"])
+                if data.get("usage"):
+                    self._usage = Usage(**data["usage"])
 
-            if data.get("done", False):
-                self._complete = True
-                raise StopAsyncIteration
+                if data.get("done", False):
+                    break
 
-            chunk = data.get("chunk")
-            if chunk:  # Only store non-empty chunks
-                self._current_chunk = [chunk]
+                chunk = data.get("chunk")
+                if chunk:  # Only emit non-empty chunks
+                    yield self._parts_manager.handle_text_delta(
+                        vendor_part_id="content",
+                        content=chunk,
+                    )
+
         except (websockets.ConnectionClosed, ValueError, KeyError) as e:
             msg = f"Stream error: {e}"
             raise RuntimeError(msg) from e
-        else:
-            return
-
-    def get(self, *, final: bool = False) -> Iterable[str]:
-        """Get new chunks since last call."""
-        chunks = self._current_chunk
-        self._current_chunk = []
-        return chunks
-
-    def usage(self) -> Usage:
-        """Get usage statistics."""
-        return self._usage or Usage()
 
     def timestamp(self) -> datetime:
         """Get response timestamp."""
@@ -258,7 +249,7 @@ class WebSocketProxyAgent(AgentModel):
         self,
         messages: list[ModelMessage],
         model_settings: ModelSettings | None = None,
-    ) -> AsyncIterator[EitherStreamedResponse]:
+    ) -> AsyncIterator[StreamedResponse]:
         """Stream responses using WebSocket connection."""
         websocket = await websockets.connect(
             self.url,
@@ -269,7 +260,7 @@ class WebSocketProxyAgent(AgentModel):
             # Send messages
             payload = ModelMessagesTypeAdapter.dump_json(messages)
             await websocket.send(payload)
-            yield WebSocketStreamResponse(websocket)
+            yield WebSocketStreamedResponse(websocket)
 
         except websockets.ConnectionClosed as e:
             msg = f"WebSocket error: {e}"

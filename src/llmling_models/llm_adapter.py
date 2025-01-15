@@ -13,22 +13,19 @@ from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
     ModelResponse,
+    ModelResponseStreamEvent,
     SystemPromptPart,
     TextPart,
     UserPromptPart,
 )
-from pydantic_ai.models import (
-    AgentModel,
-    EitherStreamedResponse,
-    StreamTextResponse,
-)
+from pydantic_ai.models import AgentModel, StreamedResponse
 from pydantic_ai.result import Usage
 
 from llmling_models.base import PydanticModel
 
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Iterable
+    from collections.abc import AsyncIterator
 
     from pydantic_ai.settings import ModelSettings
 
@@ -124,7 +121,7 @@ class LLMAgentModel(AgentModel):
         self,
         messages: list[ModelMessage],
         model_settings: ModelSettings | None,
-    ) -> AsyncIterator[EitherStreamedResponse]:
+    ) -> AsyncIterator[StreamedResponse]:
         """Make a streaming request to the model."""
         prompt, system = self._build_prompt(messages)
 
@@ -139,7 +136,7 @@ class LLMAgentModel(AgentModel):
             )
             raise RuntimeError(msg)
 
-        yield LLMStreamTextResponse(response)
+        yield LLMStreamedResponse(response)
 
     @staticmethod
     def _build_prompt(messages: list[ModelMessage]) -> tuple[str, str | None]:
@@ -185,65 +182,50 @@ class LLMAgentModel(AgentModel):
 
 
 @dataclass
-class LLMStreamTextResponse(StreamTextResponse):
+class LLMStreamedResponse(StreamedResponse):
     """Stream implementation for LLM responses."""
 
     _response: llm.Response | llm.AsyncResponse
     _timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
-    _buffer: list[str] = field(default_factory=list)
-    _complete: bool = field(default=False)
-    _accumulated_text: str = field(default="")
-    _usage: Usage = field(default_factory=Usage)
 
-    async def __anext__(self):
-        """Process the next chunk without returning it.
+    def __post_init__(self):
+        """Initialize usage."""
+        self._usage = Usage()
 
-        Chunks are accumulated and made available via get().
-        """
+    async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
+        """Stream response chunks as events."""
         try:
-            if isinstance(self._response, llm.AsyncResponse):
-                chunk = await self._response.__anext__()
-            else:
-                chunk = next(iter(self._response))
+            while True:
+                try:
+                    if isinstance(self._response, llm.AsyncResponse):
+                        chunk = await self._response.__anext__()
+                    else:
+                        chunk = next(iter(self._response))
 
-            self._buffer.append(chunk)
-            self._accumulated_text += chunk
+                    # Update usage if available
+                    if hasattr(self._response, "usage"):
+                        self._usage = Usage(
+                            request_tokens=self._response.input_tokens,
+                            response_tokens=self._response.output_tokens,
+                            total_tokens=(
+                                (self._response.input_tokens or 0)
+                                + (self._response.output_tokens or 0)
+                            ),
+                            details=self._response.token_details,
+                        )
 
-            # Update usage if available
-            if hasattr(self._response, "usage"):
-                self._usage = Usage(
-                    request_tokens=self._response.input_tokens,
-                    response_tokens=self._response.output_tokens,
-                    total_tokens=(
-                        (self._response.input_tokens or 0)
-                        + (self._response.output_tokens or 0)
-                    ),
-                    details=self._response.token_details,
-                )
+                    # Emit text delta event
+                    yield self._parts_manager.handle_text_delta(
+                        vendor_part_id="content",
+                        content=chunk,
+                    )
 
-        except (StopIteration, StopAsyncIteration):
-            self._complete = True
-            raise StopAsyncIteration  # noqa: B904
+                except (StopIteration, StopAsyncIteration):
+                    break
 
-    def get(self, *, final: bool = False) -> Iterable[str]:
-        """Get accumulated chunks since last get call.
-
-        Args:
-            final: If True, this is the final call and should return any remaining text.
-        """
-        # If final and not complete, raise an error
-        if final and not self._complete:
-            msg = "Called get(final=True) before stream was complete"
-            raise RuntimeError(msg)
-
-        # Return buffered chunks and clear buffer
-        chunks = self._buffer
-        self._buffer = []
-        return chunks
-
-    def usage(self) -> Usage:
-        """Get usage stats - only complete after stream is finished."""
-        return self._usage
+        except Exception as e:
+            msg = f"Stream error: {e}"
+            raise RuntimeError(msg) from e
 
     def timestamp(self) -> datetime:
         """Get response timestamp."""

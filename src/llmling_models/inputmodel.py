@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Iterable
+from collections.abc import Awaitable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -14,11 +14,12 @@ from pydantic_ai.messages import (
     ModelMessage,
     ModelResponse,
     ModelResponsePart,
+    ModelResponseStreamEvent,
     SystemPromptPart,
     TextPart,
     UserPromptPart,
 )
-from pydantic_ai.models import AgentModel, EitherStreamedResponse, StreamTextResponse
+from pydantic_ai.models import AgentModel, StreamedResponse
 from pydantic_ai.result import Usage
 
 from llmling_models.base import PydanticModel
@@ -37,27 +38,33 @@ logger = get_logger(__name__)
 
 
 @dataclass
-class InputStreamResponse(StreamTextResponse):
+class InputStreamedResponse(StreamedResponse):
     """Stream implementation for input model."""
 
     _stream: AsyncIterator[str]
     _timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
-    _buffer: list[str] = field(default_factory=list)
 
-    async def __anext__(self):
-        """Get next character from stream."""
-        char = await self._stream.__anext__()
-        self._buffer.append(char)
+    def __post_init__(self):
+        """Initialize usage tracking."""
+        self._usage = Usage()
 
-    def get(self, *, final: bool = False) -> Iterable[str]:
-        """Get accumulated characters."""
-        chars = self._buffer.copy()
-        self._buffer.clear()
-        return chars
+    async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
+        """Stream characters as events."""
+        try:
+            while True:
+                try:
+                    char = await self._stream.__anext__()
+                    # Emit text delta event for each character
+                    yield self._parts_manager.handle_text_delta(
+                        vendor_part_id="content",
+                        content=char,
+                    )
+                except StopAsyncIteration:
+                    break
 
-    def usage(self) -> Usage:
-        """Get usage stats."""
-        return Usage()
+        except Exception as e:
+            msg = f"Stream error: {e}"
+            raise RuntimeError(msg) from e
 
     def timestamp(self) -> datetime:
         """Get response timestamp."""
@@ -176,7 +183,7 @@ class InputAgentModel(AgentModel):
         self,
         messages: list[ModelMessage],
         model_settings: ModelSettings | None = None,
-    ) -> AsyncIterator[EitherStreamedResponse]:
+    ) -> AsyncIterator[StreamedResponse]:
         """Stream responses character by character."""
         # Format and display messages using handler
         display_text = self.input_handler.format_messages(
@@ -199,7 +206,7 @@ class InputAgentModel(AgentModel):
             else:
                 char_stream = stream_or_awaitable
 
-        yield InputStreamResponse(char_stream)
+        yield InputStreamedResponse(char_stream)
 
 
 if __name__ == "__main__":
