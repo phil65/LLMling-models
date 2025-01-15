@@ -10,7 +10,6 @@ from pydantic import Field, ImportString
 from pydantic_ai.messages import ModelRequest, ModelResponse, UserPromptPart
 from pydantic_ai.models import AgentModel, Model
 
-from llmling_models.input_handlers import DefaultInputHandler, InputHandler
 from llmling_models.log import get_logger
 from llmling_models.multi import MultiModel
 
@@ -22,6 +21,8 @@ if TYPE_CHECKING:
     from pydantic_ai.result import Usage
     from pydantic_ai.settings import ModelSettings
     from pydantic_ai.tools import ToolDefinition
+
+    from llmling_models.input_handlers import InputHandler
 
 logger = get_logger(__name__)
 
@@ -56,7 +57,9 @@ class UserSelectModel(MultiModel[Model]):
     input_prompt: str = Field(default="Enter model number (0-{max}): ")
     """Prompt shown when requesting model selection."""
 
-    handler: ImportString = Field(default=DefaultInputHandler)
+    handler: ImportString = Field(
+        default="llmling_models:DefaultInputHandler", validate_default=True
+    )
     """Input handler class to use."""
 
     def name(self) -> str:

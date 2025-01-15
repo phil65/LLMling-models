@@ -22,7 +22,6 @@ from pydantic_ai.models import AgentModel, EitherStreamedResponse, StreamTextRes
 from pydantic_ai.result import Usage
 
 from llmling_models.base import PydanticModel
-from llmling_models.input_handlers import DefaultInputHandler, InputHandler
 from llmling_models.log import get_logger
 
 
@@ -31,6 +30,8 @@ if TYPE_CHECKING:
 
     from pydantic_ai.settings import ModelSettings
     from pydantic_ai.tools import ToolDefinition
+
+    from llmling_models.input_handlers import InputHandler
 
 logger = get_logger(__name__)
 
@@ -77,7 +78,9 @@ class InputModel(PydanticModel):
     input_prompt: str = Field(default="Your response: ")
     """Prompt to show when requesting input."""
 
-    handler: ImportString = Field(default=DefaultInputHandler)
+    handler: ImportString = Field(
+        default="llmling_models:DefaultInputHandler", validate_default=True
+    )
     """Input handler class to use."""
 
     def name(self) -> str:
