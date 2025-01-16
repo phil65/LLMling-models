@@ -5,6 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 import importlib.util
 import logging
+import os
 from typing import TYPE_CHECKING
 
 from pydantic_ai.messages import (
@@ -14,11 +15,14 @@ from pydantic_ai.messages import (
     ToolReturnPart,
     UserPromptPart,
 )
+from pydantic_ai.models import infer_model as infer_model_
+from pydantic_ai.models.openai import OpenAIModel
 
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    from pydantic_ai.models import Model
     from tokonomics import ModelCosts, TokenLimits
 
 
@@ -34,6 +38,55 @@ async def get_model_limits(model_name: str) -> TokenLimits | None:
     from tokonomics import get_model_limits
 
     return await get_model_limits(model_name)
+
+
+def infer_model(model) -> Model:  # noqa: PLR0911
+    """Extended infer_model from pydantic-ai."""
+    if not isinstance(model, str):
+        return model
+    if model.startswith("openrouter:"):
+        return OpenAIModel(
+            model.removeprefix("openrouter:").replace(":", "/"),
+            base_url="https://openrouter.ai/api/v1",
+            api_key=os.getenv("OPENROUTER_API_KEY"),
+        )
+    if model.startswith("grok:"):
+        return OpenAIModel(
+            model.removeprefix("grok:"),
+            base_url="https://api.x.ai/v1",
+            api_key=os.getenv("X_AI_API_KEY") or os.getenv("GROK_API_KEY"),
+        )
+    if model.startswith("deepseek:"):
+        return OpenAIModel(
+            model.removeprefix("deepseek:"),
+            base_url="https://api.deepseek.com",
+            api_key=os.getenv("DEEPSEEK_API_KEY"),
+        )
+    if model.startswith("llm:"):
+        from llmling_models.llm_adapter import LLMAdapter
+
+        return LLMAdapter(model_name=model.removeprefix("llm:"))
+    if model.startswith("aisuite:"):
+        from llmling_models.aisuite_adapter import AISuiteAdapter
+
+        return AISuiteAdapter(model=model.removeprefix("aisuite:"))
+    if model == "input":
+        from llmling_models import InputModel
+
+        return InputModel()
+    if model.startswith("remote_model"):
+        from llmling_models.remote_model.client import RemoteProxyModel
+
+        return RemoteProxyModel(url=model.removeprefix("remote_model:"))
+    if model.startswith("remote_input"):
+        from llmling_models.remote_input.client import RemoteInputModel
+
+        return RemoteInputModel(url=model.removeprefix("remote_input:"))
+    if model.startswith("import:"):
+        from llmling_models.importmodel import ImportModel
+
+        return ImportModel(model=model.removeprefix("import:"))
+    return infer_model_(model)  # type: ignore
 
 
 def estimate_tokens(messages: list[ModelMessage]) -> int:

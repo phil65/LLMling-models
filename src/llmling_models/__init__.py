@@ -13,6 +13,7 @@ from llmling_models.multimodels import (
     DelegationMultiModel,
     UserSelectModel,
 )
+from llmling_models.utils import infer_model
 
 __all__ = [
     "CostOptimizedMultiModel",
@@ -25,4 +26,5 @@ __all__ = [
     "PydanticModel",
     "TokenOptimizedMultiModel",
     "UserSelectModel",
+    "infer_model",
 ]
