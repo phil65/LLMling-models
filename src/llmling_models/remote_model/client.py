@@ -53,13 +53,13 @@ class RemoteProxyModel(PydanticModel):
     type: Literal["remote-proxy"] = Field(default="remote-proxy", init=False)
     """Discriminator field for model type."""
 
-    url: str
+    url: str = "ws://localhost:8000/v1/completion/stream"
     """URL of the remote model server."""
 
     protocol: Literal["rest", "websocket"] = "websocket"
     """Protocol to use for communication."""
 
-    api_key: str
+    api_key: str | None = None
     """API key for authentication."""
 
     def name(self) -> str:
@@ -82,13 +82,13 @@ class RemoteProxyModel(PydanticModel):
 class RestProxyAgent(AgentModel):
     """Agent implementation using REST API."""
 
-    def __init__(self, url: str, api_key: str):
+    def __init__(self, url: str, api_key: str | None = None):
         """Initialize with configuration."""
         self.url = url
-        self.api_key = api_key
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
         self.client = httpx.AsyncClient(
             base_url=url,
-            headers={"Authorization": f"Bearer {api_key}"},
+            headers=headers,
             timeout=30.0,
         )
 
@@ -188,11 +188,11 @@ class WebSocketProxyAgent(AgentModel):
 
     response_part_adapter: TypeAdapter[Any] = TypeAdapter(ModelResponsePart)
 
-    def __init__(self, url: str, api_key: str):
+    def __init__(self, url: str, api_key: str | None = None):
         """Initialize with configuration."""
         self.url = url
         self.api_key = api_key
-        self.headers = {"Authorization": f"Bearer {api_key}"}
+        self.headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
 
     async def request(
         self,
