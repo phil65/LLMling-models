@@ -214,8 +214,8 @@ class WebSocketRemoteAgent(AgentModel):
     def __init__(self, url: str, api_key: str | None = None):
         """Initialize with configuration."""
         self.url = url
-        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
-        self.client = httpx.AsyncClient(headers=headers)
+        self.headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+        self.client = httpx.AsyncClient(headers=self.headers)
 
     async def request(
         self,
@@ -223,10 +223,7 @@ class WebSocketRemoteAgent(AgentModel):
         model_settings: ModelSettings | None = None,
     ) -> tuple[ModelResponse, Usage]:
         """Make request using WebSocket connection."""
-        async with websockets.connect(
-            self.url,
-            extra_headers={"Authorization": f"Bearer {self.api_key}"},
-        ) as websocket:
+        async with websockets.connect(self.url, extra_headers=self.headers) as websocket:
             try:
                 # Get current prompt and history
                 prompt = ""
@@ -268,10 +265,7 @@ class WebSocketRemoteAgent(AgentModel):
         model_settings: ModelSettings | None = None,
     ) -> AsyncIterator[StreamedResponse]:
         """Stream responses from operator."""
-        websocket = await websockets.connect(
-            self.url,
-            extra_headers={"Authorization": f"Bearer {self.api_key}"},
-        )
+        websocket = await websockets.connect(self.url, extra_headers=self.headers)
 
         try:
             # Send prompt and history
