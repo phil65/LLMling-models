@@ -311,14 +311,12 @@ from llmling_models import RemoteInputModel
 # Basic setup with WebSocket (preferred for streaming)
 model = RemoteInputModel(
     url="ws://operator:8000/v1/chat/stream",
-    protocol="websocket",
     api_key="your-api-key"
 )
 
 # Or use REST API
 model = RemoteInputModel(
     url="http://operator:8000/v1/chat",
-    protocol="rest",
     api_key="your-api-key"
 )
 

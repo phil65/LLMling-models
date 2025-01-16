@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 import json
 from typing import TYPE_CHECKING, Any, Literal
+from urllib.parse import urlparse
 
 import httpx
 from pydantic import Field, TypeAdapter
@@ -45,7 +46,6 @@ class RemoteProxyModel(PydanticModel):
           remote-gpt4:
             type: remote-proxy
             url: ws://model-server:8000/v1/completion  # or http://
-            protocol: websocket  # or rest
             api_key: your-api-key
         ```
     """
@@ -56,15 +56,18 @@ class RemoteProxyModel(PydanticModel):
     url: str = "ws://localhost:8000/v1/completion/stream"
     """URL of the remote model server."""
 
-    protocol: Literal["rest", "websocket"] = "websocket"
-    """Protocol to use for communication."""
-
     api_key: str | None = None
     """API key for authentication."""
 
     def name(self) -> str:
         """Get model name."""
         return f"remote-proxy({self.url})"
+
+    @property
+    def protocol(self) -> Literal["rest", "websocket"]:
+        """Infer protocol from URL."""
+        scheme = urlparse(self.url).scheme.lower()
+        return "websocket" if scheme in ("ws", "wss") else "rest"
 
     async def agent_model(
         self,
@@ -278,11 +281,7 @@ if __name__ == "__main__":
     logger.info("Starting client test...")
 
     async def test():
-        model = RemoteProxyModel(
-            url="ws://localhost:8000/v1/completion/stream",
-            protocol="websocket",
-            api_key="test-key",
-        )
+        model = RemoteProxyModel(url="ws://localhost:8000/v1/completion/stream")
         agent: Agent[None, str] = Agent(model=model)
 
         # Test streaming

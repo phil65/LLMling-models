@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 import json
 from typing import TYPE_CHECKING, Literal
+from urllib.parse import urlparse
 
 import httpx
 from pydantic import Field
@@ -43,7 +44,6 @@ class RemoteInputModel(PydanticModel):
           remote-human:
             type: remote-input
             url: ws://localhost:8000/v1/chat/stream  # or http://localhost:8000/v1/chat
-            protocol: websocket  # or rest
             api_key: your-api-key
         ```
     """
@@ -51,18 +51,21 @@ class RemoteInputModel(PydanticModel):
     type: Literal["remote-input"] = Field(default="remote-input", init=False)
     """Discriminator field for model type."""
 
-    url: str
+    url: str = "ws://localhost:8000/v1/chat/stream"
     """URL of the remote input server."""
 
-    protocol: Literal["rest", "websocket"] = "websocket"
-    """Protocol to use for communication."""
-
-    api_key: str
+    api_key: str | None = None
     """API key for authentication."""
 
     def name(self) -> str:
         """Get model name."""
         return f"remote-input({self.url})"
+
+    @property
+    def protocol(self) -> Literal["rest", "websocket"]:
+        """Infer protocol from URL."""
+        scheme = urlparse(self.url).scheme.lower()
+        return "websocket" if scheme in ("ws", "wss") else "rest"
 
     async def agent_model(
         self,
@@ -98,11 +101,10 @@ def extract_conversation(messages: list[ModelMessage]) -> list[dict[str, str]]:
 class RestRemoteAgent(AgentModel):
     """Agent implementation using REST API."""
 
-    def __init__(self, url: str, api_key: str):
+    def __init__(self, url: str, api_key: str | None = None):
         """Initialize with configuration."""
-        self.client = httpx.AsyncClient(
-            base_url=url, headers={"Authorization": f"Bearer {api_key}"}
-        )
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+        self.client = httpx.AsyncClient(base_url=url, headers=headers)
 
     async def request(
         self,
@@ -209,11 +211,11 @@ class WebSocketStreamedResponse(StreamedResponse):
 class WebSocketRemoteAgent(AgentModel):
     """Agent implementation using WebSocket connection."""
 
-    def __init__(self, url: str, api_key: str):
+    def __init__(self, url: str, api_key: str | None = None):
         """Initialize with configuration."""
         self.url = url
-        self.api_key = api_key
-        self.client = httpx.AsyncClient(headers={"Authorization": f"Bearer {api_key}"})
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+        self.client = httpx.AsyncClient(headers=headers)
 
     async def request(
         self,
@@ -317,7 +319,6 @@ if __name__ == "__main__":
         print("\nTesting REST protocol:")
         model = RemoteInputModel(
             url="http://localhost:8000",  # Base URL only
-            protocol="rest",
             api_key="test-key",
         )
         agent: Agent[None, str] = Agent(
