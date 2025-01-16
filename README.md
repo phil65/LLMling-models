@@ -345,15 +345,11 @@ Features:
 Setting up a remote model server is straightforward. You just need a pydantic-ai model and can start serving it:
 
 ```python
-from pydantic_ai.models import infer_model
 from llmling_models.remote_model.server import ModelServer
-
-# Get any pydantic-ai model
-model = infer_model("openai:gpt-4")
 
 # Create and start server
 server = ModelServer(
-    model=model,
+    model="openai:gpt-4",
     api_key="your-secret-key",  # Optional authentication
 )
 server.run(port=8000)
@@ -373,7 +369,7 @@ For development, you might want to run the server locally:
 
 ```python
 server = ModelServer(
-    model=infer_model("openai:gpt-4"),
+    model="openai:gpt-4",
     api_key="dev-key"
 )
 server.run(host="localhost", port=8000)
@@ -383,7 +379,7 @@ For production, you'll typically want to run it on a public server with proper a
 
 ```python
 server = ModelServer(
-    model=infer_model("openai:gpt-4"),
+    model="openai:gpt-4",
     api_key="your-secure-key",  # Make sure to use a strong key
     title="Production GPT-4 Server",
     description="Serves GPT-4 model for production use"

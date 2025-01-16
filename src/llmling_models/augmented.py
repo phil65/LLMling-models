@@ -11,11 +11,12 @@ from pydantic_ai.messages import (
     ModelResponse,
     UserPromptPart,
 )
-from pydantic_ai.models import AgentModel, KnownModelName, Model, infer_model
+from pydantic_ai.models import AgentModel, KnownModelName, Model
 from pydantic_ai.result import Usage
 
 from llmling_models.base import PydanticModel
 from llmling_models.log import get_logger
+from llmling_models.utils import infer_model
 
 
 logger = get_logger(__name__)
@@ -29,7 +30,7 @@ class PrePostPromptConfig(BaseModel):
     """Configuration for pre/post prompts."""
 
     text: str
-    model: KnownModelName | Model
+    model: str | Model
 
     @property
     def model_instance(self) -> Model:

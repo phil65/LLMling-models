@@ -8,6 +8,7 @@ from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconne
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter, ModelResponse
 
 from llmling_models.log import get_logger
+from llmling_models.utils import infer_model
 
 
 if TYPE_CHECKING:
@@ -22,7 +23,7 @@ class ModelServer:
 
     def __init__(
         self,
-        model: Model,
+        model: Model | str,
         *,
         title: str = "Model Server",
         description: str | None = None,
@@ -37,7 +38,7 @@ class ModelServer:
             api_key: Optional API key for authentication
         """
         self.app = FastAPI(title=title, description=description or "")
-        self.model = model
+        self.model = infer_model(model)
         self.api_key = api_key
         self._setup_routes()
 
@@ -188,15 +189,13 @@ class ModelServer:
 if __name__ == "__main__":
     import logging
 
-    from pydantic_ai.models import infer_model
-
     # Set up logging
     logging.basicConfig(level=logging.DEBUG)
     logger.info("Starting model server...")
 
     # Create server with a model
     server = ModelServer(
-        model=infer_model("openai:gpt-4o-mini"),
+        model="openai:gpt-4o-mini",
         api_key="test-key",  # Enable authentication
         title="Test Model Server",
         description="Test server serving GPT-4-mini",
