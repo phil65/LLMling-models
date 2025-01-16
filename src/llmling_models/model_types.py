@@ -2,7 +2,7 @@ import importlib.util
 from typing import Annotated, Literal
 
 from pydantic import Field
-from pydantic_ai.models import AgentModel, KnownModelName, Model, infer_model
+from pydantic_ai.models import AgentModel, KnownModelName, Model
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.tools import ToolDefinition
 
@@ -14,6 +14,7 @@ from llmling_models import (
     InputModel,
     PydanticModel,
     TokenOptimizedMultiModel,
+    infer_model,
 )
 
 
@@ -46,7 +47,7 @@ class StringModel(PydanticModel):
     """Wrapper for string model names."""
 
     type: Literal["string"] = Field(default="string", init=False)
-    identifier: KnownModelName  # renamed from name
+    identifier: str
 
     async def agent_model(
         self,

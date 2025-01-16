@@ -397,6 +397,15 @@ Both REST and WebSocket protocols are supported, with WebSocket being preferred 
 
 All multi models are generically typed to follow pydantic best practices. Usefulness for that is debatable though. :P
 
+## Extended infer_model
+
+LLMling-models also provides an extended `infer_model` function that also resolves some of the included models as well as:
+
+- OpenRouter (`openrouter:provider/model-name`, requires `OPENROUTER_API_KEY` env var)
+- Grok (X) (`grok:grok-2-1212`, requires `X_AI_API_KEY` env var)
+- DeepSeek (`deepsek:deepsek-chat`, requires `DEEPSEEK_API_KEY` env var)
+
+
 ## Installation
 
 ```bash
