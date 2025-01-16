@@ -18,19 +18,27 @@ logger = get_logger(__name__)
 
 
 class ImportModel(PydanticModel):
-    """Model that imports and delegates to other models."""
+    """Model that imports and delegates to other models.
+
+    Useful to allow using "external" models via YAML in LLMling-Agent
+    """
 
     type: Literal["import"] = Field(default="import", init=False)
 
     model: ImportString = Field(...)
     """Model class to import and use."""
 
+    kw_args: dict[str, Any] = Field(default_factory=dict)
+    """Keyword arguments for the imported model class."""
+
     # _instance: Model | None = Field(default=None, exclude=True)
     # """Cached model instance."""
 
     def model_post_init(self, __context: dict[str, Any], /):
         """Initialize model instance if needed."""
-        self._instance = self.model() if isinstance(self.model, type) else self.model
+        self._instance = (
+            self.model(**self.kw_args) if isinstance(self.model, type) else self.model
+        )
 
     def name(self) -> str:
         """Get model name."""
