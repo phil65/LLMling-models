@@ -18,6 +18,22 @@ from llmling_models import (
 )
 
 
+AllModels = Literal[
+    "delegation",
+    "cost_optimized",
+    "token_optimized",
+    "fallback",
+    "input",
+    "import",
+    "remote_model",
+    "remote_input",
+    "llm",
+    "aisuite",
+    "augmented",
+    "user_select",
+]
+
+
 class _TestModelWrapper(PydanticModel):
     """Wrapper for TestModel."""
 
