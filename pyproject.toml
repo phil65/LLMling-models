@@ -49,11 +49,7 @@ llm = ["llm>=0.19.1"]
 aisuite = ["aisuite"]
 tokenizers = ["tokenizers"]
 transformers = ["transformers"]
-remote = [
-    "fastapi",
-    "uvicorn",
-    # "websockets@git+https://github.com/python-websockets/websockets.git@main",
-]
+remote = ["fastapi", "uvicorn", "websockets"]
 
 [tool.uv]
 default-groups = ["dev", "lint", "docs"]
