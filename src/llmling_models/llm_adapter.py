@@ -136,7 +136,7 @@ class LLMAgentModel(AgentModel):
             )
             raise RuntimeError(msg)
 
-        yield LLMStreamedResponse(response)
+        yield LLMStreamedResponse(response=response)
 
     @staticmethod
     def _build_prompt(messages: list[ModelMessage]) -> tuple[str, str | None]:
@@ -181,12 +181,13 @@ class LLMAgentModel(AgentModel):
         )
 
 
-@dataclass
+@dataclass(kw_only=True)
 class LLMStreamedResponse(StreamedResponse):
     """Stream implementation for LLM responses."""
 
-    _response: llm.Response | llm.AsyncResponse
+    response: llm.Response | llm.AsyncResponse
     _timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
+    _model_name: str = "llm"
 
     def __post_init__(self):
         """Initialize usage."""
@@ -197,21 +198,21 @@ class LLMStreamedResponse(StreamedResponse):
         try:
             while True:
                 try:
-                    if isinstance(self._response, llm.AsyncResponse):
-                        chunk = await self._response.__anext__()
+                    if isinstance(self.response, llm.AsyncResponse):
+                        chunk = await self.response.__anext__()
                     else:
-                        chunk = next(iter(self._response))
+                        chunk = next(iter(self.response))
 
                     # Update usage if available
-                    if hasattr(self._response, "usage"):
+                    if hasattr(self.response, "usage"):
                         self._usage = Usage(
-                            request_tokens=self._response.input_tokens,
-                            response_tokens=self._response.output_tokens,
+                            request_tokens=self.response.input_tokens,
+                            response_tokens=self.response.output_tokens,
                             total_tokens=(
-                                (self._response.input_tokens or 0)
-                                + (self._response.output_tokens or 0)
+                                (self.response.input_tokens or 0)
+                                + (self.response.output_tokens or 0)
                             ),
-                            details=self._response.token_details,
+                            details=self.response.token_details,
                         )
 
                     # Emit text delta event

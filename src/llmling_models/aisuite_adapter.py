@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from pydantic_ai.settings import ModelSettings
 
 
-@dataclass
+@dataclass(kw_only=True)
 class AISuiteStreamedResponse(StreamedResponse):
     """Stream implementation for AISuite."""
 

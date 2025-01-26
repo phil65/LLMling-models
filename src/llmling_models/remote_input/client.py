@@ -163,12 +163,13 @@ class RestRemoteAgent(AgentModel):
             raise RuntimeError(msg) from e
 
 
-@dataclass
+@dataclass(kw_only=True)
 class WebSocketStreamedResponse(StreamedResponse):
     """Stream implementation for WebSocket responses."""
 
     websocket: ClientConnection
     _timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
+    _model_name: str = "remote"
 
     def __post_init__(self):
         """Initialize usage tracking."""
@@ -280,7 +281,7 @@ class WebSocketRemoteAgent(AgentModel):
             data = json.dumps({"prompt": prompt, "conversation": conversation})
             await websocket.send(data)
 
-            yield WebSocketStreamedResponse(websocket)
+            yield WebSocketStreamedResponse(websocket=websocket)
 
         except websockets.ConnectionClosed as e:
             msg = f"WebSocket error: {e}"

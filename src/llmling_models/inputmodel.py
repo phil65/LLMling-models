@@ -37,12 +37,13 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-@dataclass
+@dataclass(kw_only=True)
 class InputStreamedResponse(StreamedResponse):
     """Stream implementation for input model."""
 
-    _stream: AsyncIterator[str]
+    stream: AsyncIterator[str]
     _timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
+    _model_name: str = "input"
 
     def __post_init__(self):
         """Initialize usage tracking."""
@@ -53,7 +54,7 @@ class InputStreamedResponse(StreamedResponse):
         try:
             while True:
                 try:
-                    char = await self._stream.__anext__()
+                    char = await self.stream.__anext__()
                     # Emit text delta event for each character
                     yield self._parts_manager.handle_text_delta(
                         vendor_part_id="content",
@@ -206,7 +207,7 @@ class InputAgentModel(AgentModel):
             else:
                 char_stream = stream_or_awaitable
 
-        yield InputStreamedResponse(char_stream)
+        yield InputStreamedResponse(stream=char_stream)
 
 
 if __name__ == "__main__":

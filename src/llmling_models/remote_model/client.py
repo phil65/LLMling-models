@@ -18,6 +18,7 @@ from pydantic_ai.messages import (
     ModelResponse,
     ModelResponsePart,
     ModelResponseStreamEvent,
+    TextPart,
 )
 from pydantic_ai.models import AgentModel, StreamedResponse
 from pydantic_ai.result import Usage
@@ -119,8 +120,8 @@ class RestProxyAgent(AgentModel):
             data = response.json()
             logger.debug("Received response: %s", data)
 
-            model_response = ModelResponse.from_text(
-                data["content"],
+            model_response = ModelResponse(
+                parts=[TextPart(data["content"])],
                 timestamp=datetime.now(UTC),
             )
             usage = Usage(**data.get("usage", {}))
@@ -141,12 +142,13 @@ class RestProxyAgent(AgentModel):
         await self.client.aclose()
 
 
-@dataclass
+@dataclass(kw_only=True)
 class WebSocketStreamedResponse(StreamedResponse):
     """Stream implementation for WebSocket responses."""
 
     websocket: ClientConnection
     _timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
+    _model_name: str = "remote-proxy"
 
     def __post_init__(self):
         """Initialize the usage tracker."""
@@ -241,7 +243,7 @@ class WebSocketProxyAgent(AgentModel):
                     msg = "Received empty response from server"
                     raise RuntimeError(msg)
 
-                return ModelResponse.from_text(content), usage
+                return ModelResponse(parts=[TextPart(content)]), usage
 
             except (websockets.ConnectionClosed, ValueError, KeyError) as e:
                 msg = f"WebSocket error: {e}"
@@ -263,7 +265,7 @@ class WebSocketProxyAgent(AgentModel):
             # Send messages
             payload = ModelMessagesTypeAdapter.dump_json(messages)
             await websocket.send(payload)
-            yield WebSocketStreamedResponse(websocket)
+            yield WebSocketStreamedResponse(websocket=websocket)
 
         except websockets.ConnectionClosed as e:
             msg = f"WebSocket error: {e}"
