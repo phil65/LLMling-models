@@ -86,6 +86,10 @@ def infer_model(model) -> Model:  # noqa: PLR0911
         from llmling_models.importmodel import ImportModel
 
         return ImportModel(model=model.removeprefix("import:"))
+    if model.startswith("test:"):
+        from pydantic_ai.models.test import TestModel
+
+        return TestModel(custom_result_text=model.removeprefix("test:"))
     return infer_model_(model)  # type: ignore
 
 
