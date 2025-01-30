@@ -19,7 +19,6 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.models import AgentModel, StreamedResponse
 from pydantic_ai.result import Usage
-import websockets
 
 from llmling_models.base import PydanticModel
 from llmling_models.log import get_logger
@@ -177,6 +176,8 @@ class WebSocketStreamedResponse(StreamedResponse):
 
     async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
         """Stream responses as events."""
+        import websockets
+
         try:
             while True:
                 try:
@@ -224,6 +225,8 @@ class WebSocketRemoteAgent(AgentModel):
         model_settings: ModelSettings | None = None,
     ) -> tuple[ModelResponse, Usage]:
         """Make request using WebSocket connection."""
+        import websockets
+
         async with websockets.connect(self.url, extra_headers=self.headers) as websocket:
             try:
                 # Get current prompt and history
@@ -266,6 +269,8 @@ class WebSocketRemoteAgent(AgentModel):
         model_settings: ModelSettings | None = None,
     ) -> AsyncIterator[StreamedResponse]:
         """Stream responses from operator."""
+        import websockets
+
         websocket = await websockets.connect(self.url, extra_headers=self.headers)
 
         try:
