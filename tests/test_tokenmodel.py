@@ -27,21 +27,24 @@ async def print_model_limits(model_name: str):
 class LargeModel(TestModel):
     """Test model with large context window (128k)."""
 
-    def name(self) -> str:
+    @property
+    def model_name(self) -> str:
         return "gpt-4-turbo"
 
 
 class MediumModel(TestModel):
     """Test model with medium context window (16k)."""
 
-    def name(self) -> str:
+    @property
+    def model_name(self) -> str:
         return "gpt-3.5-turbo-16k"
 
 
 class StandardModel(TestModel):
     """Test model with standard context window (4k)."""
 
-    def name(self) -> str:
+    @property
+    def model_name(self) -> str:
         return "gpt-3.5-turbo"
 
 

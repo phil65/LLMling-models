@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 import inspect
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import Field, ImportString
 from pydantic_ai.messages import (
@@ -15,11 +15,9 @@ from pydantic_ai.messages import (
     ModelResponse,
     ModelResponsePart,
     ModelResponseStreamEvent,
-    SystemPromptPart,
     TextPart,
-    UserPromptPart,
 )
-from pydantic_ai.models import AgentModel, StreamedResponse
+from pydantic_ai.models import ModelRequestParameters, StreamedResponse
 from pydantic_ai.result import Usage
 
 from llmling_models.base import PydanticModel
@@ -30,9 +28,7 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     from pydantic_ai.settings import ModelSettings
-    from pydantic_ai.tools import ToolDefinition
 
-    from llmling_models.input_handlers import InputHandler
 
 logger = get_logger(__name__)
 
@@ -73,7 +69,19 @@ class InputStreamedResponse(StreamedResponse):
 
 
 class InputModel(PydanticModel):
-    """Model that delegates responses to human input."""
+    """Model that delegates responses to human input.
+
+    Example YAML configuration:
+        ```yaml
+        models:
+          interactive:
+            type: input
+            prompt_template: "🤖 Please respond to: {prompt}"
+            show_system: true
+            input_prompt: "Your response: "
+            handler: llmling_models.input_handlers:DefaultInputHandler
+        ```
+    """
 
     type: Literal["input"] = Field(default="input", init=False)
 
@@ -95,65 +103,16 @@ class InputModel(PydanticModel):
         """Get model name."""
         return "input"
 
-    async def agent_model(
-        self,
-        *,
-        function_tools: list[ToolDefinition],
-        allow_text_result: bool,
-        result_tools: list[ToolDefinition],
-    ) -> AgentModel:
-        """Create agent model implementation."""
-        handler = self.handler() if isinstance(self.handler, type) else self.handler
-        return InputAgentModel(
-            prompt_template=self.prompt_template,
-            show_system=self.show_system,
-            input_handler=handler,
-            input_prompt=self.input_prompt,
-        )
-
-
-class InputAgentModel(AgentModel):
-    """AgentModel implementation that requests human input."""
-
-    def __init__(
-        self,
-        prompt_template: str,
-        show_system: bool,
-        input_handler: InputHandler,
-        input_prompt: str,
-    ):
-        """Initialize with configuration."""
-        self.prompt_template = prompt_template
-        self.show_system = show_system
-        self.input_handler = input_handler
-        self.input_prompt = input_prompt
-
-    def _format_messages(self, messages: list[ModelMessage]) -> str:
-        """Format messages for human display."""
-        formatted: list[str] = []
-
-        for message in messages:
-            for part in message.parts:
-                match part:
-                    case SystemPromptPart() if self.show_system:
-                        formatted.append(f"🔧 System: {part.content}")
-                    case UserPromptPart():
-                        formatted.append(self.prompt_template.format(prompt=part.content))
-                    case TextPart():
-                        formatted.append(f"Assistant: {part.content}")
-                    case _:
-                        continue
-
-        return "\n\n".join(formatted)
-
     async def request(
         self,
         messages: list[ModelMessage],
-        model_settings: ModelSettings | None = None,
+        model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
     ) -> tuple[ModelResponse, Usage]:
         """Get response from human input."""
         # Format and display messages using handler
-        display_text = self.input_handler.format_messages(
+        handler = self.handler() if isinstance(self.handler, type) else self.handler
+        display_text = handler.format_messages(
             messages,
             prompt_template=self.prompt_template,
             show_system=self.show_system,
@@ -163,7 +122,7 @@ class InputAgentModel(AgentModel):
         print("-" * 80)
 
         # Get input using configured handler
-        input_method = self.input_handler.get_input
+        input_method = handler.get_input
         if inspect.iscoroutinefunction(input_method):
             response = await input_method(self.input_prompt)
         else:
@@ -173,7 +132,7 @@ class InputAgentModel(AgentModel):
             else:
                 response = response_or_awaitable
 
-        parts = cast(list[ModelResponsePart], [TextPart(response)])
+        parts: list[ModelResponsePart] = [TextPart(response)]
         return ModelResponse(
             parts=parts,
             timestamp=datetime.now(UTC),
@@ -183,11 +142,13 @@ class InputAgentModel(AgentModel):
     async def request_stream(
         self,
         messages: list[ModelMessage],
-        model_settings: ModelSettings | None = None,
+        model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
     ) -> AsyncIterator[StreamedResponse]:
         """Stream responses character by character."""
         # Format and display messages using handler
-        display_text = self.input_handler.format_messages(
+        handler = self.handler() if isinstance(self.handler, type) else self.handler
+        display_text = handler.format_messages(
             messages,
             prompt_template=self.prompt_template,
             show_system=self.show_system,
@@ -197,7 +158,7 @@ class InputAgentModel(AgentModel):
         print("-" * 80)
 
         # Get streaming input using configured handler
-        stream_method = self.input_handler.stream_input
+        stream_method = handler.stream_input
         if inspect.iscoroutinefunction(stream_method):
             char_stream = await stream_method(self.input_prompt)
         else:
@@ -212,28 +173,35 @@ class InputAgentModel(AgentModel):
 
 if __name__ == "__main__":
     import asyncio
+    import logging
 
     from pydantic_ai import Agent
 
-    async def test_conversation():
-        """Test the input model with a simple conversation."""
+    # Set up logging
+    logging.basicConfig(level=logging.DEBUG)
+
+    async def test():
+        # Test basic input
         model = InputModel(
             prompt_template="🤖 Question: {prompt}",
             show_system=True,
             input_prompt="Your answer: ",
         )
-
         agent: Agent[None, str] = Agent(
             model=model,
-            system_prompt="You are helping test an input model. Be concise.",
+            system_prompt="You are helping test user input.",
         )
 
-        # First question
+        # Test regular input
+        print("\nTesting regular input:")
         result = await agent.run("What's your favorite color?")
-        print(f"\nFirst response: {result.data}")
+        print(f"\nYour response was: {result.data}")
 
-        # Follow-up question using previous context
-        result = await agent.run("Why do you like that color?")
-        print(f"\nSecond response: {result.data}")
+        # Test streaming input
+        print("\nTesting streaming input:")
+        async with agent.run_stream("Tell me a story") as stream:
+            async for chunk in stream.stream_text(delta=True):
+                print(chunk, end="", flush=True)
+        print("\nStreaming complete!")
 
-    asyncio.run(test_conversation())
+    asyncio.run(test())

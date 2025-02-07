@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Literal, TypeVar
 
 from pydantic import Field
-from pydantic_ai.models import AgentModel, Model
+from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
 
 from llmling_models.log import get_logger
 from llmling_models.multi import MultiModel
@@ -19,19 +19,31 @@ from llmling_models.utils import (
 
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import AsyncIterator
 
     from pydantic_ai.messages import ModelMessage, ModelResponse
     from pydantic_ai.result import Usage
     from pydantic_ai.settings import ModelSettings
-    from pydantic_ai.tools import ToolDefinition
 
 logger = get_logger(__name__)
 TModel = TypeVar("TModel", bound=Model)
 
 
 class CostOptimizedMultiModel[TModel: Model](MultiModel[TModel]):
-    """Multi-model that selects based on cost and token limits."""
+    """Multi-model that selects based on cost and token limits.
+
+    Example YAML configuration:
+        ```yaml
+        models:
+          cost-optimized:
+            type: cost-optimized
+            models:
+              - openai:gpt-4
+              - openai:gpt-3.5-turbo
+            max_input_cost: 0.05
+            strategy: best_within_budget
+        ```
+    """
 
     type: Literal["cost-optimized"] = Field(default="cost-optimized", init=False)
 
@@ -41,73 +53,28 @@ class CostOptimizedMultiModel[TModel: Model](MultiModel[TModel]):
     strategy: Literal["cheapest_possible", "best_within_budget"] = "best_within_budget"
     """Strategy for model selection."""
 
+    _model_name: str = "cost_optimized"
+    _system: str | None = "multi"
+
     def name(self) -> str:
         """Get descriptive model name."""
         return f"cost-optimized({len(self.models)})"
 
-    async def agent_model(
-        self,
-        *,
-        function_tools: list[ToolDefinition],
-        allow_text_result: bool,
-        result_tools: list[ToolDefinition],
-    ) -> AgentModel:
-        """Create agent model that implements cost-based selection."""
-        return CostOptimizedAgentModel[TModel](
-            models=self.available_models,
-            max_input_cost=Decimal(str(self.max_input_cost)),
-            strategy=self.strategy,
-            function_tools=function_tools,
-            allow_text_result=allow_text_result,
-            result_tools=result_tools,
-        )
-
-
-class CostOptimizedAgentModel[TModel: Model](AgentModel):
-    """AgentModel that implements cost-based model selection."""
-
-    def __init__(
-        self,
-        models: Sequence[TModel],
-        max_input_cost: Decimal,
-        strategy: str,
-        function_tools: list[ToolDefinition],
-        allow_text_result: bool,
-        result_tools: list[ToolDefinition],
-    ):
-        """Initialize with models and cost settings."""
-        if not models:
-            msg = "At least one model must be provided"
-            raise ValueError(msg)
-        self.models = models
-        self.max_input_cost = max_input_cost
-        self.strategy = strategy
-        self.function_tools = function_tools
-        self.allow_text_result = allow_text_result
-        self.result_tools = result_tools
-        self._initialized_models: dict[str, AgentModel] = {}
-
     async def _select_model(
         self,
         messages: list[ModelMessage],
-    ) -> AgentModel:
+    ) -> Model:
         """Select appropriate model based on input token costs."""
         token_estimate = estimate_tokens(messages)
         logger.debug("Estimated input tokens: %d", token_estimate)
 
         # Get cost estimates and check limits for each model
-        model_options: list[tuple[AgentModel, Decimal]] = []
-        for model in self.models:
-            model_name = model.name()
-            logger.debug("Checking model: %s", model_name)
+        model_options: list[tuple[Model, Decimal]] = []
+        max_input_cost = Decimal(str(self.max_input_cost))
 
-            # Initialize model if needed
-            if model_name not in self._initialized_models:
-                self._initialized_models[model_name] = await model.agent_model(
-                    function_tools=self.function_tools,
-                    allow_text_result=self.allow_text_result,
-                    result_tools=self.result_tools,
-                )
+        for model in self.available_models:
+            model_name = model.model_name
+            logger.debug("Checking model: %s", model_name)
 
             # Check token limits first
             limits = await get_model_limits(model_name)
@@ -136,19 +103,16 @@ class CostOptimizedAgentModel[TModel: Model](AgentModel):
                 "Estimated cost for %s: $%s (max: $%s)",
                 model_name,
                 estimated_cost,
-                self.max_input_cost,
+                max_input_cost,
             )
 
-            if estimated_cost <= self.max_input_cost:
-                model_options.append((
-                    self._initialized_models[model_name],
-                    estimated_cost,
-                ))
+            if estimated_cost <= max_input_cost:
+                model_options.append((model, estimated_cost))
                 logger.debug("Added model %s to options", model_name)
 
         if not model_options:
             msg = (
-                f"No suitable model found within input cost limit ${self.max_input_cost} "
+                f"No suitable model found within input cost limit ${max_input_cost} "
                 f"for {token_estimate} tokens"
             )
             raise RuntimeError(msg)
@@ -159,15 +123,39 @@ class CostOptimizedAgentModel[TModel: Model](AgentModel):
             selected, cost = model_options[0]
         else:  # best_within_budget
             selected, cost = model_options[-1]
-        msg = "Selected %s with estimated cost $%s"
-        logger.info(msg, selected.__class__.__name__, cost)
+
+        logger.info(
+            "Selected %s with estimated cost $%s",
+            selected.__class__.__name__,
+            cost,
+        )
         return selected
 
     async def request(
         self,
         messages: list[ModelMessage],
-        model_settings: ModelSettings | None = None,
+        model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
     ) -> tuple[ModelResponse, Usage]:
         """Process request using cost-optimized model selection."""
         selected_model = await self._select_model(messages)
-        return await selected_model.request(messages, model_settings)
+        return await selected_model.request(
+            messages,
+            model_settings,
+            model_request_parameters,
+        )
+
+    async def request_stream(
+        self,
+        messages: list[ModelMessage],
+        model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
+    ) -> AsyncIterator[StreamedResponse]:
+        """Stream response using cost-optimized model selection."""
+        selected_model = await self._select_model(messages)
+        async with selected_model.request_stream(
+            messages,
+            model_settings,
+            model_request_parameters,
+        ) as stream:
+            yield stream

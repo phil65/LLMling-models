@@ -5,23 +5,22 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import llm
 from pydantic import Field
 from pydantic_ai.messages import (
     ModelMessage,
-    ModelRequest,
     ModelResponse,
     ModelResponseStreamEvent,
     SystemPromptPart,
     TextPart,
-    UserPromptPart,
 )
-from pydantic_ai.models import AgentModel, StreamedResponse
+from pydantic_ai.models import ModelRequestParameters, StreamedResponse
 from pydantic_ai.result import Usage
 
 from llmling_models.base import PydanticModel
+from llmling_models.log import get_logger
 
 
 if TYPE_CHECKING:
@@ -29,11 +28,14 @@ if TYPE_CHECKING:
 
     from pydantic_ai.settings import ModelSettings
 
+logger = get_logger(__name__)
+
 
 class LLMAdapter(PydanticModel):
     """Adapter to use LLM library models with Pydantic-AI."""
 
-    model_name: str = Field(description="Name of the LLM model to use")
+    type: Literal["llm"] = Field(default="llm", init=False)
+    model: str = Field(description="Name of the LLM model to use")
     needs_key: str | None = None
     key_env_var: str | None = None
     can_stream: bool = False
@@ -46,7 +48,7 @@ class LLMAdapter(PydanticModel):
 
         # Try async first
         try:
-            self._async_model = llm.get_async_model(self.model_name)
+            self._async_model = llm.get_async_model(self.model)
             # If we got an async model, get its properties
             self.needs_key = self._async_model.needs_key
             self.key_env_var = self._async_model.key_env_var
@@ -58,53 +60,34 @@ class LLMAdapter(PydanticModel):
 
         # Fall back to sync model if async not available
         try:
-            self._sync_model = llm.get_model(self.model_name)
+            self._sync_model = llm.get_model(self.model)
             self.needs_key = self._sync_model.needs_key
             self.key_env_var = self._sync_model.key_env_var
             self.can_stream = self._sync_model.can_stream
         except llm.UnknownModelError as e:
-            msg = f"No sync or async model found for {self.model_name}"
+            msg = f"No sync or async model found for {self.model}"
             raise ValueError(msg) from e
 
-    async def agent_model(
-        self,
-        *,
-        function_tools: list[Any],
-        allow_text_result: bool,
-        result_tools: list[Any],
-    ) -> AgentModel:
-        """Create an agent model - tools are ignored for now."""
-        return LLMAgentModel(
-            async_model=self._async_model,
-            sync_model=self._sync_model,
-        )
-
-    def name(self) -> str:
+    @property
+    def model_name(self) -> str:
         """Return the model name."""
-        return f"llm:{self.model_name}"
-
-
-@dataclass
-class LLMAgentModel(AgentModel):
-    """AgentModel implementation for LLM models."""
-
-    async_model: llm.AsyncModel | None
-    sync_model: llm.Model | None
+        return f"llm:{self.model}"
 
     async def request(
         self,
         messages: list[ModelMessage],
         model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
     ) -> tuple[ModelResponse, Usage]:
         """Make a request to the model."""
         prompt, system = self._build_prompt(messages)
 
-        if self.async_model:
-            response = await self.async_model.prompt(prompt, system=system, stream=False)
+        if self._async_model:
+            response = await self._async_model.prompt(prompt, system=system, stream=False)
             text = await response.text()
             usage = await self._map_async_usage(response)
-        elif self.sync_model:
-            response = self.sync_model.prompt(prompt, system=system, stream=False)
+        elif self._sync_model:
+            response = self._sync_model.prompt(prompt, system=system, stream=False)
             text = response.text()
             usage = self._map_sync_usage(response)
         else:
@@ -121,14 +104,15 @@ class LLMAgentModel(AgentModel):
         self,
         messages: list[ModelMessage],
         model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
     ) -> AsyncIterator[StreamedResponse]:
         """Make a streaming request to the model."""
         prompt, system = self._build_prompt(messages)
 
-        if self.async_model:
-            response = await self.async_model.prompt(prompt, system=system, stream=True)
-        elif self.sync_model and self.sync_model.can_stream:
-            response = self.sync_model.prompt(prompt, system=system, stream=True)
+        if self._async_model:
+            response = await self._async_model.prompt(prompt, system=system, stream=True)
+        elif self._sync_model and self._sync_model.can_stream:
+            response = self._sync_model.prompt(prompt, system=system, stream=True)
         else:
             msg = (
                 "No streaming capable model available. "
@@ -149,12 +133,17 @@ class LLMAgentModel(AgentModel):
         system = None
 
         for message in messages:
-            if isinstance(message, ModelRequest):
+            if isinstance(message, ModelResponse):
                 for part in message.parts:
-                    if isinstance(part, SystemPromptPart):
-                        system = part.content
-                    elif isinstance(part, UserPromptPart):
-                        prompt_parts.append(part.content)
+                    if hasattr(part, "content"):
+                        prompt_parts.append(f"Assistant: {part.content}")  # type: ignore  # noqa
+            else:  # ModelRequest
+                for part in message.parts:
+                    if hasattr(part, "content"):
+                        if isinstance(part, SystemPromptPart):
+                            system = part.content
+                        else:
+                            prompt_parts.append(f"Human: {part.content}")  # type: ignore
 
         return "\n".join(prompt_parts), system
 
@@ -234,9 +223,23 @@ class LLMStreamedResponse(StreamedResponse):
 
 
 if __name__ == "__main__":
+    import asyncio
+
     from pydantic_ai import Agent
 
-    model = LLMAdapter(model_name="gpt-4o-mini")
-    agent: Agent[None, str] = Agent(model)
-    response = agent.run_sync("Say hello!")
-    print(response)
+    async def test():
+        # Test with both sync and async models
+        adapter = LLMAdapter(model_name="gpt-4o-mini")
+        agent: Agent[None, str] = Agent(model=adapter)
+
+        print("\nTesting sync request:")
+        response = await agent.run("Say hello!")
+        print(f"Response: {response.data}")
+
+        print("\nTesting streaming:")
+        async with agent.run_stream("Tell me a story") as stream:
+            async for chunk in stream.stream_text(delta=True):
+                print(chunk, end="", flush=True)
+        print()
+
+    asyncio.run(test())

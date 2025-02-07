@@ -17,14 +17,14 @@ from pydantic_ai.messages import (
     TextPart,
     UserPromptPart,
 )
-from pydantic_ai.models import AgentModel, StreamedResponse
+from pydantic_ai.models import ModelRequestParameters, StreamedResponse
 from pydantic_ai.result import Usage
 
 from llmling_models.base import PydanticModel
 
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Sequence
+    from collections.abc import AsyncIterator
 
     from pydantic_ai.settings import ModelSettings
 
@@ -87,31 +87,14 @@ class AISuiteAdapter(PydanticModel):
         """Return the model name."""
         return f"aisuite:{self.model}"
 
-    async def agent_model(
-        self,
-        *,
-        function_tools: list[Any],  # type: ignore
-        allow_text_result: bool,
-        result_tools: list[Any],  # type: ignore
-    ) -> AgentModel:
-        """Create an agent model."""
-        assert self._client
-        return AISuiteAgentModel(client=self._client, model=self.model)
-
-
-@dataclass
-class AISuiteAgentModel(AgentModel):
-    """AgentModel implementation for AISuite."""
-
-    client: aisuite.Client
-    model: str
-
     async def request(
         self,
-        messages: Sequence[ModelMessage],
-        model_settings: ModelSettings | None = None,
+        messages: list[ModelMessage],
+        model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
     ) -> tuple[ModelResponse, Usage]:
         """Make a request to the model."""
+        assert self._client
         formatted_messages = []
 
         # Convert messages to AISuite format
@@ -143,7 +126,7 @@ class AISuiteAgentModel(AgentModel):
                 kwargs["max_tokens"] = model_settings.max_tokens  # type: ignore
 
         # Make request to AISuite
-        response = self.client.chat.completions.create(
+        response = self._client.chat.completions.create(
             model=self.model,
             messages=formatted_messages,
             **kwargs,
@@ -161,7 +144,8 @@ class AISuiteAgentModel(AgentModel):
     async def request_stream(
         self,
         messages: list[ModelMessage],
-        model_settings: ModelSettings | None = None,
+        model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
     ) -> AsyncIterator[StreamedResponse]:
         """Streaming is not supported yet."""
         msg = "Streaming not supported by AISuite adapter"

@@ -22,7 +22,8 @@ logger = logging.getLogger(__name__)
 class ExpensiveModel(TestModel):
     """Test model with high cost."""
 
-    def name(self) -> str:
+    @property
+    def model_name(self) -> str:
         """Get model name."""
         return "expensive-model"
 
@@ -30,7 +31,8 @@ class ExpensiveModel(TestModel):
 class CheapModel(TestModel):
     """Test model with low cost."""
 
-    def name(self) -> str:
+    @property
+    def model_name(self) -> str:
         """Get model name."""
         return "cheap-model"
 

@@ -1,10 +1,18 @@
+from collections.abc import AsyncIterator
 import importlib.util
 from typing import Annotated, Literal
 
 from pydantic import Field
-from pydantic_ai.models import AgentModel, KnownModelName, Model
+from pydantic_ai.messages import ModelMessage, ModelResponse
+from pydantic_ai.models import (
+    KnownModelName,
+    Model,
+    ModelRequestParameters,
+    StreamedResponse,
+)
 from pydantic_ai.models.test import TestModel
-from pydantic_ai.tools import ToolDefinition
+from pydantic_ai.settings import ModelSettings
+from pydantic_ai.usage import Usage
 
 from llmling_models import (
     CostOptimizedMultiModel,
@@ -34,55 +42,70 @@ AllModels = Literal[
 ]
 
 
-class _TestModelWrapper(PydanticModel):
-    """Wrapper for TestModel."""
-
-    type: Literal["test"] = Field(default="test", init=False)
-    model: TestModel
-
-    def name(self) -> str:
-        """Get model name."""
-        return "test"
-
-    async def agent_model(
-        self,
-        *,
-        function_tools: list[ToolDefinition],
-        allow_text_result: bool,
-        result_tools: list[ToolDefinition],
-    ) -> AgentModel:
-        """Create agent model implementation."""
-        return await self.model.agent_model(
-            function_tools=function_tools,
-            allow_text_result=allow_text_result,
-            result_tools=result_tools,
-        )
-
-
 class StringModel(PydanticModel):
     """Wrapper for string model names."""
 
     type: Literal["string"] = Field(default="string", init=False)
+    _model_name: str = "string"
     identifier: str
 
-    async def agent_model(
+    async def request(
         self,
-        *,
-        function_tools: list[ToolDefinition],
-        allow_text_result: bool,
-        result_tools: list[ToolDefinition],
-    ) -> AgentModel:
-        """Create agent model from string name."""
+        messages: list[ModelMessage],
+        model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
+    ) -> tuple[ModelResponse, Usage]:
+        """Create and delegate to inferred model."""
         model = infer_model(self.identifier)  # type: ignore
-        return await model.agent_model(
-            function_tools=function_tools,
-            allow_text_result=allow_text_result,
-            result_tools=result_tools,
+        return await model.request(messages, model_settings, model_request_parameters)
+
+    async def request_stream(
+        self,
+        messages: list[ModelMessage],
+        model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
+    ) -> AsyncIterator[StreamedResponse]:
+        """Stream from inferred model."""
+        model = infer_model(self.identifier)  # type: ignore
+        async with model.request_stream(
+            messages,
+            model_settings,
+            model_request_parameters,
+        ) as stream:
+            yield stream
+
+
+class _TestModelWrapper(PydanticModel):
+    """Wrapper for TestModel."""
+
+    type: Literal["test"] = Field(default="test", init=False)
+    _model_name: str = "test"
+    model: TestModel
+
+    async def request(
+        self,
+        messages: list[ModelMessage],
+        model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
+    ) -> tuple[ModelResponse, Usage]:
+        """Delegate to test model."""
+        return await self.model.request(
+            messages, model_settings, model_request_parameters
         )
 
-    def name(self) -> str:
-        """Get model name."""
-        return str(self.identifier)
+    async def request_stream(
+        self,
+        messages: list[ModelMessage],
+        model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
+    ) -> AsyncIterator[StreamedResponse]:
+        """Stream from test model."""
+        async with self.model.request_stream(
+            messages,
+            model_settings,
+            model_request_parameters,
+        ) as stream:
+            yield stream
 
 
 type ModelInput = str | KnownModelName | Model | PydanticModel

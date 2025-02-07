@@ -14,14 +14,16 @@ from llmling_models.multimodels import DelegationMultiModel
 class ComplexTestModel(TestModel):
     """Test model for complex tasks."""
 
-    def name(self) -> str:
+    @property
+    def model_name(self) -> str:
         return "complex-test-model"
 
 
 class SimpleTestModel(TestModel):
     """Test model for simple tasks."""
 
-    def name(self) -> str:
+    @property
+    def model_name(self) -> str:
         return "simple-test-model"
 
 
@@ -34,7 +36,7 @@ async def test_delegation_with_list():
     ]
 
     delegation_model = DelegationMultiModel[Any](
-        selector_model=TestModel(custom_result_text=test_models[0].name()),
+        selector_model=TestModel(custom_result_text=test_models[0].model_name),
         models=test_models,  # type: ignore
         selection_prompt="Pick first model for complex, second for simple tasks.",
     )

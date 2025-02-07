@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Literal, TypeVar
 
 from pydantic import Field
-from pydantic_ai.models import AgentModel, Model
+from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
 
 from llmling_models.log import get_logger
 from llmling_models.multi import MultiModel
@@ -13,12 +13,11 @@ from llmling_models.utils import estimate_tokens, get_model_limits
 
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import AsyncIterator
 
     from pydantic_ai.messages import ModelMessage, ModelResponse
     from pydantic_ai.result import Usage
     from pydantic_ai.settings import ModelSettings
-    from pydantic_ai.tools import ToolDefinition
 
 logger = get_logger(__name__)
 TModel = TypeVar("TModel", bound=Model)
@@ -40,57 +39,15 @@ class TokenOptimizedMultiModel[TModel: Model](MultiModel[TModel]):
     """
 
     type: Literal["token-optimized"] = Field(default="token-optimized", init=False)
+    _model_name: str = "token-optimized"
 
     strategy: Literal["efficient", "maximum_context"] = Field(default="efficient")
     """Model selection strategy."""
 
-    def name(self) -> str:
-        """Get descriptive model name."""
-        return f"token-optimized({len(self.models)})"
-
-    async def agent_model(
-        self,
-        *,
-        function_tools: list[ToolDefinition],
-        allow_text_result: bool,
-        result_tools: list[ToolDefinition],
-    ) -> AgentModel:
-        """Create agent model that implements token-based selection."""
-        return TokenOptimizedAgentModel[TModel](
-            models=self.available_models,
-            strategy=self.strategy,
-            function_tools=function_tools,
-            allow_text_result=allow_text_result,
-            result_tools=result_tools,
-        )
-
-
-class TokenOptimizedAgentModel[TModel: Model](AgentModel):
-    """AgentModel that implements token-based model selection."""
-
-    def __init__(
-        self,
-        models: Sequence[TModel],
-        strategy: str,
-        function_tools: list[ToolDefinition],
-        allow_text_result: bool,
-        result_tools: list[ToolDefinition],
-    ):
-        """Initialize with models and selection strategy."""
-        if not models:
-            msg = "At least one model must be provided"
-            raise ValueError(msg)
-        self.models = models
-        self.strategy = strategy
-        self.function_tools = function_tools
-        self.allow_text_result = allow_text_result
-        self.result_tools = result_tools
-        self._initialized_models: dict[str, AgentModel] = {}
-
     async def _select_model(
         self,
         messages: list[ModelMessage],
-    ) -> AgentModel:
+    ) -> Model:
         """Select appropriate model based on token counts."""
         token_estimate = estimate_tokens(messages)
         logger.debug("Estimated token count: %d", token_estimate)
@@ -103,18 +60,10 @@ class TokenOptimizedAgentModel[TModel: Model](AgentModel):
         }
 
         # Get available models that can handle the token count
-        model_options: list[
-            tuple[AgentModel, int, int]
-        ] = []  # (model, capability, limit)
-        for model in self.models:
-            model_name = model.name()
-            if model_name not in self._initialized_models:
-                self._initialized_models[model_name] = await model.agent_model(
-                    function_tools=self.function_tools,
-                    allow_text_result=self.allow_text_result,
-                    result_tools=self.result_tools,
-                )
+        model_options: list[tuple[Model, int, int]] = []  # (model, capability, limit)
 
+        for model in self.available_models:
+            model_name = model.model_name
             # Check token limits
             limits = await get_model_limits(model_name)
             if not limits:
@@ -123,11 +72,7 @@ class TokenOptimizedAgentModel[TModel: Model](AgentModel):
 
             if token_estimate <= limits.input_tokens:
                 capability = model_capabilities.get(model_name, 0)
-                model_estimates = (
-                    self._initialized_models[model_name],
-                    capability,
-                    limits.input_tokens,
-                )
+                model_estimates = (model, capability, limits.input_tokens)
                 model_options.append(model_estimates)
                 logger.debug(
                     "Model %s (capability %d) can handle %d tokens (limit: %d)",
@@ -153,7 +98,7 @@ class TokenOptimizedAgentModel[TModel: Model](AgentModel):
 
         logger.info(
             "Selected %s (capability %d) with %d token limit",
-            selected.__class__.__name__,
+            selected.model_name,
             capability,
             limit,
         )
@@ -162,8 +107,28 @@ class TokenOptimizedAgentModel[TModel: Model](AgentModel):
     async def request(
         self,
         messages: list[ModelMessage],
-        model_settings: ModelSettings | None = None,
+        model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
     ) -> tuple[ModelResponse, Usage]:
         """Process request using token-optimized model selection."""
         selected_model = await self._select_model(messages)
-        return await selected_model.request(messages, model_settings)
+        return await selected_model.request(
+            messages,
+            model_settings,
+            model_request_parameters,
+        )
+
+    async def request_stream(
+        self,
+        messages: list[ModelMessage],
+        model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
+    ) -> AsyncIterator[StreamedResponse]:
+        """Stream response using token-optimized model selection."""
+        selected_model = await self._select_model(messages)
+        async with selected_model.request_stream(
+            messages,
+            model_settings,
+            model_request_parameters,
+        ) as stream:
+            yield stream

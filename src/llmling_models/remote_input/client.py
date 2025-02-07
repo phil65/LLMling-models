@@ -17,7 +17,7 @@ from pydantic_ai.messages import (
     ModelResponseStreamEvent,
     TextPart,
 )
-from pydantic_ai.models import AgentModel, StreamedResponse
+from pydantic_ai.models import ModelRequestParameters, StreamedResponse
 from pydantic_ai.result import Usage
 
 from llmling_models.base import PydanticModel
@@ -28,55 +28,9 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     from pydantic_ai.settings import ModelSettings
-    from pydantic_ai.tools import ToolDefinition
     from websockets import ClientConnection
 
 logger = get_logger(__name__)
-
-
-class RemoteInputModel(PydanticModel):
-    """Model that connects to a remote human operator.
-
-    Example YAML configuration:
-        ```yaml
-        models:
-          remote-human:
-            type: remote-input
-            url: ws://localhost:8000/v1/chat/stream  # or http://localhost:8000/v1/chat
-            api_key: your-api-key
-        ```
-    """
-
-    type: Literal["remote-input"] = Field(default="remote-input", init=False)
-    """Discriminator field for model type."""
-
-    url: str = "ws://localhost:8000/v1/chat/stream"
-    """URL of the remote input server."""
-
-    api_key: str | None = None
-    """API key for authentication."""
-
-    def name(self) -> str:
-        """Get model name."""
-        return f"remote-input({self.url})"
-
-    @property
-    def protocol(self) -> Literal["rest", "websocket"]:
-        """Infer protocol from URL."""
-        scheme = urlparse(self.url).scheme.lower()
-        return "websocket" if scheme in ("ws", "wss") else "rest"
-
-    async def agent_model(
-        self,
-        *,
-        function_tools: list[ToolDefinition],
-        allow_text_result: bool,
-        result_tools: list[ToolDefinition],
-    ) -> AgentModel:
-        """Create agent model implementation."""
-        if self.protocol == "websocket":
-            return WebSocketRemoteAgent(url=self.url, api_key=self.api_key)
-        return RestRemoteAgent(url=self.url, api_key=self.api_key)
 
 
 def extract_conversation(messages: list[ModelMessage]) -> list[dict[str, str]]:
@@ -97,22 +51,156 @@ def extract_conversation(messages: list[ModelMessage]) -> list[dict[str, str]]:
     return history
 
 
-class RestRemoteAgent(AgentModel):
-    """Agent implementation using REST API."""
+class RemoteInputModel(PydanticModel):
+    """Model that connects to a remote human operator.
 
-    def __init__(self, url: str, api_key: str | None = None):
-        """Initialize with configuration."""
-        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
-        self.client = httpx.AsyncClient(base_url=url, headers=headers)
+    Example YAML configuration:
+        ```yaml
+        models:
+          remote-human:
+            type: remote-input
+            url: ws://localhost:8000/v1/chat/stream  # or http://localhost:8000/v1/chat
+            api_key: your-api-key
+        ```
+    """
+
+    type: Literal["remote-input"] = Field(default="remote-input", init=False)
+    _model_name: str = "remote-input"
+
+    url: str = "ws://localhost:8000/v1/chat/stream"
+    """URL of the remote input server."""
+
+    api_key: str | None = None
+    """API key for authentication."""
+
+    @property
+    def protocol(self) -> Literal["rest", "websocket"]:
+        """Infer protocol from URL."""
+        scheme = urlparse(self.url).scheme.lower()
+        return "websocket" if scheme in ("ws", "wss") else "rest"
 
     async def request(
         self,
         messages: list[ModelMessage],
-        model_settings: ModelSettings | None = None,
+        model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
     ) -> tuple[ModelResponse, Usage]:
         """Make request to remote operator."""
+        if self.protocol == "websocket":
+            return await self._request_websocket(messages)
+        return await self._request_rest(messages)
+
+    async def _request_rest(
+        self,
+        messages: list[ModelMessage],
+    ) -> tuple[ModelResponse, Usage]:
+        """Make REST request to remote operator."""
+        headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
+        async with httpx.AsyncClient(headers=headers) as client:
+            try:
+                # Get current prompt and history
+                prompt = ""
+                if messages:
+                    last_message = messages[-1]
+                    for part in last_message.parts:
+                        if hasattr(part, "content"):
+                            prompt += str(part.content)  # pyright: ignore
+
+                conversation = extract_conversation(messages[:-1])
+
+                # Log request data for debugging
+                request_data = {"prompt": prompt, "conversation": conversation}
+                logger.debug("Sending request data: %s", request_data)
+
+                # Make request
+                response = await client.post(
+                    f"{self.url}/v1/chat/completions",
+                    json=request_data,
+                    timeout=30.0,
+                )
+                response.raise_for_status()
+
+                response_data = response.json()
+                logger.debug("Received response: %s", response_data)
+
+                return ModelResponse(
+                    parts=[TextPart(response_data["content"])],
+                    timestamp=datetime.now(UTC),
+                ), Usage()
+
+            except httpx.HTTPError as e:
+                if hasattr(e, "response") and e.response is not None:  # type: ignore
+                    logger.exception("Error response: %s", e.response.text)  # type: ignore
+                msg = f"HTTP error: {e}"
+                raise RuntimeError(msg) from e
+
+    async def _request_websocket(
+        self,
+        messages: list[ModelMessage],
+    ) -> tuple[ModelResponse, Usage]:
+        """Make WebSocket request to remote operator."""
+        import websockets
+
+        headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
+
+        async with websockets.connect(self.url, extra_headers=headers) as websocket:
+            try:
+                # Get current prompt and history
+                prompt = ""
+                if messages:
+                    last_message = messages[-1]
+                    for part in last_message.parts:
+                        if hasattr(part, "content"):
+                            prompt += str(part.content)  # pyright: ignore
+
+                conversation = extract_conversation(messages[:-1])
+                data = json.dumps({"prompt": prompt, "conversation": conversation})
+
+                # Send request
+                await websocket.send(data)
+
+                # Accumulate response characters
+                response_text = ""
+                while True:
+                    raw_data = await websocket.recv()
+                    dct = json.loads(raw_data)
+                    if dct.get("error"):
+                        msg = f"Server error: {dct['error']}"
+                        raise RuntimeError(msg)
+
+                    if dct["done"]:
+                        break
+
+                    response_text += dct["chunk"]
+
+                return ModelResponse(
+                    parts=[TextPart(response_text)],
+                    timestamp=datetime.now(UTC),
+                ), Usage()
+
+            except (websockets.ConnectionClosed, ValueError, KeyError) as e:
+                msg = f"WebSocket error: {e}"
+                raise RuntimeError(msg) from e
+
+    @asynccontextmanager
+    async def request_stream(
+        self,
+        messages: list[ModelMessage],
+        model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
+    ) -> AsyncIterator[StreamedResponse]:
+        """Stream responses from operator."""
+        if self.protocol != "websocket":
+            msg = "Streaming is only supported with WebSocket protocol"
+            raise RuntimeError(msg)
+
+        import websockets
+
+        headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
+        websocket = await websockets.connect(self.url, extra_headers=headers)
+
         try:
-            # Get current prompt from last message
+            # Send prompt and history
             prompt = ""
             if messages:
                 last_message = messages[-1]
@@ -120,55 +208,26 @@ class RestRemoteAgent(AgentModel):
                     if hasattr(part, "content"):
                         prompt += str(part.content)  # pyright: ignore
 
-            # Extract conversation history
-            conversation = []
-            if len(messages) > 1:  # Only if there's history
-                for message in messages[:-1]:  # Exclude the current prompt
-                    for part in message.parts:
-                        if hasattr(part, "content"):
-                            role = (
-                                "assistant"
-                                if isinstance(message, ModelResponse)
-                                else "user"
-                            )
-                            conversation.append({
-                                "role": role,
-                                "content": str(part.content),  # pyright: ignore
-                            })
+            conversation = extract_conversation(messages[:-1])
+            data = json.dumps({"prompt": prompt, "conversation": conversation})
+            await websocket.send(data)
 
-            # Log request data for debugging
-            request_data = {"prompt": prompt, "conversation": conversation}
-            logger.debug("Sending request data: %s", request_data)
+            yield RemoteInputStreamedResponse(websocket=websocket)
 
-            # Make request
-            response = await self.client.post(
-                "/v1/chat/completions",
-                json=request_data,
-                timeout=30.0,  # Add timeout
-            )
-            response.raise_for_status()
-
-            response_data = response.json()
-            logger.debug("Received response: %s", response_data)
-
-            part = TextPart(response_data["content"])
-            return ModelResponse(parts=[part]), Usage()
-
-        except httpx.HTTPError as e:
-            # Log the full error response if available
-            if hasattr(e, "response") and e.response is not None:  # type: ignore
-                logger.exception("Error response: %s", e.response.text)  # type: ignore
-            msg = f"HTTP error: {e}"
+        except websockets.ConnectionClosed as e:
+            msg = f"WebSocket error: {e}"
             raise RuntimeError(msg) from e
+        finally:
+            await websocket.close()
 
 
 @dataclass(kw_only=True)
-class WebSocketStreamedResponse(StreamedResponse):
-    """Stream implementation for WebSocket responses."""
+class RemoteInputStreamedResponse(StreamedResponse):
+    """Stream implementation for remote input responses."""
 
     websocket: ClientConnection
     _timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
-    _model_name: str = "remote"
+    _model_name: str = "remote-input"
 
     def __post_init__(self):
         """Initialize usage tracking."""
@@ -208,99 +267,6 @@ class WebSocketStreamedResponse(StreamedResponse):
     def timestamp(self) -> datetime:
         """Get response timestamp."""
         return self._timestamp
-
-
-class WebSocketRemoteAgent(AgentModel):
-    """Agent implementation using WebSocket connection."""
-
-    def __init__(self, url: str, api_key: str | None = None):
-        """Initialize with configuration."""
-        self.url = url
-        self.headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
-        self.client = httpx.AsyncClient(headers=self.headers)
-
-    async def request(
-        self,
-        messages: list[ModelMessage],
-        model_settings: ModelSettings | None = None,
-    ) -> tuple[ModelResponse, Usage]:
-        """Make request using WebSocket connection."""
-        import websockets
-
-        async with websockets.connect(self.url, extra_headers=self.headers) as websocket:
-            try:
-                # Get current prompt and history
-                prompt = ""
-                if messages:
-                    last_message = messages[-1]
-                    for part in last_message.parts:
-                        if hasattr(part, "content"):
-                            prompt += str(part.content)  # pyright: ignore
-
-                conversation = extract_conversation(messages[:-1])
-                data = json.dumps({"prompt": prompt, "conversation": conversation})
-                # Send request
-                await websocket.send(data)
-
-                # Accumulate response characters
-                response_text = ""
-                while True:
-                    raw_data = await websocket.recv()
-                    dct = json.loads(raw_data)
-                    if dct.get("error"):
-                        msg = f"Server error: {dct['error']}"
-                        raise RuntimeError(msg)
-
-                    if dct["done"]:
-                        break
-
-                    response_text += dct["chunk"]
-                part = TextPart(response_text)
-                return (ModelResponse(parts=[part]), Usage())
-
-            except (websockets.ConnectionClosed, ValueError, KeyError) as e:
-                msg = f"WebSocket error: {e}"
-                raise RuntimeError(msg) from e
-
-    @asynccontextmanager
-    async def request_stream(
-        self,
-        messages: list[ModelMessage],
-        model_settings: ModelSettings | None = None,
-    ) -> AsyncIterator[StreamedResponse]:
-        """Stream responses from operator."""
-        import websockets
-
-        websocket = await websockets.connect(self.url, extra_headers=self.headers)
-
-        try:
-            # Send prompt and history
-            prompt = ""
-            if messages:
-                last_message = messages[-1]
-                for part in last_message.parts:
-                    if hasattr(part, "content"):
-                        prompt += str(part.content)  # pyright: ignore
-
-            conversation = extract_conversation(messages[:-1])
-            data = json.dumps({"prompt": prompt, "conversation": conversation})
-            await websocket.send(data)
-
-            yield WebSocketStreamedResponse(websocket=websocket)
-
-        except websockets.ConnectionClosed as e:
-            msg = f"WebSocket error: {e}"
-            raise RuntimeError(msg) from e
-        finally:
-            await websocket.close()
-
-    async def __aenter__(self):
-        """Enter async context."""
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Exit async context."""
-        await self.client.aclose()
 
 
 if __name__ == "__main__":

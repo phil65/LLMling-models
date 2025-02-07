@@ -7,20 +7,18 @@ import inspect
 from typing import TYPE_CHECKING, Literal
 
 from pydantic import Field, ImportString
-from pydantic_ai.messages import ModelRequest, ModelResponse, UserPromptPart
-from pydantic_ai.models import AgentModel, Model
+from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
 
 from llmling_models.log import get_logger
 from llmling_models.multi import MultiModel
 
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import AsyncIterator
 
-    from pydantic_ai.messages import ModelMessage
+    from pydantic_ai.messages import ModelMessage, ModelResponse
     from pydantic_ai.result import Usage
     from pydantic_ai.settings import ModelSettings
-    from pydantic_ai.tools import ToolDefinition
 
     from llmling_models.input_handlers import InputHandler
 
@@ -47,6 +45,7 @@ class UserSelectModel(MultiModel[Model]):
     """
 
     type: Literal["user-select"] = Field(default="user-select", init=False)
+    _model_name: str = "user-select"
 
     prompt_template: str = Field(default="🤖 Choose a model for: {prompt}")
     """Template for showing the prompt to the user."""
@@ -62,142 +61,103 @@ class UserSelectModel(MultiModel[Model]):
     )
     """Input handler class to use."""
 
-    def name(self) -> str:
-        """Get descriptive model name."""
-        return f"user-select({len(self.models)})"
-
-    async def agent_model(
-        self,
-        *,
-        function_tools: list[ToolDefinition],
-        allow_text_result: bool,
-        result_tools: list[ToolDefinition],
-    ) -> AgentModel:
-        """Create agent model implementation."""
-        handler = self.handler()
-        return UserSelectAgentModel(
-            models=self.available_models,
-            prompt_template=self.prompt_template,
-            show_system=self.show_system,
-            input_prompt=self.input_prompt,
-            input_handler=handler,
-            function_tools=function_tools,
-            allow_text_result=allow_text_result,
-            result_tools=result_tools,
-        )
-
-
-class UserSelectAgentModel(AgentModel):
-    """AgentModel that implements interactive model selection."""
-
-    def __init__(
-        self,
-        models: Sequence[Model],
-        prompt_template: str,
-        show_system: bool,
-        input_prompt: str,
-        input_handler: InputHandler,
-        function_tools: list[ToolDefinition],
-        allow_text_result: bool,
-        result_tools: list[ToolDefinition],
-    ):
-        """Initialize with models and input configuration."""
-        if not models:
-            msg = "At least one model must be provided"
-            raise ValueError(msg)
-
-        self.models = models
-        self.prompt_template = prompt_template
-        self.show_system = show_system
-        self.input_prompt = input_prompt
-        self.input_handler = input_handler
-        self.function_tools = function_tools
-        self.allow_text_result = allow_text_result
-        self.result_tools = result_tools
-        self._initialized_models: dict[str, AgentModel] = {}
-
-    def _get_last_prompt(self, messages: Sequence[ModelMessage]) -> str:
-        """Extract the last user prompt from messages."""
-        if not messages:
-            msg = "No messages provided"
-            raise ValueError(msg)
-
-        last_message = messages[-1]
-        if not isinstance(last_message, ModelRequest):
-            msg = "Last message must be a request"
-            raise ValueError(msg)  # noqa: TRY004
-
-        for part in last_message.parts:
-            if isinstance(part, UserPromptPart):
-                return part.content
-
-        msg = "No user prompt found in messages"
-        raise ValueError(msg)
-
     async def _get_user_selection(
-        self, prompt: str, models: Sequence[Model]
-    ) -> AgentModel:
+        self,
+        messages: list[ModelMessage],
+        handler: InputHandler,
+    ) -> Model:
         """Get model selection from user."""
         # Format the model list
-        model_list = "\n".join(f"[{i}] {model.name()}" for i, model in enumerate(models))
-        display = (
-            f"{self.prompt_template.format(prompt=prompt)}\n\n"
-            f"Available models:\n{model_list}"
+        model_list = "\n".join(
+            f"[{i}] {model.model_name}" for i, model in enumerate(self.available_models)
         )
+
+        # Format and display messages
+        display_text = handler.format_messages(
+            messages,
+            prompt_template=self.prompt_template,
+            show_system=self.show_system,
+        )
+
         print("\n" + "=" * 80)
-        print(display)
+        print(display_text)
+        print("\nAvailable models:\n" + model_list)
         print("-" * 80)
 
         while True:
             # Get user input
-            selection_prompt = self.input_prompt.format(max=len(models) - 1)
-            input_method = self.input_handler.get_input
+            selection_prompt = self.input_prompt.format(
+                max=len(self.available_models) - 1
+            )
+            input_method = handler.get_input
             if inspect.iscoroutinefunction(input_method):
                 selection = await input_method(selection_prompt)
             else:
-                selection_or_awaitable = input_method(selection_prompt)
-                if isinstance(selection_or_awaitable, Awaitable):
-                    selection = await selection_or_awaitable
+                response_or_awaitable = input_method(selection_prompt)
+                if isinstance(response_or_awaitable, Awaitable):
+                    selection = await response_or_awaitable
                 else:
-                    selection = selection_or_awaitable
+                    selection = response_or_awaitable
+
             # Parse selection
             try:
                 index = int(selection)
-                if 0 <= index < len(models):
-                    model = models[index]
-                    model_name = model.name()
-
-                    # Initialize model if needed
-                    if model_name not in self._initialized_models:
-                        self._initialized_models[model_name] = await model.agent_model(
-                            function_tools=self.function_tools,
-                            allow_text_result=self.allow_text_result,
-                            result_tools=self.result_tools,
-                        )
-                    return self._initialized_models[model_name]
+                if 0 <= index < len(self.available_models):
+                    selected_model = self.available_models[index]
+                    logger.info(
+                        "User selected model: %s",
+                        selected_model.model_name,
+                    )
+                    return selected_model
 
             except ValueError:
                 pass
 
             print(
-                f"Invalid selection. Please enter number between 0 and {len(models) - 1}"
+                f"Invalid selection. Please enter number between 0 and "
+                f"{len(self.available_models) - 1}"
             )
 
     async def request(
         self,
         messages: list[ModelMessage],
-        model_settings: ModelSettings | None = None,
+        model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
     ) -> tuple[ModelResponse, Usage]:
         """Process request using user-selected model."""
-        # Get the prompt and show it to user
-        prompt = self._get_last_prompt(messages)
+        # Initialize handler
+        handler = self.handler() if isinstance(self.handler, type) else self.handler
 
         # Let user select model
-        selected_model = await self._get_user_selection(prompt, self.models)
-        logger.info("User selected model: %s", selected_model.__class__.__name__)
+        selected_model = await self._get_user_selection(messages, handler)
 
         # Use selected model
-        return await selected_model.request(messages, model_settings)
+        return await selected_model.request(
+            messages,
+            model_settings,
+            model_request_parameters,
+        )
+
+    async def request_stream(
+        self,
+        messages: list[ModelMessage],
+        model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
+    ) -> AsyncIterator[StreamedResponse]:
+        """Stream response using user-selected model."""
+        # Initialize handler
+        handler = self.handler() if isinstance(self.handler, type) else self.handler
+
+        # Let user select model
+        selected_model = await self._get_user_selection(messages, handler)
+
+        # Stream from selected model
+        async with selected_model.request_stream(
+            messages,
+            model_settings,
+            model_request_parameters,
+        ) as stream:
+            yield stream
 
 
 if __name__ == "__main__":

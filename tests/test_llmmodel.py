@@ -13,14 +13,14 @@ TEST_MODEL = "gpt-4o-mini"
 
 def test_adapter_initialization():
     """Test basic adapter initialization."""
-    adapter = LLMAdapter(model_name=TEST_MODEL)
-    assert adapter.name() == "llm:gpt-4o-mini"
+    adapter = LLMAdapter(model=TEST_MODEL)
+    assert adapter.model_name == "llm:gpt-4o-mini"
 
 
 @pytest.mark.asyncio
 async def test_async_basic_usage():
     """Test basic async usage with an agent."""
-    adapter = LLMAdapter(model_name=TEST_MODEL)
+    adapter = LLMAdapter(model=TEST_MODEL)
     agent = Agent(adapter)
 
     result = await agent.run("Test prompt")
@@ -29,7 +29,7 @@ async def test_async_basic_usage():
 
 def test_sync_basic_usage():
     """Test basic sync usage with an agent."""
-    adapter = LLMAdapter(model_name=TEST_MODEL)
+    adapter = LLMAdapter(model=TEST_MODEL)
     agent = Agent(adapter)
 
     result = agent.run_sync("Write a short poem")
@@ -39,7 +39,7 @@ def test_sync_basic_usage():
 @pytest.mark.asyncio
 async def test_streaming():
     """Test streaming functionality."""
-    adapter = LLMAdapter(model_name=TEST_MODEL)
+    adapter = LLMAdapter(model=TEST_MODEL)
     agent = Agent(adapter)
 
     async with agent.run_stream("Test prompt") as response:
@@ -51,7 +51,7 @@ async def test_streaming():
 @pytest.mark.asyncio
 async def test_usage_tracking():
     """Test usage information is properly tracked."""
-    adapter = LLMAdapter(model_name=TEST_MODEL)
+    adapter = LLMAdapter(model=TEST_MODEL)
     agent = Agent(adapter)
 
     result = await agent.run("Test prompt")

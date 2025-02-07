@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, ConfigDict
 from pydantic_ai.messages import (
@@ -11,7 +11,6 @@ from pydantic_ai.messages import (
     ModelResponse,
     UserPromptPart,
 )
-from pydantic_ai.models import AgentModel, KnownModelName, Model
 from pydantic_ai.result import Usage
 
 from llmling_models.base import PydanticModel
@@ -22,8 +21,15 @@ from llmling_models.utils import infer_model
 logger = get_logger(__name__)
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
+    from pydantic_ai.models import (
+        KnownModelName,
+        Model,
+        ModelRequestParameters,
+        StreamedResponse,
+    )
     from pydantic_ai.settings import ModelSettings
-    from pydantic_ai.tools import ToolDefinition
 
 
 class PrePostPromptConfig(BaseModel):
@@ -65,6 +71,11 @@ class AugmentedModel(PydanticModel):
     pre_prompt: PrePostPromptConfig | None = None
     post_prompt: PrePostPromptConfig | None = None
 
+    def model_post_init(self, __context: dict[str, Any], /) -> None:
+        """Initialize models if needed."""
+        self._initialized_models: dict[str, Model] = {}
+        self._main_model = infer_model(self.main_model)
+
     def name(self) -> str:
         """Get descriptive model name."""
         base = str(self.main_model)
@@ -72,52 +83,14 @@ class AugmentedModel(PydanticModel):
             return f"augmented({base})"
         return base
 
-    async def agent_model(
-        self,
-        *,
-        function_tools: list[ToolDefinition],
-        allow_text_result: bool,
-        result_tools: list[ToolDefinition],
-    ) -> AgentModel:
-        """Create agent model with prompt augmentation."""
-        return _AugmentedAgentModel(
-            main_model=infer_model(self.main_model),
-            pre_prompt=self.pre_prompt,
-            post_prompt=self.post_prompt,
-            function_tools=function_tools,
-            allow_text_result=allow_text_result,
-            result_tools=result_tools,
-        )
-
-
-class _AugmentedAgentModel(AgentModel):
-    """AgentModel implementation for augmented models."""
-
-    def __init__(
-        self,
-        main_model: Model,
-        pre_prompt: PrePostPromptConfig | None,
-        post_prompt: PrePostPromptConfig | None,
-        function_tools: list[ToolDefinition],
-        allow_text_result: bool,
-        result_tools: list[ToolDefinition],
-    ):
-        self.main_model = main_model
-        self.pre_prompt = pre_prompt
-        self.post_prompt = post_prompt
-        self.function_tools = function_tools
-        self.allow_text_result = allow_text_result
-        self.result_tools = result_tools
-        self._initialized_models: dict[str, AgentModel] = {}
-
-    async def _get_agent_model(self, key: str) -> AgentModel:
-        """Get or initialize an agent model."""
+    async def _get_model(self, key: str) -> Model:
+        """Get or initialize a model."""
         if key in self._initialized_models:
             return self._initialized_models[key]
 
         match key:
             case "main":
-                model = self.main_model
+                model = self._main_model
             case "pre" if self.pre_prompt:
                 model = self.pre_prompt.model_instance
             case "post" if self.post_prompt:
@@ -126,44 +99,8 @@ class _AugmentedAgentModel(AgentModel):
                 msg = f"Unknown model key: {key}"
                 raise ValueError(msg)
 
-        self._initialized_models[key] = await model.agent_model(
-            function_tools=self.function_tools if key == "main" else [],
-            allow_text_result=True,
-            result_tools=self.result_tools if key == "main" else [],
-        )
-
-        return self._initialized_models[key]
-
-    async def _initialize_models(self) -> dict[str, AgentModel]:
-        """Initialize all required models."""
-        if self._initialized_models is None:
-            self._initialized_models = {}
-
-            # Initialize main model
-            self._initialized_models["main"] = await self.main_model.agent_model(
-                function_tools=self.function_tools,
-                allow_text_result=self.allow_text_result,
-                result_tools=self.result_tools,
-            )
-
-            # Initialize pre/post models if needed
-            if self.pre_prompt:
-                pre_result = await self.pre_prompt.model_instance.agent_model(
-                    function_tools=[],  # No tools for auxiliary prompts
-                    allow_text_result=True,
-                    result_tools=[],
-                )
-                self._initialized_models["pre"] = pre_result
-
-            if self.post_prompt:
-                post_result = await self.post_prompt.model_instance.agent_model(
-                    function_tools=[],
-                    allow_text_result=True,
-                    result_tools=[],
-                )
-                self._initialized_models["post"] = post_result
-
-        return self._initialized_models
+        self._initialized_models[key] = model
+        return model
 
     def _get_last_content(self, messages: list[ModelMessage]) -> str:
         """Extract content from last message."""
@@ -180,7 +117,8 @@ class _AugmentedAgentModel(AgentModel):
     async def request(
         self,
         messages: list[ModelMessage],
-        model_settings: ModelSettings | None = None,
+        model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
     ) -> tuple[ModelResponse, Usage]:
         """Process request with pre/post prompting."""
         total_cost = Usage()
@@ -188,14 +126,16 @@ class _AugmentedAgentModel(AgentModel):
 
         # Pre-process the question if configured
         if self.pre_prompt:
-            pre_model = await self._get_agent_model("pre")
+            pre_model = await self._get_model("pre")
             input_question = self._get_last_content(messages)
             pre_prompt = self.pre_prompt.text.format(input=input_question)
 
             # Get expanded question
             pre_request = ModelRequest(parts=[UserPromptPart(content=pre_prompt)])
             pre_response, pre_cost = await pre_model.request(
-                [pre_request], model_settings
+                [pre_request],
+                model_settings,
+                model_request_parameters,
             )
             total_cost += pre_cost
 
@@ -207,13 +147,18 @@ class _AugmentedAgentModel(AgentModel):
             all_messages[-1] = ModelRequest(parts=[expanded_part])
 
         # Process with main model
-        main_model = await self._get_agent_model("main")
-        main_response, main_cost = await main_model.request(all_messages, model_settings)
+        main_model = await self._get_model("main")
+        main_response, main_cost = await main_model.request(
+            all_messages,
+            model_settings,
+            model_request_parameters,
+        )
+        total_cost += main_cost
         logger.debug("Main response: %s", str(main_response.parts[0].content))  # type: ignore
 
         # Post-process if configured
         if self.post_prompt:
-            post_model = await self._get_agent_model("post")
+            post_model = await self._get_model("post")
             post_prompt = self.post_prompt.text.format(
                 output=str(main_response.parts[0].content)  # type: ignore
             )
@@ -221,7 +166,9 @@ class _AugmentedAgentModel(AgentModel):
             # Create post-processing request
             post_request = ModelRequest(parts=[UserPromptPart(content=post_prompt)])
             post_response, post_cost = await post_model.request(
-                [post_request], model_settings
+                [post_request],
+                model_settings,
+                model_request_parameters,
             )
             total_cost += post_cost
             logger.debug(
@@ -236,6 +183,43 @@ class _AugmentedAgentModel(AgentModel):
         # If no post-processing, add main response to message chain
         all_messages.append(main_response)
         return main_response, total_cost
+
+    async def request_stream(
+        self,
+        messages: list[ModelMessage],
+        model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
+    ) -> AsyncIterator[StreamedResponse]:
+        """Stream response with pre/post processing."""
+        all_messages = messages.copy()
+
+        # Pre-process if configured
+        if self.pre_prompt:
+            pre_model = await self._get_model("pre")
+            input_question = self._get_last_content(messages)
+            pre_prompt = self.pre_prompt.text.format(input=input_question)
+
+            # Get expanded question
+            pre_request = ModelRequest(parts=[UserPromptPart(content=pre_prompt)])
+            pre_response, _ = await pre_model.request(
+                [pre_request],
+                model_settings,
+                model_request_parameters,
+            )
+
+            # Replace original question
+            expanded_question = str(pre_response.parts[0].content)  # type: ignore
+            expanded_part = UserPromptPart(content=expanded_question)
+            all_messages[-1] = ModelRequest(parts=[expanded_part])
+
+        # Stream from main model
+        main_model = await self._get_model("main")
+        async with main_model.request_stream(
+            all_messages,
+            model_settings,
+            model_request_parameters,
+        ) as stream:
+            yield stream
 
 
 if __name__ == "__main__":

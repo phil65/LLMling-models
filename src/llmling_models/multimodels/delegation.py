@@ -5,21 +5,25 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import Field, model_validator
-from pydantic_ai.messages import ModelRequest, ModelResponse, UserPromptPart
-from pydantic_ai.models import AgentModel, Model, infer_model
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
+    UserPromptPart,
+)
+from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
 from typing_extensions import TypeVar
 
 from llmling_models.log import get_logger
 from llmling_models.multi import MultiModel
+from llmling_models.utils import infer_model
 
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import AsyncIterator
 
-    from pydantic_ai.messages import ModelMessage
-    from pydantic_ai.result import Usage
     from pydantic_ai.settings import ModelSettings
-    from pydantic_ai.tools import ToolDefinition
+    from pydantic_ai.usage import Usage
 
 logger = get_logger(__name__)
 TModel = TypeVar("TModel", bound=Model)
@@ -37,11 +41,13 @@ class DelegationMultiModel(MultiModel[TModel]):
             - openai:gpt-4
             - openai:gpt-3.5-turbo
           selection_prompt: |
-            Pick gpt-4 for complex tasks, gpt-3.5-turbo for simple queries.
+            Pick 'openai:gpt-4' for complex tasks,
+            'openai:gpt-3.5-turbo' for simple queries.
         ```
     """
 
     type: Literal["delegation"] = Field(default="delegation", init=False)
+    _model_name: str = "delegation"
 
     selector_model: str | Model
     """Model to use for delegation."""
@@ -51,16 +57,12 @@ class DelegationMultiModel(MultiModel[TModel]):
 
     model_descriptions: dict[str | Model, str] | None = Field(default=None, exclude=True)
 
-    def name(self) -> str:
-        """Get descriptive model name."""
-        return f"delegation({len(self.models)})"
-
     @model_validator(mode="before")
     @classmethod
     def handle_model_dict(cls, data: dict[str, Any]) -> dict[str, Any]:
         """Handle both list of models and dict[model, description]."""
         if isinstance(data.get("models"), dict):
-            data["_model_descriptions"] = data["models"]
+            data["model_descriptions"] = data["models"]
             data["models"] = list(data["models"].keys())
         return data
 
@@ -75,86 +77,19 @@ class DelegationMultiModel(MultiModel[TModel]):
         )
         return f"{model_hints}\n\n{base_prompt}"
 
-    async def agent_model(
-        self,
-        *,
-        function_tools: list[ToolDefinition],
-        allow_text_result: bool,
-        result_tools: list[ToolDefinition],
-    ) -> DelegationAgentModel:
-        """Create agent model that implements selection strategy."""
-        selector = (
-            infer_model(self.selector_model)  # type: ignore
-            if isinstance(self.selector_model, str)
-            else self.selector_model
-        )
-
-        return DelegationAgentModel[TModel](
-            selector_model=selector,
-            choice_models=self.available_models,
-            selection_prompt=self._format_selection_text(self.selection_prompt),
-            function_tools=function_tools,
-            allow_text_result=allow_text_result,
-            result_tools=result_tools,
-        )
-
-
-class DelegationAgentModel[TModel: Model](AgentModel):
-    """AgentModel that implements dynamic model selection."""
-
-    def __init__(
-        self,
-        selector_model: Model,
-        choice_models: Sequence[TModel],
-        selection_prompt: str,
-        function_tools: list[ToolDefinition],
-        allow_text_result: bool,
-        result_tools: list[ToolDefinition],
-    ):
-        """Initialize with models and selection configuration."""
-        if not choice_models:
-            msg = "At least one choice model must be provided"
-            raise ValueError(msg)
-
-        self.selector_model = selector_model
-        self.choice_models = choice_models
-        self.selection_prompt = selection_prompt
-        self.function_tools = function_tools
-        self.allow_text_result = allow_text_result
-        self.result_tools = result_tools
-
-        # Will be initialized on first use
-        self._initialized_selector: AgentModel | None = None
-        self._initialized_choices: dict[str, AgentModel] = {}
-
-    async def _initialize_models(self):
-        """Initialize selector and choice models if needed."""
-        if self._initialized_selector is None:
-            # Initialize selector with basic config (no tools needed)
-            self._initialized_selector = await self.selector_model.agent_model(
-                function_tools=[],
-                allow_text_result=True,
-                result_tools=[],
-            )
-
-        # Initialize choice models as needed
-        for model in self.choice_models:
-            model_name = model.name()
-            if model_name not in self._initialized_choices:
-                self._initialized_choices[model_name] = await model.agent_model(
-                    function_tools=self.function_tools,
-                    allow_text_result=self.allow_text_result,
-                    result_tools=self.result_tools,
-                )
-
     async def _select_model(
         self,
         prompt: str,
-        model_settings: ModelSettings | None = None,
-    ) -> AgentModel:
+        model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
+    ) -> Model:
         """Use selector model to choose appropriate model for prompt."""
-        await self._initialize_models()
-        assert self._initialized_selector is not None
+        # Initialize selector
+        selector = (
+            infer_model(self.selector_model)
+            if isinstance(self.selector_model, str)
+            else self.selector_model
+        )
 
         # Create selection request
         selection_text = (
@@ -165,29 +100,24 @@ class DelegationAgentModel[TModel: Model](AgentModel):
         part = UserPromptPart(content=selection_text)
         selection_msg = ModelRequest(parts=[part])
 
-        response, _ = await self._initialized_selector.request(
+        response, _ = await selector.request(
             [selection_msg],
             model_settings,
+            model_request_parameters,
         )
         selected_name = str(response.parts[0].content).strip()  # type: ignore
 
         # Find matching model
-        for model in self.choice_models:
-            if model.name() == selected_name:
-                model_name = model.name()
-                logger.debug("Selected model %s for prompt: %s", model_name, prompt)
-                return self._initialized_choices[model_name]
+        for model in self.available_models:
+            if model.model_name == selected_name:
+                logger.debug("Selected model %s for prompt: %s", model.model_name, prompt)
+                return model
 
         msg = f"Selector returned unknown model: {selected_name}"
         raise ValueError(msg)
 
-    async def request(
-        self,
-        messages: Sequence[ModelMessage],
-        model_settings: ModelSettings | None = None,
-    ) -> tuple[ModelResponse, Usage]:
-        """Process request using dynamically selected model."""
-        # Extract the actual prompt from messages
+    def _get_last_prompt(self, messages: list[ModelMessage]) -> str:
+        """Extract the last user prompt from messages."""
         if not messages:
             msg = "No messages provided"
             raise ValueError(msg)
@@ -197,19 +127,59 @@ class DelegationAgentModel[TModel: Model](AgentModel):
             msg = "Last message must be a request"
             raise ValueError(msg)  # noqa: TRY004
 
-        prompt = ""
         for part in last_message.parts:
             if isinstance(part, UserPromptPart):
-                prompt = part.content
-                break
+                return part.content
 
-        if not prompt:
-            msg = "No prompt found in messages"
-            raise ValueError(msg)
+        msg = "No user prompt found in messages"
+        raise ValueError(msg)
+
+    async def request(
+        self,
+        messages: list[ModelMessage],
+        model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
+    ) -> tuple[ModelResponse, Usage]:
+        """Process request using dynamically selected model."""
+        # Extract the actual prompt
+        prompt = self._get_last_prompt(messages)
 
         # Select and use appropriate model
-        selected_model = await self._select_model(prompt, model_settings)
-        return await selected_model.request(list(messages), model_settings)
+        selected_model = await self._select_model(
+            prompt,
+            model_settings,
+            model_request_parameters,
+        )
+        return await selected_model.request(
+            messages,
+            model_settings,
+            model_request_parameters,
+        )
+
+    async def request_stream(
+        self,
+        messages: list[ModelMessage],
+        model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
+    ) -> AsyncIterator[StreamedResponse]:
+        """Stream response using dynamically selected model."""
+        # Extract the actual prompt
+        prompt = self._get_last_prompt(messages)
+
+        # Select appropriate model
+        selected_model = await self._select_model(
+            prompt,
+            model_settings,
+            model_request_parameters,
+        )
+
+        # Stream from selected model
+        async with selected_model.request_stream(
+            messages,
+            model_settings,
+            model_request_parameters,
+        ) as stream:
+            yield stream
 
 
 if __name__ == "__main__":
