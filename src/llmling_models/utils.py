@@ -16,7 +16,6 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 from pydantic_ai.models import infer_model as infer_model_
-from pydantic_ai.models.openai import OpenAIModel
 
 
 logger = logging.getLogger(__name__)
@@ -55,18 +54,24 @@ def infer_model(model) -> Model:  # noqa: PLR0911
     if not isinstance(model, str):
         return model
     if model.startswith("openrouter:"):
+        from pydantic_ai.models.openai import OpenAIModel
+
         return OpenAIModel(
             model.removeprefix("openrouter:").replace(":", "/"),
             base_url="https://openrouter.ai/api/v1",
             api_key=os.getenv("OPENROUTER_API_KEY"),
         )
     if model.startswith("grok:"):
+        from pydantic_ai.models.openai import OpenAIModel
+
         return OpenAIModel(
             model.removeprefix("grok:"),
             base_url="https://api.x.ai/v1",
             api_key=os.getenv("X_AI_API_KEY") or os.getenv("GROK_API_KEY"),
         )
     if model.startswith("deepseek:"):
+        from pydantic_ai.models.openai import OpenAIModel
+
         return OpenAIModel(
             model.removeprefix("deepseek:"),
             base_url="https://api.deepseek.com",
