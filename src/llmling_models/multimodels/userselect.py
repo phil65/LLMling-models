@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable
+from contextlib import asynccontextmanager
 import inspect
 from typing import TYPE_CHECKING, Literal
 
@@ -138,6 +139,7 @@ class UserSelectModel(MultiModel[Model]):
             model_request_parameters,
         )
 
+    @asynccontextmanager
     async def request_stream(
         self,
         messages: list[ModelMessage],

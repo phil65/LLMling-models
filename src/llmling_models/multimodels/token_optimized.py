@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Literal, TypeVar
 
 from pydantic import Field
@@ -118,6 +119,7 @@ class TokenOptimizedMultiModel[TModel: Model](MultiModel[TModel]):
             model_request_parameters,
         )
 
+    @asynccontextmanager
     async def request_stream(
         self,
         messages: list[ModelMessage],

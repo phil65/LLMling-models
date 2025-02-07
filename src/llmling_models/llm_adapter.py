@@ -13,8 +13,11 @@ from pydantic_ai.messages import (
     ModelMessage,
     ModelResponse,
     ModelResponseStreamEvent,
+    RetryPromptPart,
     SystemPromptPart,
     TextPart,
+    ToolReturnPart,
+    UserPromptPart,
 )
 from pydantic_ai.models import ModelRequestParameters, StreamedResponse
 from pydantic_ai.result import Usage
@@ -124,26 +127,21 @@ class LLMAdapter(PydanticModel):
 
     @staticmethod
     def _build_prompt(messages: list[ModelMessage]) -> tuple[str, str | None]:
-        """Build a prompt and optional system prompt from messages.
-
-        Returns:
-            Tuple of (prompt, system_prompt) where system_prompt may be None
-        """
+        """Build a prompt and optional system prompt from messages."""
         prompt_parts = []
         system = None
 
         for message in messages:
             if isinstance(message, ModelResponse):
                 for part in message.parts:
-                    if hasattr(part, "content"):
-                        prompt_parts.append(f"Assistant: {part.content}")  # type: ignore  # noqa
+                    if isinstance(part, TextPart | ToolReturnPart):
+                        prompt_parts.append(f"Assistant: {part.content}")  # noqa: PERF401
             else:  # ModelRequest
                 for part in message.parts:
-                    if hasattr(part, "content"):
-                        if isinstance(part, SystemPromptPart):
-                            system = part.content
-                        else:
-                            prompt_parts.append(f"Human: {part.content}")  # type: ignore
+                    if isinstance(part, SystemPromptPart):
+                        system = part.content
+                    elif isinstance(part, UserPromptPart | RetryPromptPart):
+                        prompt_parts.append(f"Human: {part.content}")
 
         return "\n".join(prompt_parts), system
 

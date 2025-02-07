@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from decimal import Decimal
 from typing import TYPE_CHECKING, Literal, TypeVar
 
@@ -145,6 +146,7 @@ class CostOptimizedMultiModel[TModel: Model](MultiModel[TModel]):
             model_request_parameters,
         )
 
+    @asynccontextmanager
     async def request_stream(
         self,
         messages: list[ModelMessage],

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import Field, ImportString
@@ -69,6 +70,7 @@ class ImportModel(PydanticModel):
             model_request_parameters,
         )
 
+    @asynccontextmanager
     async def request_stream(
         self,
         messages: list[ModelMessage],

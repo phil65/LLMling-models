@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 import importlib.util
 from typing import Annotated, Literal
 
@@ -59,6 +60,7 @@ class StringModel(PydanticModel):
         model = infer_model(self.identifier)  # type: ignore
         return await model.request(messages, model_settings, model_request_parameters)
 
+    @asynccontextmanager
     async def request_stream(
         self,
         messages: list[ModelMessage],

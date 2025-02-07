@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any, Literal, TypeVar
 
 from pydantic import Field
@@ -69,6 +70,7 @@ class FallbackMultiModel[TModel: Model](MultiModel[TModel]):
         msg = f"All models failed. Last error: {last_error}"
         raise RuntimeError(msg) from last_error
 
+    @asynccontextmanager
     async def request_stream(
         self,
         messages: list[ModelMessage],

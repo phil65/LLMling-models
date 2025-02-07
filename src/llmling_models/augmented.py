@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, ConfigDict
@@ -184,6 +185,7 @@ class AugmentedModel(PydanticModel):
         all_messages.append(main_response)
         return main_response, total_cost
 
+    @asynccontextmanager
     async def request_stream(
         self,
         messages: list[ModelMessage],
