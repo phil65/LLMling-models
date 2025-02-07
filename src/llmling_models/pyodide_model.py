@@ -57,7 +57,7 @@ def convert_messages(messages: list[ModelMessage]) -> list[dict[str, str]]:
             if content:
                 result.append({"role": "assistant", "content": content})
         else:
-            for part in message.parts:
+            for part in message.parts:  # type: ignore
                 if isinstance(part, SystemPromptPart):
                     result.append({"role": "system", "content": part.content})
                 elif isinstance(part, UserPromptPart):
@@ -274,7 +274,7 @@ class SimpleOpenAIModel(PydanticModel):
 
             yield OpenAIStreamedResponse(
                 response=response,
-                _model_name=self.name(),
+                _model_name=self.model_name,
             )
 
         except httpx.HTTPError as e:
