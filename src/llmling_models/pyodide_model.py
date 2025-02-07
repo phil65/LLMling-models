@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 import json
+import os
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 from pydantic import Field, TypeAdapter
@@ -287,7 +288,6 @@ class SimpleOpenAIModel(PydanticModel):
 
 if __name__ == "__main__":
     import asyncio
-    import os
 
     from pydantic_ai import Agent
 
