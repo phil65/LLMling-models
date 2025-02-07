@@ -175,12 +175,13 @@ class SimpleOpenAIModel(PydanticModel):
 
     def _get_headers(self) -> dict[str, str]:
         """Get request headers."""
-        if not self.api_key:
+        api_key = self.api_key or os.getenv("OPENAI_API_KEY")
+        if not api_key:
             msg = "OpenAI API key not provided"
             raise ValueError(msg)
 
         return {
-            "Authorization": f"Bearer {self.api_key}",
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
             "Accept": "text/event-stream",
         }
