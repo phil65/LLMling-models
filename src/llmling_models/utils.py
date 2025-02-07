@@ -40,6 +40,16 @@ async def get_model_limits(model_name: str) -> TokenLimits | None:
     return await get_model_limits(model_name)
 
 
+def is_pyodide() -> bool:
+    """Check if code is running in a Pyodide environment."""
+    try:
+        from js import Object  # type: ignore  # noqa: F401
+
+        return True  # noqa: TRY300
+    except ImportError:
+        return False
+
+
 def infer_model(model) -> Model:  # noqa: PLR0911
     """Extended infer_model from pydantic-ai."""
     if not isinstance(model, str):
@@ -70,6 +80,11 @@ def infer_model(model) -> Model:  # noqa: PLR0911
         from llmling_models.pyodide_model import SimpleOpenAIModel
 
         return SimpleOpenAIModel(model=model.removeprefix("simple-openai:"))
+
+    if model.startswith("openai:") and is_pyodide():
+        from llmling_models.pyodide_model import SimpleOpenAIModel
+
+        return SimpleOpenAIModel(model=model.removeprefix("openai:"))
 
     if model.startswith("aisuite:"):
         from llmling_models.aisuite_adapter import AISuiteAdapter
