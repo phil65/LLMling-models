@@ -1,3 +1,5 @@
+"""FastAPI server that serves a pydantic-ai model."""
+
 from __future__ import annotations
 
 import contextlib
@@ -6,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect, status
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter, ModelResponse
+from pydantic_ai.models import ModelRequestParameters
 
 from llmling_models.log import get_logger
 from llmling_models.utils import infer_model
@@ -13,7 +16,6 @@ from llmling_models.utils import infer_model
 
 if TYPE_CHECKING:
     from pydantic_ai.models import Model
-
 
 logger = get_logger(__name__)
 
@@ -69,23 +71,27 @@ class ModelServer:
             """Handle completion requests via REST."""
             try:
                 self._verify_auth(auth)
-                # Initialize model if needed
-                agent_model = await self.model.agent_model(
+
+                # Create model parameters
+                model_params = ModelRequestParameters(
                     function_tools=[],
                     allow_text_result=True,
                     result_tools=[],
                 )
+
                 # Get response
-                response, usage = await agent_model.request(
+                response, usage = await self.model.request(
                     messages,
-                    model_settings=None,  # Add this parameter
+                    model_settings=None,
+                    model_request_parameters=model_params,
                 )
                 content = (
-                    str(response.parts[0].content)  # pyright: ignore
+                    str(response.parts[0].content)  # type: ignore
                     if hasattr(response.parts[0], "content")
                     else ""
                 )
                 return {"content": content, "usage": asdict(usage)}
+
             except Exception as e:
                 logger.exception("Error processing completion request")
                 raise HTTPException(
@@ -105,8 +111,8 @@ class ModelServer:
                 await websocket.accept()
                 logger.debug("WebSocket connection accepted")
 
-                # Initialize model
-                agent_model = await self.model.agent_model(
+                # Create model parameters
+                model_params = ModelRequestParameters(
                     function_tools=[],
                     allow_text_result=True,
                     result_tools=[],
@@ -133,9 +139,10 @@ class ModelServer:
                         logger.debug("Starting stream for messages: %s", messages)
 
                         # Use actual streaming from the model
-                        async with agent_model.request_stream(
+                        async with self.model.request_stream(
                             messages,
                             model_settings=None,
+                            model_request_parameters=model_params,
                         ) as stream:
                             logger.debug("Stream started")
 
@@ -148,12 +155,12 @@ class ModelServer:
                                         chunks.parts[0], "content"
                                     ):
                                         await websocket.send_json({
-                                            "chunk": str(chunks.parts[0].content),  # pyright: ignore
+                                            "chunk": str(chunks.parts[0].content),  # type: ignore
                                             "done": False,
                                         })
                                 else:
                                     # Handle Iterable[str]
-                                    for chunk in chunks:
+                                    for chunk in chunks:  # pyright: ignore
                                         if chunk:  # Only send non-empty chunks
                                             await websocket.send_json({
                                                 "chunk": chunk,
@@ -169,6 +176,8 @@ class ModelServer:
 
                     except WebSocketDisconnect:
                         logger.info("WebSocket disconnected")
+                        break
+
             except Exception as e:
                 logger.exception("Error in WebSocket connection")
                 with contextlib.suppress(WebSocketDisconnect):
