@@ -70,7 +70,7 @@ class AISuiteAdapter(PydanticModel):
     """
 
     type: Literal["aisuite"] = Field(default="aisuite", init=False)
-
+    _model_name: str = "aisuite"
     model: str
     """Model identifier in provider:model format"""
 
@@ -82,10 +82,6 @@ class AISuiteAdapter(PydanticModel):
     def __init__(self, **data: Any):
         super().__init__(**data)
         self._client = aisuite.Client(self.config)
-
-    def name(self) -> str:
-        """Return the model name."""
-        return f"aisuite:{self.model}"
 
     async def request(
         self,

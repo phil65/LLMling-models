@@ -84,7 +84,7 @@ class InputModel(PydanticModel):
     """
 
     type: Literal["input"] = Field(default="input", init=False)
-
+    _model_name: str = "input"
     prompt_template: str = Field(default="👤 Please respond to: {prompt}")
     """Template for showing the prompt to the human."""
 
@@ -98,10 +98,6 @@ class InputModel(PydanticModel):
         default="llmling_models:DefaultInputHandler", validate_default=True
     )
     """Input handler class to use."""
-
-    def name(self) -> str:
-        """Get model name."""
-        return "input"
 
     async def request(
         self,

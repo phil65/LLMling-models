@@ -68,21 +68,21 @@ class AugmentedModel(PydanticModel):
     """
 
     type: Literal["augmented"] = "augmented"
+    _model_name: str = "augmented"
+
     main_model: KnownModelName | Model
+    """The main model to use for the augmented model."""
+
     pre_prompt: PrePostPromptConfig | None = None
+    """The pre-prompt configuration for the augmented model."""
+
     post_prompt: PrePostPromptConfig | None = None
+    """The post-prompt configuration for the augmented model."""
 
     def model_post_init(self, __context: dict[str, Any], /) -> None:
         """Initialize models if needed."""
         self._initialized_models: dict[str, Model] = {}
         self._main_model = infer_model(self.main_model)
-
-    def name(self) -> str:
-        """Get descriptive model name."""
-        base = str(self.main_model)
-        if self.pre_prompt or self.post_prompt:
-            return f"augmented({base})"
-        return base
 
     async def _get_model(self, key: str) -> Model:
         """Get or initialize a model."""

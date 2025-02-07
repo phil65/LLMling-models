@@ -43,6 +43,7 @@ class ImportModel(PydanticModel):
 
     model: ImportString = Field(...)
     """Model class to import and use."""
+    _model_name: str = "import"
 
     kw_args: dict[str, Any] = Field(default_factory=dict)
     """Keyword arguments for the imported model class."""
@@ -52,10 +53,6 @@ class ImportModel(PydanticModel):
         self._instance = (
             self.model(**self.kw_args) if isinstance(self.model, type) else self.model
         )
-
-    def name(self) -> str:
-        """Get model name."""
-        return f"import:{self._instance.name()}"
 
     async def request(
         self,

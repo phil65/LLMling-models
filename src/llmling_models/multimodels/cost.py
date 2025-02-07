@@ -57,10 +57,6 @@ class CostOptimizedMultiModel[TModel: Model](MultiModel[TModel]):
     _model_name: str = "cost_optimized"
     _system: str | None = "multi"
 
-    def name(self) -> str:
-        """Get descriptive model name."""
-        return f"cost-optimized({len(self.models)})"
-
     async def _select_model(
         self,
         messages: list[ModelMessage],

@@ -173,10 +173,6 @@ class SimpleOpenAIModel(PydanticModel):
     base_url: str = "https://api.openai.com/v1"
     """Base URL for API requests."""
 
-    def name(self) -> str:
-        """Get model name."""
-        return f"openai:{self.model}"
-
     def _get_headers(self) -> dict[str, str]:
         """Get request headers."""
         if not self.api_key:
