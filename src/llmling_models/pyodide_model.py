@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 import json
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 from pydantic import Field, TypeAdapter
 from pydantic_ai._parts_manager import ModelResponsePartsManager
@@ -26,18 +26,18 @@ from llmling_models.base import PydanticModel
 from llmling_models.log import get_logger
 
 
+class StreamChunk(TypedDict):
+    """OpenAI stream chunk format."""
+
+    choices: list[dict[str, Any]]
+    usage: dict[str, int] | None
+
+
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     import httpx
     from pydantic_ai.settings import ModelSettings
-    from typing_extensions import TypedDict
-
-    class StreamChunk(TypedDict):
-        """OpenAI stream chunk format."""
-
-        choices: list[dict[str, Any]]
-        usage: dict[str, int] | None
 
 
 logger = get_logger(__name__)

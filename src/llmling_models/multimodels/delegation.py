@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, TypeVar
 
 from pydantic import Field, model_validator
 from pydantic_ai.messages import (
@@ -13,7 +13,6 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
-from typing_extensions import TypeVar
 
 from llmling_models.log import get_logger
 from llmling_models.multi import MultiModel
