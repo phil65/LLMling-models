@@ -95,6 +95,7 @@ class _TestModelWrapper(PydanticModel):
             messages, model_settings, model_request_parameters
         )
 
+    @asynccontextmanager
     async def request_stream(
         self,
         messages: list[ModelMessage],

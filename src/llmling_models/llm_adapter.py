@@ -137,7 +137,7 @@ class LLMAdapter(PydanticModel):
                     if isinstance(part, TextPart | ToolReturnPart):
                         prompt_parts.append(f"Assistant: {part.content}")  # noqa: PERF401
             else:  # ModelRequest
-                for part in message.parts:
+                for part in message.parts:  # type: ignore
                     if isinstance(part, SystemPromptPart):
                         system = part.content
                     elif isinstance(part, UserPromptPart | RetryPromptPart):
