@@ -66,6 +66,11 @@ def infer_model(model) -> Model:  # noqa: PLR0911
         from llmling_models.llm_adapter import LLMAdapter
 
         return LLMAdapter(model_name=model.removeprefix("llm:"))
+    if model.startswith("simple-openai:"):
+        from llmling_models.pyodide_model import SimpleOpenAIModel
+
+        return SimpleOpenAIModel(model=model.removeprefix("simple-openai:"))
+
     if model.startswith("aisuite:"):
         from llmling_models.aisuite_adapter import AISuiteAdapter
 

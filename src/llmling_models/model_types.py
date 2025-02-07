@@ -25,6 +25,7 @@ from llmling_models import (
     TokenOptimizedMultiModel,
     infer_model,
 )
+from llmling_models.pyodide_model import SimpleOpenAIModel
 
 
 AllModels = Literal[
@@ -127,6 +128,7 @@ if importlib.util.find_spec("fastapi"):
         | InputModel
         | ImportModel
         | _TestModelWrapper
+        | SimpleOpenAIModel
         | RemoteInputModel
         | RemoteProxyModel,
         Field(discriminator="type"),
@@ -140,6 +142,7 @@ else:
         | FallbackMultiModel
         | InputModel
         | ImportModel
+        | SimpleOpenAIModel
         | _TestModelWrapper,
         Field(discriminator="type"),
     ]
