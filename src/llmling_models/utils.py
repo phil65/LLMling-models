@@ -8,6 +8,7 @@ import logging
 import os
 from typing import TYPE_CHECKING
 
+from pydantic import BaseModel, ImportString
 from pydantic_ai.messages import (
     ModelMessage,
     SystemPromptPart,
@@ -108,9 +109,12 @@ def infer_model(model) -> Model:  # noqa: PLR0911
 
         return RemoteInputModel(url=model.removeprefix("remote_input:"))
     if model.startswith("import:"):
-        from llmling_models.importmodel import ImportModel
 
-        return ImportModel(model=model.removeprefix("import:"))
+        class Importer(BaseModel):
+            model: ImportString
+
+        imported = Importer(model=model.removeprefix("import:")).model
+        return imported() if isinstance(imported, type) else imported
     if model.startswith("test:"):
         from pydantic_ai.models.test import TestModel
 
