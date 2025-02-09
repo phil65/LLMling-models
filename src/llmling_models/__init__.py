@@ -14,11 +14,10 @@ from llmling_models.multimodels import (
     UserSelectModel,
 )
 from llmling_models.utils import infer_model
-from llmling_models.model_types import AllModels, ModelInput, AnyModel
+from llmling_models.model_types import AllModels, ModelInput
 
 __all__ = [
     "AllModels",
-    "AnyModel",
     "CostOptimizedMultiModel",
     "DefaultInputHandler",
     "DelegationMultiModel",
