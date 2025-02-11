@@ -404,6 +404,7 @@ LLMling-models also provides an extended `infer_model` function that also resolv
 - OpenRouter (`openrouter:provider/model-name`, requires `OPENROUTER_API_KEY` env var)
 - Grok (X) (`grok:grok-2-1212`, requires `X_AI_API_KEY` env var)
 - DeepSeek (`deepsek:deepsek-chat`, requires `DEEPSEEK_API_KEY` env var)
+- Github Copilot (`copilot:gpt-4o-mini`, requires `GITHUB_COPILOT_API_KEY` env var)
 
 
 ## Installation

@@ -91,6 +91,24 @@ def infer_model(model) -> Model:  # noqa: PLR0911
         from llmling_models.pyodide_model import SimpleOpenAIModel
 
         return SimpleOpenAIModel(model=model.removeprefix("openai:"))
+    if model.startswith("copilot:"):
+        from httpx import AsyncClient
+        from pydantic_ai.models.openai import OpenAIModel
+
+        token = os.getenv("GITHUB_COPILOT_API_KEY")
+        client = AsyncClient(
+            headers={
+                "Authorization": f"Bearer {token}",
+                "editor-version": "Neovim/0.9.0",
+                "Copilot-Integration-Id": "vscode-chat",
+            }
+        )
+        return OpenAIModel(
+            model_name=model.removeprefix("copilot:"),
+            base_url="https://api.githubcopilot.com",
+            api_key=token,
+            http_client=client,
+        )
 
     if model.startswith("aisuite:"):
         from llmling_models.aisuite_adapter import AISuiteAdapter
