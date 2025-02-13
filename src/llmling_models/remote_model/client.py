@@ -57,6 +57,16 @@ class RemoteProxyModel(PydanticModel):
     """API key for authentication."""
 
     @property
+    def model_name(self) -> str:
+        """Return the model name."""
+        return self._model_name
+
+    @property
+    def system(self) -> str:
+        """Return the system/provider name."""
+        return "remote-proxy"
+
+    @property
     def protocol(self) -> Literal["rest", "websocket"]:
         """Infer protocol from URL."""
         scheme = urlparse(self.url).scheme.lower()
@@ -207,6 +217,11 @@ class RemoteProxyStreamedResponse(StreamedResponse):
         """Initialize usage tracking."""
         self._usage = Usage()
 
+    @property
+    def model_name(self) -> str:
+        """Get response model_name."""
+        return self._model_name
+
     async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
         """Stream responses as events."""
         import websockets
@@ -243,6 +258,7 @@ class RemoteProxyStreamedResponse(StreamedResponse):
             msg = f"Stream error: {e}"
             raise RuntimeError(msg) from e
 
+    @property
     def timestamp(self) -> datetime:
         """Get response timestamp."""
         return self._timestamp

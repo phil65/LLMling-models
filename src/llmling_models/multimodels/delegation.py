@@ -66,6 +66,16 @@ class DelegationMultiModel(MultiModel[TModel]):
             data["models"] = list(data["models"].keys())
         return data
 
+    @property
+    def model_name(self) -> str:
+        """Return the model name."""
+        return self._model_name
+
+    @property
+    def system(self) -> str:
+        """Return the system/provider name."""
+        return "delegation"
+
     def _format_selection_text(self, base_prompt: str) -> str:
         """Format selection text using prompt and optional model descriptions."""
         if not self.model_descriptions:

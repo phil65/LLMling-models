@@ -74,7 +74,12 @@ class LLMAdapter(PydanticModel):
     @property
     def model_name(self) -> str:
         """Return the model name."""
-        return f"llm:{self.model}"
+        return self.model
+
+    @property
+    def system(self) -> str:
+        """Return the system/provider name."""
+        return "llm"
 
     async def request(
         self,
@@ -215,6 +220,12 @@ class LLMStreamedResponse(StreamedResponse):
             msg = f"Stream error: {e}"
             raise RuntimeError(msg) from e
 
+    @property
+    def model_name(self) -> str:
+        """Get response model_name."""
+        return self._model_name
+
+    @property
     def timestamp(self) -> datetime:
         """Get response timestamp."""
         return self._timestamp

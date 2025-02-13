@@ -84,7 +84,21 @@ class AugmentedModel(PydanticModel):
         self._initialized_models: dict[str, Model] = {}
         self._main_model = infer_model(self.main_model)
 
-    async def _get_model(self, key: str) -> Model:
+    @property
+    def model_name(self) -> str:
+        """Return the model name."""
+        return (
+            self.main_model
+            if isinstance(self.main_model, str)
+            else self.main_model.model_name
+        )
+
+    @property
+    def system(self) -> str:
+        """Return the system/provider name."""
+        return "augmented"
+
+    def _get_model(self, key: str) -> Model:
         """Get or initialize a model."""
         if key in self._initialized_models:
             return self._initialized_models[key]
@@ -127,7 +141,7 @@ class AugmentedModel(PydanticModel):
 
         # Pre-process the question if configured
         if self.pre_prompt:
-            pre_model = await self._get_model("pre")
+            pre_model = self._get_model("pre")
             input_question = self._get_last_content(messages)
             pre_prompt = self.pre_prompt.text.format(input=input_question)
 
@@ -148,7 +162,7 @@ class AugmentedModel(PydanticModel):
             all_messages[-1] = ModelRequest(parts=[expanded_part])
 
         # Process with main model
-        main_model = await self._get_model("main")
+        main_model = self._get_model("main")
         main_response, main_cost = await main_model.request(
             all_messages,
             model_settings,
@@ -159,7 +173,7 @@ class AugmentedModel(PydanticModel):
 
         # Post-process if configured
         if self.post_prompt:
-            post_model = await self._get_model("post")
+            post_model = self._get_model("post")
             post_prompt = self.post_prompt.text.format(
                 output=str(main_response.parts[0].content)  # type: ignore
             )
@@ -197,7 +211,7 @@ class AugmentedModel(PydanticModel):
 
         # Pre-process if configured
         if self.pre_prompt:
-            pre_model = await self._get_model("pre")
+            pre_model = self._get_model("pre")
             input_question = self._get_last_content(messages)
             pre_prompt = self.pre_prompt.text.format(input=input_question)
 
@@ -215,7 +229,7 @@ class AugmentedModel(PydanticModel):
             all_messages[-1] = ModelRequest(parts=[expanded_part])
 
         # Stream from main model
-        main_model = await self._get_model("main")
+        main_model = self._get_model("main")
         async with main_model.request_stream(
             all_messages,
             model_settings,

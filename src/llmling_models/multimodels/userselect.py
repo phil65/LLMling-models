@@ -62,6 +62,16 @@ class UserSelectModel(MultiModel[Model]):
     )
     """Input handler class to use."""
 
+    @property
+    def model_name(self) -> str:
+        """Return the model name."""
+        return self._model_name
+
+    @property
+    def system(self) -> str:
+        """Return the system/provider name."""
+        return "user-select"
+
     async def _get_user_selection(
         self,
         messages: list[ModelMessage],

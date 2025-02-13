@@ -45,6 +45,16 @@ class TokenOptimizedMultiModel[TModel: Model](MultiModel[TModel]):
     strategy: Literal["efficient", "maximum_context"] = Field(default="efficient")
     """Model selection strategy."""
 
+    @property
+    def model_name(self) -> str:
+        """Return the model name."""
+        return self._model_name
+
+    @property
+    def system(self) -> str:
+        """Return the system/provider name."""
+        return "token-optimized"
+
     async def _select_model(
         self,
         messages: list[ModelMessage],

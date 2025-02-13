@@ -63,9 +63,15 @@ class InputStreamedResponse(StreamedResponse):
             msg = f"Stream error: {e}"
             raise RuntimeError(msg) from e
 
+    @property
     def timestamp(self) -> datetime:
         """Get response timestamp."""
         return self._timestamp
+
+    @property
+    def model_name(self) -> str:
+        """Get response model_name."""
+        return self._model_name
 
 
 class InputModel(PydanticModel):
@@ -98,6 +104,16 @@ class InputModel(PydanticModel):
         default="llmling_models:DefaultInputHandler", validate_default=True
     )
     """Input handler class to use."""
+
+    @property
+    def model_name(self) -> str:
+        """Return the model name."""
+        return "input"
+
+    @property
+    def system(self) -> str:
+        """Return the system/provider name."""
+        return "input"
 
     async def request(
         self,

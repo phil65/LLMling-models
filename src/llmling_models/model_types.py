@@ -39,6 +39,16 @@ class StringModel(PydanticModel):
     _model_name: str = "string"
     identifier: str
 
+    @property
+    def model_name(self) -> str:
+        """Return the model name."""
+        return self.identifier
+
+    @property
+    def system(self) -> str:
+        """Return the model name."""
+        return "string"
+
     async def request(
         self,
         messages: list[ModelMessage],

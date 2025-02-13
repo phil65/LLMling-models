@@ -14,7 +14,7 @@ TEST_MODEL = "gpt-4o-mini"
 def test_adapter_initialization():
     """Test basic adapter initialization."""
     adapter = LLMAdapter(model=TEST_MODEL)
-    assert adapter.model_name == "llm:gpt-4o-mini"
+    assert adapter.model_name == "gpt-4o-mini"
 
 
 @pytest.mark.asyncio

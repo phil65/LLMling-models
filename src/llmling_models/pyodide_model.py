@@ -155,16 +155,21 @@ class OpenAIStreamedResponse(StreamedResponse):
             msg = f"Stream error: {e}"
             raise RuntimeError(msg) from e
 
+    @property
     def timestamp(self) -> datetime:
         """Get response timestamp."""
         return self._timestamp
+
+    @property
+    def model_name(self) -> str:
+        """Get response model_name."""
+        return self._model_name
 
 
 class SimpleOpenAIModel(PydanticModel):
     """OpenAI model implementation using only httpx."""
 
-    type: Literal["openai"] = Field(default="openai", init=False)
-    _model_name: str = "simple-openai"
+    type: Literal["openai-simple"] = Field(default="openai-simple", init=False)
     model: str
     """OpenAI model identifier."""
 
@@ -173,6 +178,16 @@ class SimpleOpenAIModel(PydanticModel):
 
     base_url: str = "https://api.openai.com/v1"
     """Base URL for API requests."""
+
+    @property
+    def model_name(self) -> str:
+        """Return the model name."""
+        return self.model
+
+    @property
+    def system(self) -> str:
+        """Return the system/provider name."""
+        return "openai-simple"
 
     def _get_headers(self) -> dict[str, str]:
         """Get request headers."""

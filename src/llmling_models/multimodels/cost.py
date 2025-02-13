@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from decimal import Decimal
-from typing import TYPE_CHECKING, Literal, TypeVar
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import Field
 from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
@@ -27,7 +27,6 @@ if TYPE_CHECKING:
     from pydantic_ai.settings import ModelSettings
 
 logger = get_logger(__name__)
-TModel = TypeVar("TModel", bound=Model)
 
 
 class CostOptimizedMultiModel[TModel: Model](MultiModel[TModel]):
@@ -55,7 +54,16 @@ class CostOptimizedMultiModel[TModel: Model](MultiModel[TModel]):
     """Strategy for model selection."""
 
     _model_name: str = "cost_optimized"
-    _system: str | None = "multi"
+
+    @property
+    def model_name(self) -> str:
+        """Return the model name."""
+        return self._model_name
+
+    @property
+    def system(self) -> str:
+        """Return the system/provider name."""
+        return "multi"
 
     async def _select_model(
         self,

@@ -49,9 +49,15 @@ class AISuiteStreamedResponse(StreamedResponse):
         if False:  # pragma: no cover
             yield None  # type: ignore
 
+    @property
     def timestamp(self) -> datetime:
         """Get response timestamp."""
         return self._timestamp
+
+    @property
+    def model_name(self) -> str:
+        """Get response model_name."""
+        return "aisuite"
 
 
 class AISuiteAdapter(PydanticModel):
@@ -70,7 +76,8 @@ class AISuiteAdapter(PydanticModel):
     """
 
     type: Literal["aisuite"] = Field(default="aisuite", init=False)
-    _model_name: str = "aisuite"
+    """AISuite model type."""
+
     model: str
     """Model identifier in provider:model format"""
 
@@ -82,6 +89,16 @@ class AISuiteAdapter(PydanticModel):
     def __init__(self, **data: Any):
         super().__init__(**data)
         self._client = aisuite.Client(self.config)
+
+    @property
+    def model_name(self) -> str:
+        """Return the model name."""
+        return self.model
+
+    @property
+    def system(self) -> str:
+        """Return the system/provider name."""
+        return "aisuite"
 
     async def request(
         self,

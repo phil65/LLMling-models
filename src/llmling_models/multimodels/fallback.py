@@ -39,11 +39,20 @@ class FallbackMultiModel[TModel: Model](MultiModel[TModel]):
 
     type: Literal["fallback"] = Field(default="fallback", init=False)
     _model_name: str = "fallback"
-    _system: str | None = "multi"
 
     def model_post_init(self, __context: dict[str, Any], /) -> None:
         """Initialize model name."""
         self._model_name = f"multi-fallback({len(self.models)})"
+
+    @property
+    def model_name(self) -> str:
+        """Return the model name."""
+        return self._model_name
+
+    @property
+    def system(self) -> str:
+        """Return the system/provider name."""
+        return "multi"
 
     async def request(
         self,
