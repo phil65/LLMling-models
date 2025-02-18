@@ -405,7 +405,9 @@ LLMling-models also provides an extended `infer_model` function that also resolv
 - Grok (X) (`grok:grok-2-1212`, requires `X_AI_API_KEY` env var)
 - DeepSeek (`deepsek:deepsek-chat`, requires `DEEPSEEK_API_KEY` env var)
 - Github Copilot (`copilot:gpt-4o-mini`, requires `GITHUB_COPILOT_API_KEY` env var)
+- Perplexity (`perplexity:xyz`, requires `PERPLEXITY_API_KEY` env var)
 
+Also adds a fallback to a simple httpx-based OpenAI client in case `openai` library is not installed or we are inside an pyodide environment.
 
 ## Installation
 

@@ -78,19 +78,32 @@ def infer_model(model) -> Model:  # noqa: PLR0911
             base_url="https://api.deepseek.com",
             api_key=os.getenv("DEEPSEEK_API_KEY"),
         )
+    if model.startswith("perplexity:"):
+        from pydantic_ai.models.openai import OpenAIModel
+
+        return OpenAIModel(
+            model.removeprefix("perplexity:"),
+            base_url="https://api.perplexity.ai",
+            api_key=os.getenv("PERPLEXITY_API_KEY"),
+        )
+
     if model.startswith("llm:"):
         from llmling_models.llm_adapter import LLMAdapter
 
         return LLMAdapter(model_name=model.removeprefix("llm:"))
+
+    if model.startswith("openai:") and (
+        not importlib.util.find_spec("openai") or is_pyodide()
+    ):
+        from llmling_models.pyodide_model import SimpleOpenAIModel
+
+        return SimpleOpenAIModel(model=model.removeprefix("openai:"))
+
     if model.startswith("simple-openai:"):
         from llmling_models.pyodide_model import SimpleOpenAIModel
 
         return SimpleOpenAIModel(model=model.removeprefix("simple-openai:"))
 
-    if model.startswith("openai:") and is_pyodide():
-        from llmling_models.pyodide_model import SimpleOpenAIModel
-
-        return SimpleOpenAIModel(model=model.removeprefix("openai:"))
     if model.startswith("copilot:"):
         from httpx import AsyncClient
         from pydantic_ai.models.openai import OpenAIModel
