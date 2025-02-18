@@ -1,4 +1,4 @@
-__version__ = "0.7.6"
+__version__ = "0.7.7"
 
 
 from llmling_models.base import PydanticModel
