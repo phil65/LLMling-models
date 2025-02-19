@@ -176,7 +176,7 @@ class SimpleOpenAIModel(PydanticModel):
     api_key: str | None = None
     """OpenAI API key."""
 
-    base_url: str = "https://api.openai.com/v1"
+    base_url: str | None = None
     """Base URL for API requests."""
 
     @property
@@ -235,11 +235,11 @@ class SimpleOpenAIModel(PydanticModel):
 
         headers = self._get_headers()
         payload = self._build_request(messages, model_settings)
-
+        base_url = self.base_url or "https://api.openai.com/v1"
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.post(
-                    f"{self.base_url}/chat/completions",
+                    f"{base_url}/chat/completions",
                     headers=headers,
                     json=payload,
                     timeout=30.0,
@@ -279,11 +279,12 @@ class SimpleOpenAIModel(PydanticModel):
 
         headers = self._get_headers()
         payload = self._build_request(messages, model_settings, stream=True)
+        base_url = self.base_url or "https://api.openai.com/v1"
 
         client = httpx.AsyncClient(timeout=30.0)
         try:
             response = await client.post(
-                f"{self.base_url}/chat/completions",
+                f"{base_url}/chat/completions",
                 headers=headers,
                 json=payload,
             )
