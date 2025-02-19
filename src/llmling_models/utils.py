@@ -50,38 +50,45 @@ def is_pyodide() -> bool:
         return False
 
 
+def get_model(
+    model_name: str,
+    base_url: str | None = None,
+    api_key: str | None = None,
+) -> Model:
+    if is_pyodide() or not importlib.util.find_spec("openai"):
+        from llmling_models.pyodide_model import SimpleOpenAIModel
+
+        return SimpleOpenAIModel(model=model_name, api_key=api_key, base_url=base_url)
+    from pydantic_ai.models.openai import OpenAIModel
+
+    return OpenAIModel(model_name, api_key=api_key, base_url=base_url)
+
+
 def infer_model(model) -> Model:  # noqa: PLR0911
     """Extended infer_model from pydantic-ai."""
     if not isinstance(model, str):
         return model
-    if model.startswith("openrouter:"):
-        from pydantic_ai.models.openai import OpenAIModel
 
-        return OpenAIModel(
+    if model.startswith("openrouter:"):
+        return get_model(
             model.removeprefix("openrouter:").replace(":", "/"),
             base_url="https://openrouter.ai/api/v1",
             api_key=os.getenv("OPENROUTER_API_KEY"),
         )
     if model.startswith("grok:"):
-        from pydantic_ai.models.openai import OpenAIModel
-
-        return OpenAIModel(
+        return get_model(
             model.removeprefix("grok:"),
             base_url="https://api.x.ai/v1",
             api_key=os.getenv("X_AI_API_KEY") or os.getenv("GROK_API_KEY"),
         )
     if model.startswith("deepseek:"):
-        from pydantic_ai.models.openai import OpenAIModel
-
-        return OpenAIModel(
+        return get_model(
             model.removeprefix("deepseek:"),
             base_url="https://api.deepseek.com",
             api_key=os.getenv("DEEPSEEK_API_KEY"),
         )
     if model.startswith("perplexity:"):
-        from pydantic_ai.models.openai import OpenAIModel
-
-        return OpenAIModel(
+        return get_model(
             model.removeprefix("perplexity:"),
             base_url="https://api.perplexity.ai",
             api_key=os.getenv("PERPLEXITY_API_KEY"),
@@ -92,12 +99,8 @@ def infer_model(model) -> Model:  # noqa: PLR0911
 
         return LLMAdapter(model_name=model.removeprefix("llm:"))
 
-    if model.startswith("openai:") and (
-        not importlib.util.find_spec("openai") or is_pyodide()
-    ):
-        from llmling_models.pyodide_model import SimpleOpenAIModel
-
-        return SimpleOpenAIModel(model=model.removeprefix("openai:"))
+    if model.startswith("openai:"):
+        return get_model(model.removeprefix("openai:"))
 
     if model.startswith("simple-openai:"):
         from llmling_models.pyodide_model import SimpleOpenAIModel
