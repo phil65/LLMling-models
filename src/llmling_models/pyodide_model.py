@@ -10,13 +10,14 @@ import os
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 from pydantic import Field, TypeAdapter
-from pydantic_ai._parts_manager import ModelResponsePartsManager
 from pydantic_ai.messages import (
     ModelMessage,
     ModelResponse,
+    ModelResponsePart,
     ModelResponseStreamEvent,
     SystemPromptPart,
     TextPart,
+    ToolCallPart,
     ToolReturnPart,
     UserPromptPart,
 )
@@ -39,32 +40,75 @@ if TYPE_CHECKING:
 
     import httpx
     from pydantic_ai.settings import ModelSettings
+    from pydantic_ai.tools import ToolDefinition
 
 
 logger = get_logger(__name__)
 json_ta = TypeAdapter[Any](Any)
 
 
-def convert_messages(messages: list[ModelMessage]) -> list[dict[str, str]]:
+class FunctionDefinition(TypedDict):
+    """OpenAI function definition format."""
+
+    name: str
+    description: str
+    parameters: dict[str, Any]
+
+
+def convert_messages(messages: list[ModelMessage]) -> list[dict[str, Any]]:
     """Convert pydantic-ai messages to OpenAI format."""
     result = []
-
     for message in messages:
         if isinstance(message, ModelResponse):
             content = ""
+            tool_calls = []
             for part in message.parts:
-                if isinstance(part, TextPart | ToolReturnPart):
+                if isinstance(part, TextPart):
                     content += str(part.content)
+                elif isinstance(part, ToolCallPart):
+                    tool_calls.append({
+                        "id": part.tool_call_id,
+                        "type": "function",
+                        "function": {
+                            "name": part.tool_name,
+                            "arguments": part.args_as_json_str(),
+                        },
+                    })
+            msg: dict[str, Any] = {"role": "assistant"}
             if content:
-                result.append({"role": "assistant", "content": content})
+                msg["content"] = content
+            if tool_calls:
+                msg["tool_calls"] = tool_calls
+            result.append(msg)
         else:
-            for part in message.parts:  # type: ignore
+            for part in message.parts:
                 if isinstance(part, SystemPromptPart):
                     result.append({"role": "system", "content": part.content})
                 elif isinstance(part, UserPromptPart):
                     result.append({"role": "user", "content": part.content})
+                elif isinstance(part, ToolReturnPart):
+                    result.append({
+                        "role": "tool",
+                        "tool_call_id": part.tool_call_id,
+                        "content": part.model_response_str(),
+                    })
 
     return result
+
+
+def convert_tools(tools: list[ToolDefinition]) -> list[dict[str, Any]]:
+    """Convert tool definitions to OpenAI format."""
+    return [
+        {
+            "type": "function",
+            "function": {
+                "name": tool.name,
+                "description": tool.description,
+                "parameters": tool.parameters_json_schema,
+            },
+        }
+        for tool in tools
+    ]
 
 
 @dataclass(kw_only=True)
@@ -78,26 +122,14 @@ class OpenAIStreamedResponse(StreamedResponse):
     def __post_init__(self):
         """Initialize usage tracking and parts manager."""
         self._usage = Usage()
-        self._parts_manager = ModelResponsePartsManager()
         self._has_yielded_start = False
-        self._buffer = ""
-        self._stream = None
-
-    def get(self) -> ModelResponse:
-        """Get current state of response."""
-        return ModelResponse(
-            parts=self._parts_manager.get_parts(),
-            model_name=self._model_name,
-            timestamp=self._timestamp,
-        )
 
     async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
         """Stream response chunks."""
         try:
             content_id = "content"  # OpenAI uses a single content stream
-            accumulated_text = ""
+            tool_calls: dict[str, dict[str, Any]] = {}
 
-            # Get lines from the response
             async for line in self.response.aiter_lines():
                 line = line.strip()
                 if not line or not line.startswith("data: "):
@@ -123,25 +155,54 @@ class OpenAIStreamedResponse(StreamedResponse):
                 if not delta:
                     continue
 
-                # Extract content
+                # Handle text content
                 if content := delta.get("content"):
-                    accumulated_text += content
-
-                    # First chunk - emit start event
                     if not self._has_yielded_start:
                         self._has_yielded_start = True
-                        event = self._parts_manager.handle_text_delta(
-                            vendor_part_id=content_id,
-                            content=accumulated_text,
-                        )
-                        yield event
-                    else:
-                        # Subsequent chunks - emit delta events
                         event = self._parts_manager.handle_text_delta(
                             vendor_part_id=content_id,
                             content=content,
                         )
                         yield event
+                    else:
+                        event = self._parts_manager.handle_text_delta(
+                            vendor_part_id=content_id,
+                            content=content,
+                        )
+                        yield event
+
+                # Handle tool calls
+                if tool_call_delta := delta.get("tool_calls", []):
+                    for tool_delta in tool_call_delta:
+                        index = str(tool_delta["index"])
+                        if index not in tool_calls:
+                            tool_calls[index] = {
+                                "id": tool_delta.get("id", ""),
+                                "function": {"name": "", "arguments": ""},
+                            }
+
+                        # Update tool call data
+                        if "id" in tool_delta:
+                            tool_calls[index]["id"] = tool_delta["id"]
+                        if func := tool_delta.get("function", {}):
+                            if "name" in func:
+                                tool_calls[index]["function"]["name"] = func["name"]
+                            if "arguments" in func:
+                                tool_calls[index]["function"]["arguments"] += func[
+                                    "arguments"
+                                ]
+
+                        # Generate event if we have complete tool call
+                        call = tool_calls[index]
+                        if call["id"] and call["function"]["name"]:
+                            event = self._parts_manager.handle_tool_call_delta(
+                                vendor_part_id=index,
+                                tool_name=call["function"]["name"],
+                                args=call["function"]["arguments"],
+                                tool_call_id=call["id"],
+                            )
+                            if event:
+                                yield event
 
                 # Update usage if available
                 if usage := data.get("usage"):
@@ -167,7 +228,7 @@ class OpenAIStreamedResponse(StreamedResponse):
 
 
 class SimpleOpenAIModel(PydanticModel):
-    """OpenAI model implementation using only httpx."""
+    """OpenAI-compatible model using HTTPX."""
 
     type: Literal["openai-simple"] = Field(default="openai-simple", init=False)
     model: str
@@ -206,6 +267,7 @@ class SimpleOpenAIModel(PydanticModel):
         self,
         messages: list[ModelMessage],
         model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
         stream: bool = False,
     ) -> dict[str, Any]:
         """Build request payload."""
@@ -215,7 +277,21 @@ class SimpleOpenAIModel(PydanticModel):
             "stream": stream,
         }
 
-        # Add model settings if provided
+        # Add tools if provided
+        tools = []
+        if model_request_parameters.function_tools:
+            tools.extend(convert_tools(model_request_parameters.function_tools))
+        if model_request_parameters.result_tools:
+            tools.extend(convert_tools(model_request_parameters.result_tools))
+
+        if tools:
+            req["tools"] = tools
+            if not model_request_parameters.allow_text_result:
+                req["tool_choice"] = "required"
+            else:
+                req["tool_choice"] = "auto"
+
+        # Add model settings
         if model_settings:
             if temperature := model_settings.get("temperature"):
                 req["temperature"] = temperature
@@ -234,8 +310,13 @@ class SimpleOpenAIModel(PydanticModel):
         import httpx
 
         headers = self._get_headers()
-        payload = self._build_request(messages, model_settings)
+        payload = self._build_request(
+            messages,
+            model_settings,
+            model_request_parameters,
+        )
         base_url = self.base_url or "https://api.openai.com/v1"
+
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.post(
@@ -247,8 +328,26 @@ class SimpleOpenAIModel(PydanticModel):
                 response.raise_for_status()
                 data = response.json()
 
-                # Extract content
-                content = data["choices"][0]["message"]["content"]
+                # Extract choice data
+                choice = data["choices"][0]["message"]
+
+                # Handle response parts
+                parts: list[ModelResponsePart] = []
+
+                # Add text content if present
+                if content := choice.get("content"):
+                    parts.append(TextPart(content))
+
+                # Add tool calls if present
+                if tool_calls := choice.get("tool_calls"):
+                    for call in tool_calls:
+                        parts.append(  # noqa: PERF401
+                            ToolCallPart(
+                                tool_name=call["function"]["name"],
+                                args=call["function"]["arguments"],
+                                tool_call_id=call["id"],
+                            )
+                        )
 
                 # Extract usage
                 usage_data = data.get("usage", {})
@@ -259,7 +358,7 @@ class SimpleOpenAIModel(PydanticModel):
                 )
 
                 return ModelResponse(
-                    parts=[TextPart(content)],
+                    parts=parts,
                     timestamp=datetime.now(UTC),
                 ), usage
 
@@ -278,7 +377,12 @@ class SimpleOpenAIModel(PydanticModel):
         import httpx
 
         headers = self._get_headers()
-        payload = self._build_request(messages, model_settings, stream=True)
+        payload = self._build_request(
+            messages,
+            model_settings,
+            model_request_parameters,
+            stream=True,
+        )
         base_url = self.base_url or "https://api.openai.com/v1"
 
         client = httpx.AsyncClient(timeout=30.0)
@@ -310,20 +414,20 @@ if __name__ == "__main__":
     async def test():
         # Create model instance
         model = SimpleOpenAIModel(
-            model="gpt-3.5-turbo",
+            model="gpt-4o-mini",
             api_key=os.getenv("OPENAI_API_KEY"),
         )
 
         # Test with agent
         agent: Agent[None, str] = Agent(model=model)
-        result = await agent.run("Say hello!")
+        result = await agent.run("Hello!")
         print(f"\nResponse: {result.data}")
 
         # Test streaming
         print("\nStreaming response:")
         async with agent.run_stream("Tell me a short story") as stream:
-            async for chunk in stream.stream_text(delta=True):
-                print(chunk, end="", flush=True)
+            async for chunk in stream.stream():
+                print(chunk)
         print("\nStreaming complete!")
 
     asyncio.run(test())
