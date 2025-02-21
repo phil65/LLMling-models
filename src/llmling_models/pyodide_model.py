@@ -82,17 +82,17 @@ def convert_messages(messages: list[ModelMessage]) -> list[dict[str, Any]]:
                 msg["tool_calls"] = tool_calls
             result.append(msg)
         else:
-            for part in message.parts:
-                match part:
+            for request_part in message.parts:
+                match request_part:
                     case SystemPromptPart():
-                        result.append({"role": "system", "content": part.content})
+                        result.append({"role": "system", "content": request_part.content})
                     case UserPromptPart():
-                        result.append({"role": "user", "content": part.content})
+                        result.append({"role": "user", "content": request_part.content})
                     case ToolReturnPart():
                         result.append({
                             "role": "tool",
-                            "tool_call_id": part.tool_call_id,
-                            "content": part.model_response_str(),
+                            "tool_call_id": request_part.tool_call_id,
+                            "content": request_part.model_response_str(),
                         })
 
     return result
@@ -197,14 +197,14 @@ class OpenAIStreamedResponse(StreamedResponse):
                         # Generate event if we have complete tool call
                         call = tool_calls[index]
                         if call["id"] and call["function"]["name"]:
-                            event = self._parts_manager.handle_tool_call_delta(
+                            event_ = self._parts_manager.handle_tool_call_delta(
                                 vendor_part_id=index,
                                 tool_name=call["function"]["name"],
                                 args=call["function"]["arguments"],
                                 tool_call_id=call["id"],
                             )
-                            if event:
-                                yield event
+                            if event_:
+                                yield event_
 
                 # Update usage if available
                 if usage := data.get("usage"):
