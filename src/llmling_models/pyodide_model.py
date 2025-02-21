@@ -63,17 +63,18 @@ def convert_messages(messages: list[ModelMessage]) -> list[dict[str, Any]]:
             content = ""
             tool_calls = []
             for part in message.parts:
-                if isinstance(part, TextPart):
-                    content += str(part.content)
-                elif isinstance(part, ToolCallPart):
-                    tool_calls.append({
-                        "id": part.tool_call_id,
-                        "type": "function",
-                        "function": {
-                            "name": part.tool_name,
-                            "arguments": part.args_as_json_str(),
-                        },
-                    })
+                match part:
+                    case TextPart():
+                        content += str(part.content)
+                    case ToolCallPart():
+                        tool_calls.append({
+                            "id": part.tool_call_id,
+                            "type": "function",
+                            "function": {
+                                "name": part.tool_name,
+                                "arguments": part.args_as_json_str(),
+                            },
+                        })
             msg: dict[str, Any] = {"role": "assistant"}
             if content:
                 msg["content"] = content
@@ -82,16 +83,17 @@ def convert_messages(messages: list[ModelMessage]) -> list[dict[str, Any]]:
             result.append(msg)
         else:
             for part in message.parts:
-                if isinstance(part, SystemPromptPart):
-                    result.append({"role": "system", "content": part.content})
-                elif isinstance(part, UserPromptPart):
-                    result.append({"role": "user", "content": part.content})
-                elif isinstance(part, ToolReturnPart):
-                    result.append({
-                        "role": "tool",
-                        "tool_call_id": part.tool_call_id,
-                        "content": part.model_response_str(),
-                    })
+                match part:
+                    case SystemPromptPart():
+                        result.append({"role": "system", "content": part.content})
+                    case UserPromptPart():
+                        result.append({"role": "user", "content": part.content})
+                    case ToolReturnPart():
+                        result.append({
+                            "role": "tool",
+                            "tool_call_id": part.tool_call_id,
+                            "content": part.model_response_str(),
+                        })
 
     return result
 
