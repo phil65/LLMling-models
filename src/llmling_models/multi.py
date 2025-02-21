@@ -5,10 +5,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, TypeVar
 
 from pydantic import Field, model_validator
-from pydantic_ai.models import Model, infer_model
+from pydantic_ai.models import Model
 
 from llmling_models.base import PydanticModel
 from llmling_models.log import get_logger
+from llmling_models.utils import infer_model
 
 
 if TYPE_CHECKING:
