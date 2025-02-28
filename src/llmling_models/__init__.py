@@ -6,7 +6,6 @@ from llmling_models.multi import MultiModel
 from llmling_models.inputmodel import InputModel
 from llmling_models.input_handlers import DefaultInputHandler
 from llmling_models.multimodels import (
-    FallbackMultiModel,
     TokenOptimizedMultiModel,
     CostOptimizedMultiModel,
     DelegationMultiModel,
@@ -20,7 +19,6 @@ __all__ = [
     "CostOptimizedMultiModel",
     "DefaultInputHandler",
     "DelegationMultiModel",
-    "FallbackMultiModel",
     "InputModel",
     "ModelInput",
     "MultiModel",

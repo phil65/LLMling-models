@@ -82,24 +82,6 @@ result = await agent.run("Write a story")
 
 ### Multi-Models
 
-#### Fallback Model
-
-Tries models in sequence until one succeeds. Perfect for handling rate limits or service outages:
-
-```python
-from llmling_models import FallbackMultiModel
-
-fallback_model = FallbackMultiModel(
-    models=[
-        "openai:gpt-4",           # Try this first
-        "openai:gpt-3.5-turbo",   # Fallback option
-        "anthropic:claude-2"       # Last resort
-    ]
-)
-agent = Agent(fallback_model)
-result = await agent.run("Complex question")
-```
-
 
 ### Augmented Model
 
