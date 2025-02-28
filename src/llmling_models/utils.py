@@ -94,6 +94,13 @@ def infer_model(model) -> Model:  # noqa: PLR0911
             api_key=os.getenv("PERPLEXITY_API_KEY"),
         )
 
+    if model.startswith("lm-studio:"):
+        return get_model(
+            model.removeprefix("lm-studio:"),
+            base_url="http://localhost:1234/v1/",
+            api_key="lm-studio",
+        )
+
     if model.startswith("llm:"):
         from llmling_models.llm_adapter import LLMAdapter
 
