@@ -126,7 +126,7 @@ class AugmentedModel(PydanticModel):
         if isinstance(last_msg, ModelRequest):
             for part in reversed(last_msg.parts):
                 if isinstance(part, UserPromptPart):
-                    return part.content
+                    return str(part.content)  # TODO: could also be media content
         return ""
 
     async def request(

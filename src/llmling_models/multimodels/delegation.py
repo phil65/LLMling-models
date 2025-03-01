@@ -139,7 +139,7 @@ class DelegationMultiModel(MultiModel[TModel]):
 
         for part in last_message.parts:
             if isinstance(part, UserPromptPart):
-                return part.content
+                return str(part.content)  # TODO: could also be media content
 
         msg = "No user prompt found in messages"
         raise ValueError(msg)
