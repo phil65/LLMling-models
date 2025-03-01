@@ -127,7 +127,7 @@ class AISuiteAdapter(PydanticModel):
                     elif isinstance(part, UserPromptPart):
                         formatted_messages.append({
                             "role": "user",
-                            "content": part.content,
+                            "content": str(part.content),  # TODO: deal with media content
                         })
 
         # Extract settings

@@ -178,7 +178,7 @@ def estimate_tokens(messages: list[ModelMessage]) -> int:
                 part,
                 UserPromptPart | SystemPromptPart | TextPart | ToolReturnPart,
             ):
-                content += part.content
+                content += str(part.content)
 
     # Try tiktoken (best for OpenAI models)
     if importlib.util.find_spec("tiktoken"):
