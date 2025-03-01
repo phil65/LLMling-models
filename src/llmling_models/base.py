@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-from abc import ABC
-
 from pydantic import BaseModel, ConfigDict
 from pydantic_ai.models import Model
 
 
-class PydanticModel(Model, BaseModel, ABC):
+class PydanticModel(Model, BaseModel):
     """Base for models that can be configured via YAML."""
 
     model_config = ConfigDict(

@@ -321,11 +321,9 @@ class SimpleOpenAIModel(PydanticModel):
 
         async with httpx.AsyncClient() as client:
             try:
+                url = f"{base_url}/chat/completions"
                 response = await client.post(
-                    f"{base_url}/chat/completions",
-                    headers=headers,
-                    json=payload,
-                    timeout=30.0,
+                    url, headers=headers, json=payload, timeout=30.0
                 )
                 response.raise_for_status()
                 data = response.json()
@@ -343,13 +341,12 @@ class SimpleOpenAIModel(PydanticModel):
                 # Add tool calls if present
                 if tool_calls := choice.get("tool_calls"):
                     for call in tool_calls:
-                        parts.append(  # noqa: PERF401
-                            ToolCallPart(
-                                tool_name=call["function"]["name"],
-                                args=call["function"]["arguments"],
-                                tool_call_id=call["id"],
-                            )
+                        tool_part = ToolCallPart(
+                            tool_name=call["function"]["name"],
+                            args=call["function"]["arguments"],
+                            tool_call_id=call["id"],
                         )
+                        parts.append(tool_part)
 
                 # Extract usage
                 usage_data = data.get("usage", {})
@@ -359,10 +356,7 @@ class SimpleOpenAIModel(PydanticModel):
                     total_tokens=usage_data.get("total_tokens", 0),
                 )
 
-                return ModelResponse(
-                    parts=parts,
-                    timestamp=datetime.now(UTC),
-                ), usage
+                return ModelResponse(parts=parts, timestamp=datetime.now(UTC)), usage
 
             except httpx.HTTPError as e:
                 msg = f"OpenAI request failed: {e}"
@@ -386,20 +380,12 @@ class SimpleOpenAIModel(PydanticModel):
             stream=True,
         )
         base_url = self.base_url or "https://api.openai.com/v1"
-
         client = httpx.AsyncClient(timeout=30.0)
         try:
-            response = await client.post(
-                f"{base_url}/chat/completions",
-                headers=headers,
-                json=payload,
-            )
+            url = f"{base_url}/chat/completions"
+            response = await client.post(url, headers=headers, json=payload)
             response.raise_for_status()
-
-            yield OpenAIStreamedResponse(
-                response=response,
-                _model_name=self.model_name,
-            )
+            yield OpenAIStreamedResponse(response=response, _model_name=self.model_name)
 
         except httpx.HTTPError as e:
             msg = f"OpenAI stream request failed: {e}"
@@ -415,17 +401,10 @@ if __name__ == "__main__":
 
     async def test():
         # Create model instance
-        model = SimpleOpenAIModel(
-            model="gpt-4o-mini",
-            api_key=os.getenv("OPENAI_API_KEY"),
-        )
-
-        # Test with agent
+        model = SimpleOpenAIModel(model="gpt-4o-mini")
         agent: Agent[None, str] = Agent(model=model)
         result = await agent.run("Hello!")
         print(f"\nResponse: {result.data}")
-
-        # Test streaming
         print("\nStreaming response:")
         async with agent.run_stream("Tell me a short story") as stream:
             async for chunk in stream.stream():
