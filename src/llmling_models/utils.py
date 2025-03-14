@@ -40,28 +40,46 @@ async def get_model_limits(model_name: str) -> TokenLimits | None:
     return await get_model_limits(model_name)
 
 
-def is_pyodide() -> bool:
-    """Check if code is running in a Pyodide environment."""
-    try:
-        from js import Object  # type: ignore  # noqa: F401
-
-        return True  # noqa: TRY300
-    except ImportError:
-        return False
-
-
 def get_model(
-    model_name: str,
+    model: str,
     base_url: str | None = None,
     api_key: str | None = None,
 ) -> Model:
-    if is_pyodide() or not importlib.util.find_spec("openai"):
+    """Get model instance with appropriate implementation based on environment."""
+    # Check if this is a provider model (contains colon)
+    provider_name = None
+    model_name = model
+
+    if ":" in model:
+        provider_name, model_name = model.split(":", 1)
+
+        # Special handling for openrouter (TODO: check this)
+        if provider_name == "openrouter":
+            model_name = model_name.replace(":", "/")
+
+    # For pyodide environments, use SimpleOpenAIModel
+    if not importlib.util.find_spec("openai"):
         from llmling_models.pyodide_model import SimpleOpenAIModel
 
         return SimpleOpenAIModel(model=model_name, api_key=api_key, base_url=base_url)
+
+    # For regular environments and recognized providers, use the provider interface
     from pydantic_ai.models.openai import OpenAIModel
 
-    return OpenAIModel(model_name, api_key=api_key, base_url=base_url)
+    if provider_name:
+        try:
+            from llmling_models.providers import infer_provider
+
+            provider = infer_provider(provider_name)
+            return OpenAIModel(
+                model_name=model_name, provider=provider, system=provider_name
+            )
+        except ValueError:
+            # If provider not recognized, continue with direct approach
+            pass
+
+    # Default case: use OpenAI model with direct parameters
+    return OpenAIModel(model_name=model_name, api_key=api_key, base_url=base_url)
 
 
 def infer_model(model) -> Model:  # noqa: PLR0911
@@ -71,40 +89,48 @@ def infer_model(model) -> Model:  # noqa: PLR0911
 
     if model.startswith("openrouter:"):
         return get_model(
-            model.removeprefix("openrouter:").replace(":", "/"),
+            model,  # Pass full string instead of stripping prefix
             base_url="https://openrouter.ai/api/v1",
             api_key=os.getenv("OPENROUTER_API_KEY"),
         )
     if model.startswith("grok:"):
         return get_model(
-            model.removeprefix("grok:"),
+            model,  # Pass full string
             base_url="https://api.x.ai/v1",
             api_key=os.getenv("X_AI_API_KEY") or os.getenv("GROK_API_KEY"),
         )
     if model.startswith("deepseek:"):
         return get_model(
-            model.removeprefix("deepseek:"),
+            model,  # Pass full string
             base_url="https://api.deepseek.com",
             api_key=os.getenv("DEEPSEEK_API_KEY"),
         )
     if model.startswith("perplexity:"):
         return get_model(
-            model.removeprefix("perplexity:"),
+            model,  # Pass full string
             base_url="https://api.perplexity.ai",
             api_key=os.getenv("PERPLEXITY_API_KEY"),
         )
-
     if model.startswith("lm-studio:"):
         return get_model(
-            model.removeprefix("lm-studio:"),
+            model,  # Pass full string
             base_url="http://localhost:1234/v1/",
             api_key="lm-studio",
+        )
+    if model.startswith("openai:"):
+        return get_model(model)  # Pass full string
+
+    if model.startswith("copilot:"):
+        return get_model(
+            model,  # Pass full string
+            base_url="https://api.githubcopilot.com",
+            api_key=os.getenv("GITHUB_COPILOT_API_KEY"),
         )
 
     if model.startswith("llm:"):
         from llmling_models.llm_adapter import LLMAdapter
 
-        return LLMAdapter(model_name=model.removeprefix("llm:"))
+        return LLMAdapter(model=model.removeprefix("llm:"))
 
     if model.startswith("openai:"):
         return get_model(model.removeprefix("openai:"))

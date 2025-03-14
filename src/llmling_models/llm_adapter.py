@@ -238,7 +238,7 @@ if __name__ == "__main__":
 
     async def test():
         # Test with both sync and async models
-        adapter = LLMAdapter(model_name="gpt-4o-mini")
+        adapter = LLMAdapter(model="gpt-4o-mini")
         agent: Agent[None, str] = Agent(model=adapter)
 
         print("\nTesting sync request:")
