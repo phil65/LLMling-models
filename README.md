@@ -379,17 +379,163 @@ Both REST and WebSocket protocols are supported, with WebSocket being preferred 
 
 All multi models are generically typed to follow pydantic best practices. Usefulness for that is debatable though. :P
 
-## Extended infer_model
+## Providers
 
-LLMling-models also provides an extended `infer_model` function that also resolves some of the included models as well as:
+LLMling-models extends the capabilities of pydantic-ai with additional provider implementations that make it easy to connect to various LLM API services.
 
-- OpenRouter (`openrouter:provider/model-name`, requires `OPENROUTER_API_KEY` env var)
-- Grok (X) (`grok:grok-2-1212`, requires `X_AI_API_KEY` env var)
-- DeepSeek (`deepsek:deepsek-chat`, requires `DEEPSEEK_API_KEY` env var)
-- Github Copilot (`copilot:gpt-4o-mini`, requires `GITHUB_COPILOT_API_KEY` env var)
-- Perplexity (`perplexity:xyz`, requires `PERPLEXITY_API_KEY` env var)
+### Available Providers
 
-Also adds a fallback to a simple httpx-based OpenAI client in case `openai` library is not installed or we are inside an pyodide environment.
+The package includes the following provider implementations:
+
+#### OpenRouter Provider
+
+Connect to OpenRouter's API service to access multiple models from different providers:
+
+```python
+from pydantic_ai import Agent
+from pydantic_ai.models.openai import OpenAIModel
+from llmling_models.providers import infer_provider
+
+# Method 1: Using infer_provider
+provider = infer_provider("openrouter")
+model = OpenAIModel("anthropic/claude-3-opus", provider=provider)
+
+# Method 2: Direct instantiation
+from llmling_models.providers.openrouter_provider import OpenRouterProvider
+provider = OpenRouterProvider(api_key="your-api-key")  # Or use OPENROUTER_API_KEY env var
+model = OpenAIModel("openai/o3-mini", provider=provider)
+
+agent = Agent(model=model)
+result = await agent.run("Hello world!")
+```
+
+#### Grok (X.AI) Provider
+
+Connect to X.AI's Grok models:
+
+```python
+from pydantic_ai import Agent
+from pydantic_ai.models.openai import OpenAIModel
+from llmling_models.providers.grok_provider import GrokProvider
+
+provider = GrokProvider(api_key="your-api-key")  # Or use X_AI_API_KEY/GROK_API_KEY env var
+model = OpenAIModel("grok-2-1212", provider=provider)
+agent = Agent(model=model)
+result = await agent.run("Hello Grok!")
+```
+
+#### Perplexity Provider
+
+Connect to Perplexity's API for advanced web search and reasoning capabilities:
+
+```python
+from pydantic_ai import Agent
+from pydantic_ai.models.openai import OpenAIModel
+from llmling_models.providers.perplexity_provider import PerplexityProvider
+
+provider = PerplexityProvider(api_key="your-api-key")  # Or use PERPLEXITY_API_KEY env var
+model = OpenAIModel("sonar-medium-online", provider=provider)
+agent = Agent(model=model)
+result = await agent.run("What's the latest on quantum computing?")
+```
+
+#### GitHub Copilot Provider
+
+Connect to GitHub Copilot's API for code-focused tasks (requires token management):
+
+```python
+from pydantic_ai import Agent
+from pydantic_ai.models.openai import OpenAIModel
+from llmling_models.providers.copilot_provider import CopilotProvider
+
+# Requires tokonomics.CopilotTokenManager to handle token management
+provider = CopilotProvider()  # Uses tokonomics for authentication
+model = OpenAIModel("gpt-4o-mini", provider=provider)
+agent = Agent(model=model)
+result = await agent.run("Write a function to calculate Fibonacci numbers")
+```
+
+#### LM Studio Provider
+
+Connect to local LM Studio inference server for open-source models:
+
+```python
+from pydantic_ai import Agent
+from pydantic_ai.models.openai import OpenAIModel
+from llmling_models.providers.lm_studio_provider import LMStudioProvider
+
+provider = LMStudioProvider(base_url="http://localhost:11434/v1")
+model = OpenAIModel("model_name", provider=provider)  # Use model loaded in LM Studio
+agent = Agent(model=model)
+result = await agent.run("Tell me about yourself")
+```
+
+### Provider Utility Functions
+
+#### infer_provider
+
+The `infer_provider` function extends pydantic-ai's provider inference to include all LLMling-models providers:
+
+```python
+from llmling_models.providers import infer_provider
+
+# Get provider by name
+provider = infer_provider("openrouter")  # Returns OpenRouterProvider instance
+provider = infer_provider("grok")        # Returns GrokProvider instance
+provider = infer_provider("perplexity")  # Returns PerplexityProvider instance
+provider = infer_provider("copilot")     # Returns CopilotProvider instance
+provider = infer_provider("lm-studio")   # Returns LMStudioProvider instance
+
+# Still works with standard providers too
+provider = infer_provider("openai")      # Returns pydantic_ai's OpenAIProvider
+```
+
+## Extended infer_model Function
+
+LLMling-models provides an extended `infer_model` function that resolves various model notations to appropriate instances:
+
+```python
+from llmling_models import infer_model
+
+# Provider prefixes (requires appropriate API keys as env vars)
+model = infer_model("openai:gpt-4o")             # OpenAI models
+model = infer_model("openrouter:anthropic/opus") # OpenRouter (requires OPENROUTER_API_KEY)
+model = infer_model("grok:grok-2-1212")          # Grok/X.AI (requires X_AI_API_KEY)
+model = infer_model("perplexity:sonar-medium")   # Perplexity (requires PERPLEXITY_API_KEY)
+model = infer_model("deepseek:deepseek-chat")    # DeepSeek (requires DEEPSEEK_API_KEY)
+model = infer_model("copilot:gpt-4o-mini")       # GitHub Copilot (requires token management)
+model = infer_model("lm-studio:model-name")      # LM Studio local models
+
+# LLMling's special models
+model = infer_model("llm:gpt-4")                # LLM library adapter
+model = infer_model("aisuite:anthropic:claude") # AISuite adapter
+model = infer_model("simple-openai:gpt-4")      # Simple HTTPX-based OpenAI client
+model = infer_model("input")                    # Interactive human input model
+model = infer_model("remote_model:ws://url")    # Remote model proxy
+model = infer_model("remote_input:ws://url")    # Remote human input
+model = infer_model("import:module.path:Class") # Import model from Python path
+
+# Testing
+model = infer_model("test:Custom response")     # Test model with fixed output
+```
+
+The function provides a fallback to a simple HTTPX-based OpenAI client in environments where the full OpenAI library is not available (like Pyodide/WebAssembly contexts).
+
+### Environment Variable Configuration
+
+For convenience, most providers support configuration via environment variables:
+
+| Provider    | Environment Variable    | Purpose                    |
+|-------------|-------------------------|----------------------------|
+| OpenRouter  | `OPENROUTER_API_KEY`    | API key for authentication |
+| Grok (X.AI) | `X_AI_API_KEY` or `GROK_API_KEY` | API key for authentication |
+| DeepSeek    | `DEEPSEEK_API_KEY`      | API key for authentication |
+| Perplexity  | `PERPLEXITY_API_KEY`    | API key for authentication |
+| Copilot     | Uses tokonomics token management | - |
+| LM Studio   | `LM_STUDIO_BASE_URL`    | Base URL for local server |
+| OpenAI      | `OPENAI_API_KEY`        | API key for authentication |
+```
+
 
 ## Installation
 
