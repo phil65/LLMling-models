@@ -91,3 +91,19 @@ class GrokProvider(Provider[AsyncOpenAI]):
                 api_key=api_key,
                 http_client=cached_async_http_client(),
             )
+
+
+if __name__ == "__main__":
+    import asyncio
+
+    from pydantic_ai import Agent
+    from pydantic_ai.models.openai import OpenAIModel
+
+    async def main():
+        provider = GrokProvider()
+        model = OpenAIModel("grok:grok-2-1212", provider=provider)
+        agent = Agent(model=model)
+        result = await agent.run("Hello, world!")
+        print(result)
+
+    asyncio.run(main())

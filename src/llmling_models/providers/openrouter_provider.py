@@ -94,3 +94,19 @@ class OpenRouterProvider(Provider[AsyncOpenAI]):
                 api_key=api_key,
                 http_client=http_client,
             )
+
+
+if __name__ == "__main__":
+    import asyncio
+
+    from pydantic_ai import Agent
+    from pydantic_ai.models.openai import OpenAIModel
+
+    async def main():
+        provider = OpenRouterProvider()
+        model = OpenAIModel("openai/o3-mini", provider=provider)
+        agent = Agent(model=model)
+        result = await agent.run("Hello, world!")
+        print(result)
+
+    asyncio.run(main())

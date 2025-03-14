@@ -84,3 +84,22 @@ class LMStudioProvider(Provider[AsyncOpenAI]):
                 api_key="lm-studio",  # Not actually used
                 http_client=cached_async_http_client(),
             )
+
+
+if __name__ == "__main__":
+    import asyncio
+
+    from pydantic_ai import Agent
+    from pydantic_ai.models.openai import OpenAIModel
+
+    async def main():
+        provider = LMStudioProvider(base_url="http://100.69.216.7:11434/v1")
+        model = OpenAIModel(
+            "lmstudio-community/Qwen2.5-7B-Instruct-1M-GGUF/Qwen2.5-7B-Instruct-1M-Q4_K_M",
+            provider=provider,
+        )
+        agent = Agent(model=model)
+        result = await agent.run("Hello, world!")
+        print(result)
+
+    asyncio.run(main())
