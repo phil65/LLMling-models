@@ -88,45 +88,24 @@ def infer_model(model) -> Model:  # noqa: PLR0911
         return model
 
     if model.startswith("openrouter:"):
-        return get_model(
-            model,  # Pass full string instead of stripping prefix
-            base_url="https://openrouter.ai/api/v1",
-            api_key=os.getenv("OPENROUTER_API_KEY"),
-        )
+        key = os.getenv("OPENROUTER_API_KEY")
+        return get_model(model, base_url="https://openrouter.ai/api/v1", api_key=key)
     if model.startswith("grok:"):
-        return get_model(
-            model,  # Pass full string
-            base_url="https://api.x.ai/v1",
-            api_key=os.getenv("X_AI_API_KEY") or os.getenv("GROK_API_KEY"),
-        )
+        key = os.getenv("X_AI_API_KEY") or os.getenv("GROK_API_KEY")
+        return get_model(model, base_url="https://api.x.ai/v1", api_key=key)
     if model.startswith("deepseek:"):
-        return get_model(
-            model,  # Pass full string
-            base_url="https://api.deepseek.com",
-            api_key=os.getenv("DEEPSEEK_API_KEY"),
-        )
+        key = os.getenv("DEEPSEEK_API_KEY")
+        return get_model(model, base_url="https://api.deepseek.com", api_key=key)
     if model.startswith("perplexity:"):
-        return get_model(
-            model,  # Pass full string
-            base_url="https://api.perplexity.ai",
-            api_key=os.getenv("PERPLEXITY_API_KEY"),
-        )
+        key = os.getenv("PERPLEXITY_API_KEY")
+        return get_model(model, base_url="https://api.perplexity.ai", api_key=key)
     if model.startswith("lm-studio:"):
-        return get_model(
-            model,  # Pass full string
-            base_url="http://localhost:1234/v1/",
-            api_key="lm-studio",
-        )
+        return get_model(model, base_url="http://localhost:1234/v1/", api_key="lm-studio")
     if model.startswith("openai:"):
-        return get_model(model)  # Pass full string
-
+        return get_model(model)
     if model.startswith("copilot:"):
-        return get_model(
-            model,  # Pass full string
-            base_url="https://api.githubcopilot.com",
-            api_key=os.getenv("GITHUB_COPILOT_API_KEY"),
-        )
-
+        key = os.getenv("GITHUB_COPILOT_API_KEY")
+        return get_model(model, base_url="https://api.githubcopilot.com", api_key=key)
     if model.startswith("llm:"):
         from llmling_models.llm_adapter import LLMAdapter
 
