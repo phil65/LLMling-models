@@ -4,7 +4,7 @@ from typing import Any
 from pydantic_ai.providers import Provider, infer_provider as _infer_provider
 
 
-def infer_provider(provider: str) -> Provider[Any]:
+def infer_provider(provider: str) -> Provider[Any]:  # noqa: PLR0911
     """Infer the provider from the provider name."""
     if provider == "copilot":
         from llmling_models.providers.copilot_provider import CopilotProvider
@@ -26,4 +26,9 @@ def infer_provider(provider: str) -> Provider[Any]:
         from llmling_models.providers.lm_studio_provider import LMStudioProvider
 
         return LMStudioProvider()
+    if provider == "together":
+        from llmling_models.providers.together_provider import TogetherProvider
+
+        return TogetherProvider()
+
     return _infer_provider(provider)
