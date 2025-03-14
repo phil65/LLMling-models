@@ -30,5 +30,9 @@ def infer_provider(provider: str) -> Provider[Any]:  # noqa: PLR0911
         from llmling_models.providers.together_provider import TogetherProvider
 
         return TogetherProvider()
+    if provider == "ovhcloud":
+        from llmling_models.providers.ovhcloud_provider import OVHCloudProvider
+
+        return OVHCloudProvider()
 
     return _infer_provider(provider)
