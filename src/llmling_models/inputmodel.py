@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 import inspect
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 from pydantic import Field, ImportString
 from pydantic_ai.messages import (
@@ -77,7 +77,6 @@ class InputStreamedResponse(StreamedResponse):
 class InputModel(PydanticModel):
     """Model that delegates responses to human input."""
 
-    type: Literal["input"] = Field(default="input", init=False)
     _model_name: str = "input"
     prompt_template: str = Field(default="👤 Please respond to: {prompt}")
     """Template for showing the prompt to the human."""

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict
 from pydantic_ai.messages import (
@@ -51,9 +51,6 @@ class PrePostPromptConfig(BaseModel):
 
 class AugmentedModel(PydanticModel):
     """Model with pre/post prompt processing."""
-
-    type: Literal["augmented"] = "augmented"
-    _model_name: str = "augmented"
 
     main_model: KnownModelName | Model
     """The main model to use for the augmented model."""
