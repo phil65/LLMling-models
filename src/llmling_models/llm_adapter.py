@@ -5,10 +5,9 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING
 
 import llm
-from pydantic import Field
 from pydantic_ai.messages import (
     ModelMessage,
     ModelResponse,
@@ -19,10 +18,9 @@ from pydantic_ai.messages import (
     ToolReturnPart,
     UserPromptPart,
 )
-from pydantic_ai.models import ModelRequestParameters, StreamedResponse
+from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
 from pydantic_ai.result import Usage
 
-from llmling_models.base import PydanticModel
 from llmling_models.log import get_logger
 
 
@@ -34,34 +32,28 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-class LLMAdapter(PydanticModel):
+@dataclass
+class LLMAdapter(Model):
     """Adapter to use LLM library models with Pydantic-AI."""
 
-    type: Literal["llm"] = Field(default="llm", init=False)
-    model: str = Field(description="Name of the LLM model to use")
+    model: str
     needs_key: str | None = None
     key_env_var: str | None = None
     can_stream: bool = False
 
-    _async_model: llm.AsyncModel | None = None
-    _sync_model: llm.Model | None = None
-
-    def __init__(self, **data: Any):
-        super().__init__(**data)
-
-        # Try async first
+    def __post_init__(self):
+        """Initialize models."""
+        self._async_model = None
+        self._sync_model = None
         try:
             self._async_model = llm.get_async_model(self.model)
-            # If we got an async model, get its properties
             self.needs_key = self._async_model.needs_key
             self.key_env_var = self._async_model.key_env_var
             self.can_stream = self._async_model.can_stream
+            return  # noqa: TRY300
         except llm.UnknownModelError:
             pass
-        else:
-            return
 
-        # Fall back to sync model if async not available
         try:
             self._sync_model = llm.get_model(self.model)
             self.needs_key = self._sync_model.needs_key
@@ -248,7 +240,6 @@ if __name__ == "__main__":
         print("\nTesting streaming:")
         async with agent.run_stream("Tell me a story") as stream:
             async for chunk in stream.stream_text(delta=True):
-                print(chunk, end="", flush=True)
-        print()
+                print(chunk)
 
     asyncio.run(test())

@@ -5,10 +5,9 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 
 import aisuite
-from pydantic import Field
 from pydantic_ai.messages import (
     ModelMessage,
     ModelResponse,
@@ -17,10 +16,8 @@ from pydantic_ai.messages import (
     TextPart,
     UserPromptPart,
 )
-from pydantic_ai.models import ModelRequestParameters, StreamedResponse
+from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
 from pydantic_ai.result import Usage
-
-from llmling_models.base import PydanticModel
 
 
 if TYPE_CHECKING:
@@ -60,22 +57,18 @@ class AISuiteStreamedResponse(StreamedResponse):
         return "aisuite"
 
 
-class AISuiteAdapter(PydanticModel):
+@dataclass
+class AISuiteAdapter(Model):
     """Adapter to use AISuite library models with Pydantic-AI."""
-
-    type: Literal["aisuite"] = Field(default="aisuite", init=False)
-    """AISuite model type."""
 
     model: str
     """Model identifier in provider:model format"""
 
-    config: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    config: dict[str, dict[str, Any]] = field(default_factory=dict)
     """"Provider configurations."""
 
-    _client: aisuite.Client | None = None
-
-    def __init__(self, **data: Any):
-        super().__init__(**data)
+    def __post_init__(self):
+        """Initialize the client."""
         self._client = aisuite.Client(self.config)
 
     @property
