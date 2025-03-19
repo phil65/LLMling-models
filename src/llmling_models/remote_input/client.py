@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING, Literal
 from urllib.parse import urlparse
 
 import httpx
-from pydantic import Field
 from pydantic_ai.messages import (
     ModelMessage,
     ModelResponse,
@@ -54,9 +53,6 @@ def extract_conversation(messages: list[ModelMessage]) -> list[dict[str, str]]:
 class RemoteInputModel(PydanticModel):
     """Model that connects to a remote human operator."""
 
-    type: Literal["remote-input"] = Field(default="remote-input", init=False)
-    _model_name: str = "remote-input"
-
     url: str = "ws://localhost:8000/v1/chat/stream"
     """URL of the remote input server."""
 
@@ -72,7 +68,7 @@ class RemoteInputModel(PydanticModel):
     @property
     def model_name(self) -> str:
         """Return the model name."""
-        return self._model_name
+        return "remote-input"
 
     @property
     def system(self) -> str:
@@ -227,7 +223,6 @@ class RemoteInputStreamedResponse(StreamedResponse):
 
     websocket: ClientConnection
     _timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
-    _model_name: str = "remote-input"
 
     def __post_init__(self):
         """Initialize usage tracking."""
@@ -236,7 +231,7 @@ class RemoteInputStreamedResponse(StreamedResponse):
     @property
     def model_name(self) -> str:
         """Get response model_name."""
-        return self._model_name
+        return "remote-input"
 
     async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
         """Stream responses as events."""
@@ -281,21 +276,13 @@ if __name__ == "__main__":
 
     from pydantic_ai import Agent
 
-    # Set up logging
     logging.basicConfig(
         level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
 
     async def test():
-        # Test both protocols
-        print("\nTesting REST protocol:")
-        model = RemoteInputModel(
-            url="http://localhost:8000",  # Base URL only
-            api_key="test-key",
-        )
-        agent: Agent[None, str] = Agent(
-            model=model, system_prompt="You are a helpful assistant."
-        )
+        model = RemoteInputModel(url="http://localhost:8000", api_key="test-key")
+        agent: Agent[None, str] = Agent(model=model)
         response = await agent.run("Hello! How are you?")
         print(f"\nResponse: {response.data}")
 

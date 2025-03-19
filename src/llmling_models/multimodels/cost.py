@@ -32,20 +32,16 @@ logger = get_logger(__name__)
 class CostOptimizedMultiModel[TModel: Model](MultiModel[TModel]):
     """Multi-model that selects based on cost and token limits."""
 
-    type: Literal["cost-optimized"] = Field(default="cost-optimized", init=False)
-
     max_input_cost: float = Field(gt=0)
     """Maximum allowed cost in USD per request"""
 
     strategy: Literal["cheapest_possible", "best_within_budget"] = "best_within_budget"
     """Strategy for model selection."""
 
-    _model_name: str = "cost_optimized"
-
     @property
     def model_name(self) -> str:
         """Return the model name."""
-        return self._model_name
+        return "cost_optimized"
 
     @property
     def system(self) -> str:

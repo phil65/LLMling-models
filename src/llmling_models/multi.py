@@ -27,9 +27,6 @@ class MultiModel[TModel](PydanticModel):
     allowing configuration of multiple models through LLMling's config system.
     """
 
-    type: str = Field(init=False)
-    """Discriminator field for multi-model types"""
-
     models: list[str | Model] = Field(min_length=1)
     """List of models to use."""
 

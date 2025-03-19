@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Awaitable
 from contextlib import asynccontextmanager
 import inspect
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 from pydantic import Field, ImportString
 from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
@@ -29,9 +29,6 @@ logger = get_logger(__name__)
 class UserSelectModel(MultiModel[Model]):
     """Model that lets users interactively select from multiple models."""
 
-    type: Literal["user-select"] = Field(default="user-select", init=False)
-    _model_name: str = "user-select"
-
     prompt_template: str = Field(default="🤖 Choose a model for: {prompt}")
     """Template for showing the prompt to the user."""
 
@@ -49,7 +46,7 @@ class UserSelectModel(MultiModel[Model]):
     @property
     def model_name(self) -> str:
         """Return the model name."""
-        return self._model_name
+        return "user-select"
 
     @property
     def system(self) -> str:

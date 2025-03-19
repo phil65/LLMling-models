@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING, Literal
 from urllib.parse import urlparse
 
 import httpx
-from pydantic import Field
 from pydantic_ai.messages import (
     ModelMessage,
     ModelMessagesTypeAdapter,
@@ -37,9 +36,6 @@ logger = get_logger(__name__)
 class RemoteProxyModel(PydanticModel):
     """Model that proxies requests to a remote model server."""
 
-    type: Literal["remote-proxy"] = Field(default="remote-proxy", init=False)
-    _model_name: str = "remote-proxy"
-
     url: str = "ws://localhost:8000/v1/completion/stream"
     """URL of the remote model server."""
 
@@ -49,7 +45,7 @@ class RemoteProxyModel(PydanticModel):
     @property
     def model_name(self) -> str:
         """Return the model name."""
-        return self._model_name
+        return "remote-proxy"
 
     @property
     def system(self) -> str:
@@ -201,7 +197,6 @@ class RemoteProxyStreamedResponse(StreamedResponse):
 
     websocket: ClientConnection
     _timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
-    _model_name: str = "remote-proxy"
 
     def __post_init__(self):
         """Initialize usage tracking."""
@@ -210,7 +205,7 @@ class RemoteProxyStreamedResponse(StreamedResponse):
     @property
     def model_name(self) -> str:
         """Get response model_name."""
-        return self._model_name
+        return "remote-proxy"
 
     async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
         """Stream responses as events."""

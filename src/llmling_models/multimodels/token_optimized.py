@@ -27,16 +27,13 @@ TModel = TypeVar("TModel", bound=Model)
 class TokenOptimizedMultiModel[TModel: Model](MultiModel[TModel]):
     """Multi-model that selects based on input token count."""
 
-    type: Literal["token-optimized"] = Field(default="token-optimized", init=False)
-    _model_name: str = "token-optimized"
-
     strategy: Literal["efficient", "maximum_context"] = Field(default="efficient")
     """Model selection strategy."""
 
     @property
     def model_name(self) -> str:
         """Return the model name."""
-        return self._model_name
+        return "token-optimized"
 
     @property
     def system(self) -> str:
@@ -50,15 +47,12 @@ class TokenOptimizedMultiModel[TModel: Model](MultiModel[TModel]):
         """Select appropriate model based on token counts."""
         token_estimate = estimate_tokens(messages)
         logger.debug("Estimated token count: %d", token_estimate)
-
-        # Define model capabilities order (smaller number = less capable)
         model_capabilities = {
             "gpt-3.5-turbo": 1,  # Base model
             "gpt-3.5-turbo-16k": 2,  # Same but larger context
             "gpt-4-turbo": 3,  # More capable and largest context
         }
 
-        # Get available models that can handle the token count
         model_options: list[tuple[Model, int, int]] = []  # (model, capability, limit)
 
         for model in self.available_models:

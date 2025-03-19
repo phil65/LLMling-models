@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING, Any, Literal, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from pydantic import Field, model_validator
 from pydantic_ai.messages import (
@@ -32,9 +32,6 @@ TModel = TypeVar("TModel", bound=Model)
 class DelegationMultiModel(MultiModel[TModel]):
     """Meta-model that dynamically selects models based on a user prompt."""
 
-    type: Literal["delegation"] = Field(default="delegation", init=False)
-    _model_name: str = "delegation"
-
     selector_model: str | Model
     """Model to use for delegation."""
 
@@ -55,7 +52,7 @@ class DelegationMultiModel(MultiModel[TModel]):
     @property
     def model_name(self) -> str:
         """Return the model name."""
-        return self._model_name
+        return "delegation"
 
     @property
     def system(self) -> str:
