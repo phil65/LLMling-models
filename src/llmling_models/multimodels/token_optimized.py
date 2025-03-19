@@ -25,19 +25,7 @@ TModel = TypeVar("TModel", bound=Model)
 
 
 class TokenOptimizedMultiModel[TModel: Model](MultiModel[TModel]):
-    """Multi-model that selects based on input token count.
-
-    Example YAML configuration:
-        ```yaml
-        model:
-          type: token-optimized
-          models:
-            - openai:gpt-4  # 8k context
-            - openai:gpt-4-32k  # 32k context
-            - openai:gpt-3.5-turbo-16k  # 16k context
-          strategy: efficient  # Use smallest sufficient context window
-        ```
-    """
+    """Multi-model that selects based on input token count."""
 
     type: Literal["token-optimized"] = Field(default="token-optimized", init=False)
     _model_name: str = "token-optimized"

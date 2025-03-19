@@ -50,22 +50,7 @@ class PrePostPromptConfig(BaseModel):
 
 
 class AugmentedModel(PydanticModel):
-    """Model with pre/post prompt processing.
-
-    Example YAML configuration:
-        ```yaml
-        models:
-          enhanced_gpt4:
-            type: augmented
-            main_model: openai:gpt-4
-            pre_prompt:
-              text: "Expand this question: {input}"
-              model: openai:gpt-4o-mini
-            post_prompt:
-              text: "Summarize your response."
-              model: openai:gpt-4o-mini
-        ```
-    """
+    """Model with pre/post prompt processing."""
 
     type: Literal["augmented"] = "augmented"
     _model_name: str = "augmented"

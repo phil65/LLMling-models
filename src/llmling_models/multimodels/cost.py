@@ -30,20 +30,7 @@ logger = get_logger(__name__)
 
 
 class CostOptimizedMultiModel[TModel: Model](MultiModel[TModel]):
-    """Multi-model that selects based on cost and token limits.
-
-    Example YAML configuration:
-        ```yaml
-        models:
-          cost-optimized:
-            type: cost-optimized
-            models:
-              - openai:gpt-4
-              - openai:gpt-3.5-turbo
-            max_input_cost: 0.05
-            strategy: best_within_budget
-        ```
-    """
+    """Multi-model that selects based on cost and token limits."""
 
     type: Literal["cost-optimized"] = Field(default="cost-optimized", init=False)
 

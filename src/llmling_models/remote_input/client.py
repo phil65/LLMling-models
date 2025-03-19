@@ -52,17 +52,7 @@ def extract_conversation(messages: list[ModelMessage]) -> list[dict[str, str]]:
 
 
 class RemoteInputModel(PydanticModel):
-    """Model that connects to a remote human operator.
-
-    Example YAML configuration:
-        ```yaml
-        models:
-          remote-human:
-            type: remote-input
-            url: ws://localhost:8000/v1/chat/stream  # or http://localhost:8000/v1/chat
-            api_key: your-api-key
-        ```
-    """
+    """Model that connects to a remote human operator."""
 
     type: Literal["remote-input"] = Field(default="remote-input", init=False)
     _model_name: str = "remote-input"

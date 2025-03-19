@@ -61,19 +61,7 @@ class AISuiteStreamedResponse(StreamedResponse):
 
 
 class AISuiteAdapter(PydanticModel):
-    """Adapter to use AISuite library models with Pydantic-AI.
-
-    Example YAML configuration:
-        ```yaml
-        models:
-          anthropic-claude:
-            type: aisuite
-            model: anthropic:claude-3-opus-20240229
-            config:
-              anthropic:
-                api_key: your-api-key-here
-        ```
-    """
+    """Adapter to use AISuite library models with Pydantic-AI."""
 
     type: Literal["aisuite"] = Field(default="aisuite", init=False)
     """AISuite model type."""

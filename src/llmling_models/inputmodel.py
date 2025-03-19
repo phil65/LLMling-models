@@ -75,19 +75,7 @@ class InputStreamedResponse(StreamedResponse):
 
 
 class InputModel(PydanticModel):
-    """Model that delegates responses to human input.
-
-    Example YAML configuration:
-        ```yaml
-        models:
-          interactive:
-            type: input
-            prompt_template: "🤖 Please respond to: {prompt}"
-            show_system: true
-            input_prompt: "Your response: "
-            handler: llmling_models.input_handlers:DefaultInputHandler
-        ```
-    """
+    """Model that delegates responses to human input."""
 
     type: Literal["input"] = Field(default="input", init=False)
     _model_name: str = "input"

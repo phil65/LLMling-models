@@ -35,17 +35,7 @@ logger = get_logger(__name__)
 
 
 class RemoteProxyModel(PydanticModel):
-    """Model that proxies requests to a remote model server.
-
-    Example YAML configuration:
-        ```yaml
-        models:
-          remote-gpt4:
-            type: remote-proxy
-            url: ws://model-server:8000/v1/completion  # or http://
-            api_key: your-api-key
-        ```
-    """
+    """Model that proxies requests to a remote model server."""
 
     type: Literal["remote-proxy"] = Field(default="remote-proxy", init=False)
     _model_name: str = "remote-proxy"

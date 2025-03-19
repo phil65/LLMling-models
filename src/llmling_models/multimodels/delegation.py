@@ -30,21 +30,7 @@ TModel = TypeVar("TModel", bound=Model)
 
 
 class DelegationMultiModel(MultiModel[TModel]):
-    """Meta-model that dynamically selects models based on a user prompt.
-
-    Example YAML configuration:
-        ```yaml
-        model:
-          type: delegation
-          selector_model: openai:gpt-4-turbo
-          models:
-            - openai:gpt-4
-            - openai:gpt-3.5-turbo
-          selection_prompt: |
-            Pick 'openai:gpt-4' for complex tasks,
-            'openai:gpt-3.5-turbo' for simple queries.
-        ```
-    """
+    """Meta-model that dynamically selects models based on a user prompt."""
 
     type: Literal["delegation"] = Field(default="delegation", init=False)
     _model_name: str = "delegation"

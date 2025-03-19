@@ -27,23 +27,7 @@ logger = get_logger(__name__)
 
 
 class UserSelectModel(MultiModel[Model]):
-    """Model that lets users interactively select from multiple models.
-
-    Example YAML configuration:
-        ```yaml
-        models:
-          interactive:
-            type: user-select
-            models:
-              - openai:gpt-4
-              - openai:gpt-3.5-turbo
-              - anthropic:claude-3-opus
-            prompt_template: "🤖 Choose a model for: {prompt}"
-            show_system: true
-            input_prompt: "Enter model number (0-{max}): "
-            handler: llmling_models.input_handlers:DefaultInputHandler
-        ```
-    """
+    """Model that lets users interactively select from multiple models."""
 
     type: Literal["user-select"] = Field(default="user-select", init=False)
     _model_name: str = "user-select"
