@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
 from pydantic_ai.messages import (
@@ -12,9 +12,9 @@ from pydantic_ai.messages import (
     ModelResponse,
     UserPromptPart,
 )
+from pydantic_ai.models import KnownModelName, Model
 from pydantic_ai.result import Usage
 
-from llmling_models.base import PydanticModel
 from llmling_models.log import get_logger
 from llmling_models.utils import infer_model
 
@@ -24,12 +24,7 @@ logger = get_logger(__name__)
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-    from pydantic_ai.models import (
-        KnownModelName,
-        Model,
-        ModelRequestParameters,
-        StreamedResponse,
-    )
+    from pydantic_ai.models import ModelRequestParameters, StreamedResponse
     from pydantic_ai.settings import ModelSettings
 
 
@@ -49,20 +44,25 @@ class PrePostPromptConfig(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
-class AugmentedModel(PydanticModel):
+class AugmentedModel(Model):
     """Model with pre/post prompt processing."""
 
-    main_model: KnownModelName | Model
-    """The main model to use for the augmented model."""
+    def __init__(
+        self,
+        main_model: KnownModelName | Model,
+        pre_prompt: PrePostPromptConfig | None = None,
+        post_prompt: PrePostPromptConfig | None = None,
+    ) -> None:
+        """Initialize the augmented model.
 
-    pre_prompt: PrePostPromptConfig | None = None
-    """The pre-prompt configuration for the augmented model."""
-
-    post_prompt: PrePostPromptConfig | None = None
-    """The post-prompt configuration for the augmented model."""
-
-    def model_post_init(self, __context: dict[str, Any], /) -> None:
-        """Initialize models if needed."""
+        Args:
+            main_model: The main model to use for the augmented model.
+            pre_prompt: The pre-prompt configuration for the augmented model.
+            post_prompt: The post-prompt configuration for the augmented model.
+        """
+        self.main_model = main_model
+        self.pre_prompt = pre_prompt
+        self.post_prompt = post_prompt
         self._initialized_models: dict[str, Model] = {}
         self._main_model = infer_model(self.main_model)
 
@@ -222,8 +222,11 @@ class AugmentedModel(PydanticModel):
 
 if __name__ == "__main__":
     import asyncio
+    import logging
 
     from pydantic_ai import Agent
+
+    logging.basicConfig(level=logging.DEBUG)
 
     async def test():
         pre = PrePostPromptConfig(
@@ -234,34 +237,13 @@ if __name__ == "__main__":
             ),
             model="openai:gpt-4o-mini",
         )
-        augmented = AugmentedModel(
-            main_model="openai:gpt-4o-mini",
-            pre_prompt=pre,
-        )
+        augmented = AugmentedModel("openai:gpt-4o-mini", pre_prompt=pre)
         agent: Agent[None, str] = Agent(model=augmented)
-
         print("\nTesting Pre-Prompt Expansion Pipeline")
         print("=" * 60)
-
         question = "What is the meaning of life?"
         print(f"Original Question: {question}")
-
         result = await agent.run(question)
-
-        # Get expanded question from pre-prompt response
-        expanded = result._all_messages[0].parts[0].content  # type: ignore
-
-        print("\nPipeline Steps:")
-        print("\n1. Original Question:")
-        print("-" * 40)
-        print(question)
-
-        print("\n2. Expanded Question:")
-        print("-" * 40)
-        print(expanded)
-
-        print("\n3. Main Model Response:")
-        print("-" * 40)
-        print(result.data)
+        print(result)
 
     asyncio.run(test())
