@@ -71,9 +71,7 @@ def get_model(
             from llmling_models.providers import infer_provider
 
             provider = infer_provider(provider_name)
-            return OpenAIModel(
-                model_name=model_name, provider=provider, system=provider_name
-            )
+            return OpenAIModel(model_name=model_name, provider=provider)
         except ValueError:
             # If provider not recognized, continue with direct approach
             pass
