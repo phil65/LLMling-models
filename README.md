@@ -80,6 +80,34 @@ agent = Agent(adapter)
 result = await agent.run("Write a story")
 ```
 
+### LiteLLM Adapter
+
+Adapter to use models from the [LiteLLM library](https://github.com/BerriAI/litellm) with Pydantic-AI:
+
+```python
+from pydantic_ai import Agent
+from llmling_models.litellm_adapter import LiteLLMAdapter
+
+# Basic usage
+adapter = LiteLLMAdapter(model="openai/gpt-4o-mini")
+agent = Agent(model=adapter)
+result = await agent.run("Write a short poem")
+
+# Tool usage
+@agent.tool_plain
+def multiply(a: int, b: int) -> int:
+    """Calculate a simple math operation."""
+    return a * b
+
+result = await agent.run("What is 42 multiplied by 56?")
+
+# Streaming support
+async with agent.run_stream("Tell me a story") as stream:
+    async for chunk in stream.stream_text(delta=True):
+        print(chunk, end="", flush=True)
+```
+
+
 ### Multi-Models
 
 

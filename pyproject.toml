@@ -50,6 +50,7 @@ aisuite = ["aisuite"]
 tokenizers = ["tokenizers"]
 transformers = ["transformers"]
 remote = ["fastapi", "uvicorn", "websockets"]
+litellm = ["litellm>=1.63.14"]
 
 [tool.uv]
 default-groups = ["dev", "lint", "docs"]
