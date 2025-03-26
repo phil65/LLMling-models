@@ -173,7 +173,8 @@ def estimate_tokens(messages: list[ModelMessage]) -> int:
     falling back to Mistral's tokenizer (good modern default),
     and finally using a simple character-based estimation.
     """
-    # Collect all content from relevant message parts
+    import tokonomics
+
     content = ""
     for message in messages:
         for part in message.parts:
@@ -182,23 +183,7 @@ def estimate_tokens(messages: list[ModelMessage]) -> int:
                 UserPromptPart | SystemPromptPart | TextPart | ToolReturnPart,
             ):
                 content += str(part.content)
-
-    # Try tiktoken (best for OpenAI models)
-    if importlib.util.find_spec("tiktoken"):
-        import tiktoken
-
-        enc = tiktoken.get_encoding("cl100k_base")
-        return len(enc.encode(content))
-
-    # Try transformers with Mistral's tokenizer
-    if importlib.util.find_spec("transformers"):
-        from transformers import AutoTokenizer
-
-        tokenizer = AutoTokenizer.from_pretrained("facebook/opt-125m")
-        return len(tokenizer.encode(content))
-
-    # Fallback to simple character-based estimation
-    return len(content) // 4
+    return tokonomics.count_tokens(content)
 
 
 def estimate_request_cost(
