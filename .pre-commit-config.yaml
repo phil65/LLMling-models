@@ -12,7 +12,12 @@ repos:
         types: [python]
         pass_filenames: false
         always_run: true
-
+      # - id: ai-commit-message
+      #   name: AI Commit Message Generator
+      #   entry: python -m src.llmling_models.git_hooks.ai_commit_message
+      #   language: system
+      #   stages: [prepare-commit-msg]
+      #   pass_filenames: false
   - repo: https://github.com/pre-commit/pre-commit-hooks
     # https://pre-commit.com/hooks.html
     rev: v5.0.0

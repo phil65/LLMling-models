@@ -1,0 +1,6 @@
+- id: ai-commit-message
+  name: AI Commit Message Generator
+  description: Generates commit messages using AI based on staged changes
+  entry: src/llmling_models/git_hooks/ai_commit_message.py
+  language: python
+  stages: [prepare-commit-msg]
