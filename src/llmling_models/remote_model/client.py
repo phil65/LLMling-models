@@ -5,7 +5,6 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-import json
 from typing import TYPE_CHECKING, Literal
 from urllib.parse import urlparse
 
@@ -113,6 +112,7 @@ class RemoteProxyModel(PydanticModel):
         messages: list[ModelMessage],
     ) -> tuple[ModelResponse, Usage]:
         """Make WebSocket request to remote model."""
+        import anyenv
         import websockets
 
         headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
@@ -130,7 +130,7 @@ class RemoteProxyModel(PydanticModel):
 
                 while True:
                     raw_data = await websocket.recv()
-                    data = json.loads(raw_data)
+                    data = anyenv.load_json(raw_data)
                     logger.debug("Received WebSocket data: %s", data)
 
                     if data.get("error"):
@@ -151,11 +151,8 @@ class RemoteProxyModel(PydanticModel):
                 if not content:
                     msg = "Received empty response from server"
                     raise RuntimeError(msg)
-
-                return ModelResponse(
-                    parts=[TextPart(content)],
-                    timestamp=datetime.now(UTC),
-                ), usage
+                ts = datetime.now(UTC)
+                return ModelResponse(parts=[TextPart(content)], timestamp=ts), usage
 
             except (websockets.ConnectionClosed, ValueError, KeyError) as e:
                 msg = f"WebSocket error: {e}"
@@ -179,7 +176,6 @@ class RemoteProxyModel(PydanticModel):
         websocket = await websockets.connect(self.url, extra_headers=headers)
 
         try:
-            # Send messages
             payload = ModelMessagesTypeAdapter.dump_json(messages)
             await websocket.send(payload)
             yield RemoteProxyStreamedResponse(websocket=websocket)
@@ -209,13 +205,14 @@ class RemoteProxyStreamedResponse(StreamedResponse):
 
     async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
         """Stream responses as events."""
+        import anyenv
         import websockets
 
         try:
             while True:
                 try:
                     raw_data = await self.websocket.recv()
-                    data = json.loads(raw_data)
+                    data = anyenv.load_json(raw_data)
                     logger.debug("Stream received: %s", data)
 
                     if data.get("error"):
@@ -255,9 +252,7 @@ if __name__ == "__main__":
 
     from pydantic_ai import Agent
 
-    # Set up logging
     logging.basicConfig(level=logging.DEBUG)
-    logger.info("Starting client test...")
 
     async def test():
         model = RemoteProxyModel(url="ws://localhost:8000/v1/completion/stream")

@@ -5,7 +5,6 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-import json
 from typing import TYPE_CHECKING, Literal
 from urllib.parse import urlparse
 
@@ -135,6 +134,7 @@ class RemoteInputModel(PydanticModel):
         messages: list[ModelMessage],
     ) -> tuple[ModelResponse, Usage]:
         """Make WebSocket request to remote operator."""
+        import anyenv
         import websockets
 
         headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
@@ -150,7 +150,7 @@ class RemoteInputModel(PydanticModel):
                             prompt += str(part.content)  # pyright: ignore
 
                 conversation = extract_conversation(messages[:-1])
-                data = json.dumps({"prompt": prompt, "conversation": conversation})
+                data = anyenv.dump_json({"prompt": prompt, "conversation": conversation})
 
                 # Send request
                 await websocket.send(data)
@@ -159,7 +159,7 @@ class RemoteInputModel(PydanticModel):
                 response_text = ""
                 while True:
                     raw_data = await websocket.recv()
-                    dct = json.loads(raw_data)
+                    dct = anyenv.load_json(raw_data)
                     if dct.get("error"):
                         msg = f"Server error: {dct['error']}"
                         raise RuntimeError(msg)
@@ -190,6 +190,7 @@ class RemoteInputModel(PydanticModel):
             msg = "Streaming is only supported with WebSocket protocol"
             raise RuntimeError(msg)
 
+        import anyenv
         import websockets
 
         headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
@@ -205,7 +206,7 @@ class RemoteInputModel(PydanticModel):
                         prompt += str(part.content)  # pyright: ignore
 
             conversation = extract_conversation(messages[:-1])
-            data = json.dumps({"prompt": prompt, "conversation": conversation})
+            data = anyenv.dump_json({"prompt": prompt, "conversation": conversation})
             await websocket.send(data)
 
             yield RemoteInputStreamedResponse(websocket=websocket)
@@ -235,13 +236,14 @@ class RemoteInputStreamedResponse(StreamedResponse):
 
     async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
         """Stream responses as events."""
+        import anyenv
         import websockets
 
         try:
             while True:
                 try:
                     raw_data = await self.websocket.recv()
-                    data = json.loads(raw_data)
+                    data = anyenv.load_json(raw_data)
 
                     if data.get("error"):
                         msg = f"Server error: {data['error']}"

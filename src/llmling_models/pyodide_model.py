@@ -5,7 +5,6 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-import json
 import os
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
@@ -128,6 +127,8 @@ class OpenAIStreamedResponse(StreamedResponse):
 
     async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
         """Stream response chunks."""
+        import anyenv
+
         try:
             content_id = "content"  # OpenAI uses a single content stream
             tool_calls: dict[str, dict[str, Any]] = {}
@@ -141,8 +142,8 @@ class OpenAIStreamedResponse(StreamedResponse):
                     break
 
                 try:
-                    data = json.loads(line.removeprefix("data: "))
-                except json.JSONDecodeError:
+                    data = anyenv.load_json(line.removeprefix("data: "))
+                except anyenv.JsonLoadError:
                     continue
 
                 if data.get("error"):
