@@ -38,41 +38,43 @@ def convert_messages(messages: list[ModelMessage]) -> list[dict[str, Any]]:
     """Convert pydantic-ai messages to LiteLLM format."""
     result = []
     for message in messages:
-        if isinstance(message, ModelResponse):
-            content = ""
-            tool_calls = []
-            for part in message.parts:
-                if isinstance(part, TextPart):
-                    content += str(part.content)
-                elif isinstance(part, ToolCallPart):
-                    tool_calls.append({
-                        "id": part.tool_call_id,
-                        "type": "function",
-                        "function": {
-                            "name": part.tool_name,
-                            "arguments": part.args_as_json_str(),
-                        },
-                    })
-
-            msg: dict[str, Any] = {"role": "assistant"}
-            if content:
-                msg["content"] = content
-            if tool_calls:
-                msg["tool_calls"] = tool_calls
-            result.append(msg)  # type: ignore
-        else:  # ModelRequest
-            for part in message.parts:
-                if isinstance(part, SystemPromptPart):
-                    result.append({"role": "system", "content": part.content})  # type: ignore
-                elif isinstance(part, UserPromptPart):
-                    # TODO: Handle multi-modal content if needed
-                    result.append({"role": "user", "content": str(part.content)})  # type: ignore
-                elif isinstance(part, ToolReturnPart):
-                    result.append({  # type: ignore
-                        "role": "tool",
-                        "tool_call_id": part.tool_call_id,
-                        "content": part.model_response_str(),
-                    })
+        match message:
+            case ModelResponse():
+                content = ""
+                tool_calls = []
+                for part in message.parts:
+                    match part:
+                        case TextPart():
+                            content += str(part.content)
+                        case ToolCallPart():
+                            arg_str = part.args_as_json_str()
+                            fn = {"name": part.tool_name, "arguments": arg_str}
+                            call = {
+                                "id": part.tool_call_id,
+                                "type": "function",
+                                "function": fn,
+                            }
+                            tool_calls.append(call)
+                msg: dict[str, Any] = {"role": "assistant"}
+                if content:
+                    msg["content"] = content
+                if tool_calls:
+                    msg["tool_calls"] = tool_calls
+                result.append(msg)  # type: ignore
+            case _:  # ModelRequest
+                for part in message.parts:
+                    match part:
+                        case SystemPromptPart():
+                            result.append({"role": "system", "content": part.content})  # type: ignore
+                        case UserPromptPart():
+                            # TODO: Handle multi-modal content if needed
+                            result.append({"role": "user", "content": str(part.content)})  # type: ignore
+                        case ToolReturnPart():
+                            result.append({  # type: ignore
+                                "role": "tool",
+                                "tool_call_id": part.tool_call_id,
+                                "content": part.model_response_str(),
+                            })
 
     return result  # type: ignore
 
