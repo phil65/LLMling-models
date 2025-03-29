@@ -9,11 +9,18 @@ from typing import TYPE_CHECKING, Any
 
 import aisuite
 from pydantic_ai.messages import (
+    AudioUrl,
+    BinaryContent,
+    DocumentUrl,
+    ImageUrl,
     ModelMessage,
     ModelResponse,
     ModelResponseStreamEvent,
     SystemPromptPart,
     TextPart,
+    ToolCallPart,
+    ToolReturnPart,
+    UserContent,
     UserPromptPart,
 )
 from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
@@ -24,6 +31,81 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     from pydantic_ai.settings import ModelSettings
+    from pydantic_ai.tools import ToolDefinition
+
+
+def convert_content_item(item: UserContent) -> dict[str, Any]:  # noqa: PLR0911
+    """Convert a single content item to AISuite format."""
+    import base64
+
+    match item:
+        case str():
+            return {"type": "text", "text": item}
+        case ImageUrl():
+            return {
+                "type": "image_url",
+                "image_url": {"url": item.url, "format": item.media_type},
+            }
+        case AudioUrl():
+            # AudioUrl has media_type, not format
+            audio_format = "mp3" if item.media_type == "audio/mpeg" else "wav"
+            return {
+                "type": "input_audio",
+                "input_audio": {"url": item.url, "format": audio_format},
+            }
+        case DocumentUrl():
+            return {
+                "type": "image_url",
+                "image_url": {"url": item.url, "format": item.media_type},
+            }
+        case BinaryContent():
+            if item.is_image:
+                encoded = base64.b64encode(item.data).decode("utf-8")
+                base64_url = f"data:{item.media_type};base64,{encoded}"
+                return {
+                    "type": "image_url",
+                    "image_url": {"url": base64_url, "format": item.media_type},
+                }
+            if item.is_audio:
+                encoded = base64.b64encode(item.data).decode("utf-8")
+                # Extract audio format from media_type
+                audio_format = item.format  # BinaryContent does have format property
+                return {
+                    "type": "input_audio",
+                    "input_audio": {"data": encoded, "format": audio_format},
+                }
+            if item.is_document:
+                encoded = base64.b64encode(item.data).decode("utf-8")
+                base64_url = f"data:{item.media_type};base64,{encoded}"
+                return {
+                    "type": "file",
+                    "file": {
+                        "filename": f"document.{item.format}",
+                        "file_data": base64_url,
+                    },
+                }
+            return {
+                "type": "text",
+                "text": f"[Unsupported binary content: {item.media_type}]",
+            }
+        case _:
+            msg = f"Unsupported content type: {item}"
+            raise ValueError(msg)
+
+
+def convert_tools(tools: list[ToolDefinition]) -> list[dict[str, Any]]:
+    """Convert Pydantic-AI tool definitions to AISuite tool format."""
+    return [
+        {
+            "type": "function",
+            "function": {
+                "name": tool.name,
+                "description": tool.description,
+                "parameters": tool.parameters_json_schema,
+            },
+        }
+        for tool in tools
+    ]
 
 
 @dataclass(kw_only=True)
@@ -93,25 +175,58 @@ class AISuiteAdapter(Model):
 
         # Convert messages to AISuite format
         for message in messages:
-            if isinstance(message, ModelResponse):
-                formatted_messages.append({
-                    "role": "assistant",
-                    "content": str(message.parts[0].content),  # type: ignore
-                })
-            else:  # ModelRequest
-                for part in message.parts:
-                    if isinstance(part, SystemPromptPart):
-                        formatted_messages.append({
-                            "role": "system",
-                            "content": part.content,
-                        })
-                    elif isinstance(part, UserPromptPart):
-                        formatted_messages.append({
-                            "role": "user",
-                            "content": str(part.content),  # TODO: deal with media content
-                        })
+            match message:
+                case ModelResponse():
+                    content = ""
+                    tool_calls = []
+                    for part in message.parts:
+                        match part:
+                            case TextPart():
+                                content += str(part.content)
+                            case ToolCallPart():
+                                arg_str = part.args_as_json_str()
+                                fn = {"name": part.tool_name, "arguments": arg_str}
+                                call = {
+                                    "id": part.tool_call_id,
+                                    "type": "function",
+                                    "function": fn,
+                                }
+                                tool_calls.append(call)
+                    msg: dict[str, Any] = {"role": "assistant"}
+                    if content:
+                        msg["content"] = content
+                    if tool_calls:
+                        msg["tool_calls"] = tool_calls
+                    formatted_messages.append(msg)
+                case _:  # ModelRequest
+                    for part in message.parts:
+                        match part:
+                            case SystemPromptPart():
+                                formatted_messages.append({
+                                    "role": "system",
+                                    "content": part.content,
+                                })
+                            case UserPromptPart() if isinstance(part.content, str):
+                                formatted_messages.append({
+                                    "role": "user",
+                                    "content": part.content,
+                                })
+                            case UserPromptPart():
+                                # Convert sequence of content items to AISuite format
+                                content_items = [
+                                    convert_content_item(item) for item in part.content
+                                ]
+                                formatted_messages.append({
+                                    "role": "user",
+                                    "content": content_items,
+                                })
+                            case ToolReturnPart():
+                                formatted_messages.append({
+                                    "role": "tool",
+                                    "tool_call_id": part.tool_call_id,
+                                    "content": part.model_response_str(),
+                                })
 
-        # Extract settings
         kwargs = {}
         if model_settings:
             if hasattr(model_settings, "temperature"):
@@ -119,18 +234,56 @@ class AISuiteAdapter(Model):
             if hasattr(model_settings, "max_tokens"):
                 kwargs["max_tokens"] = model_settings.max_tokens  # type: ignore
 
-        # Make request to AISuite
+        tools = []
+        if model_request_parameters.function_tools:
+            tools.extend(convert_tools(model_request_parameters.function_tools))
+        if model_request_parameters.result_tools:
+            tools.extend(convert_tools(model_request_parameters.result_tools))
+
+        if tools:
+            kwargs["tools"] = tools
+            # Set tool_choice based on allow_text_result
+            if not model_request_parameters.allow_text_result:
+                kwargs["tool_choice"] = {"type": "function", "function": {"name": "auto"}}
+            else:
+                kwargs["tool_choice"] = "auto"
+
         response = self._client.chat.completions.create(
             model=self.model,
             messages=formatted_messages,
             **kwargs,
         )
 
-        # Extract response content
-        content = response.choices[0].message.content
+        parts: list[Any] = []
+        if (
+            hasattr(response.choices[0].message, "tool_calls")
+            and response.choices[0].message.tool_calls
+        ):
+            for tool_call in response.choices[0].message.tool_calls:
+                if hasattr(tool_call, "type") and tool_call.type == "function":
+                    function_call = tool_call.function
+                    part = ToolCallPart(
+                        tool_name=function_call.name,
+                        args=function_call.arguments,
+                        tool_call_id=tool_call.id,
+                    )
+                    parts.append(part)
+
+        # Extract text content if present
+        if (
+            hasattr(response.choices[0].message, "content")
+            and response.choices[0].message.content
+        ):
+            content = response.choices[0].message.content
+            if content:  # Only add if not empty
+                parts.append(TextPart(content))
+
+        # If no parts were added, add an empty text part
+        if not parts:
+            parts.append(TextPart(""))
 
         return ModelResponse(
-            parts=[TextPart(content)],
+            parts=parts,
             timestamp=datetime.now(UTC),
         ), Usage()  # AISuite doesn't provide token counts yet
 
@@ -156,14 +309,25 @@ if __name__ == "__main__":
     from pydantic_ai import Agent
 
     async def test():
-        adapter = AISuiteAdapter(
-            model="openai:gpt-4o-mini",
-            config={
-                "anthropic": {"api_key": "your-api-key"},
-            },
-        )
+        adapter = AISuiteAdapter(model="openai:gpt-4o-mini")
         agent: Agent[None, str] = Agent(model=adapter)
         response = await agent.run("Say hello!")
         print(response.data)
+
+        @agent.tool_plain
+        def calculate(a: int, b: int, operation: str) -> int:
+            """Perform a simple calculation."""
+            if operation == "add":
+                return a + b
+            if operation == "multiply":
+                return a * b
+            if operation == "subtract":
+                return a - b
+            if operation == "divide":
+                return a // b
+            return 0
+
+        tool_response = await agent.run("What is 42 multiplied by 56?")
+        print(f"Tool response: {tool_response.data}")
 
     asyncio.run(test())
