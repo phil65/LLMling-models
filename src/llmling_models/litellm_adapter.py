@@ -65,21 +65,26 @@ def convert_messages(messages: list[ModelMessage]) -> list[dict[str, Any]]:
                     msg["tool_calls"] = tool_calls
                 result.append(msg)  # type: ignore
             case _:  # ModelRequest
-                for part in message.parts:
-                    match part:
+                for req_part in message.parts:
+                    match req_part:
                         case SystemPromptPart():
-                            result.append({"role": "system", "content": part.content})  # type: ignore
+                            result.append({"role": "system", "content": req_part.content})  # type: ignore
                         case UserPromptPart():
-                            if isinstance(part.content, str):
-                                result.append({"role": "user", "content": part.content})  # type: ignore
+                            if isinstance(req_part.content, str):
+                                result.append({
+                                    "role": "user",
+                                    "content": req_part.content,
+                                })  # type: ignore
                             else:
-                                items = [convert_content_item(i) for i in part.content]
+                                items = [
+                                    convert_content_item(i) for i in req_part.content
+                                ]
                                 result.append({"role": "user", "content": items})  # type: ignore
                         case ToolReturnPart():
                             result.append({  # type: ignore
                                 "role": "tool",
-                                "tool_call_id": part.tool_call_id,
-                                "content": part.model_response_str(),
+                                "tool_call_id": req_part.tool_call_id,
+                                "content": req_part.model_response_str(),
                             })
 
     return result  # type: ignore

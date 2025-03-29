@@ -159,7 +159,7 @@ class RemoteInputModel(PydanticModel):
                 response_text = ""
                 while True:
                     raw_data = await websocket.recv()
-                    dct = anyenv.load_json(raw_data)
+                    dct = anyenv.load_json(raw_data, return_type=dict)
                     if dct.get("error"):
                         msg = f"Server error: {dct['error']}"
                         raise RuntimeError(msg)
