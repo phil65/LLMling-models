@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import base64
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import Field
+from pydantic_ai import AudioUrl, BinaryContent, DocumentUrl, ImageUrl
 from pydantic_ai.messages import (
     ModelMessage,
     ModelResponse,
@@ -16,6 +18,7 @@ from pydantic_ai.messages import (
     TextPart,
     ToolCallPart,
     ToolReturnPart,
+    UserContent,
     UserPromptPart,
 )
 from pydantic_ai.models import ModelRequestParameters, StreamedResponse
@@ -67,8 +70,12 @@ def convert_messages(messages: list[ModelMessage]) -> list[dict[str, Any]]:
                         case SystemPromptPart():
                             result.append({"role": "system", "content": part.content})  # type: ignore
                         case UserPromptPart():
-                            # TODO: Handle multi-modal content if needed
-                            result.append({"role": "user", "content": str(part.content)})  # type: ignore
+                            # Handle multi-modal content
+                            if isinstance(part.content, str):
+                                result.append({"role": "user", "content": part.content})  # type: ignore
+                            else:
+                                items = [convert_content_item(i) for i in part.content]
+                                result.append({"role": "user", "content": items})  # type: ignore
                         case ToolReturnPart():
                             result.append({  # type: ignore
                                 "role": "tool",
@@ -77,6 +84,65 @@ def convert_messages(messages: list[ModelMessage]) -> list[dict[str, Any]]:
                             })
 
     return result  # type: ignore
+
+
+def convert_content_item(item: UserContent) -> dict[str, Any]:  # noqa: PLR0911
+    """Convert a single content item to LiteLLM format."""
+    match item:
+        case str():
+            return {"type": "text", "text": item}
+        case ImageUrl():
+            return {
+                "type": "image_url",
+                "image_url": {"url": item.url, "format": item.media_type},
+            }
+        case AudioUrl():
+            return {
+                "type": "input_audio",
+                "input_audio": {"url": item.url, "format": item.media_type},
+            }
+        case DocumentUrl():
+            # For document URLs, use image_url type with proper format
+            return {
+                "type": "image_url",
+                "image_url": {"url": item.url, "format": item.media_type},
+            }
+        case BinaryContent():
+            # Convert binary content based on its type
+            if item.is_image:
+                # Encode as base64 for images
+                encoded = base64.b64encode(item.data).decode("utf-8")
+                base64_url = f"data:{item.media_type};base64,{encoded}"
+                return {
+                    "type": "image_url",
+                    "image_url": {"url": base64_url, "format": item.media_type},
+                }
+            if item.is_audio:
+                # Encode as base64 for audio
+                encoded = base64.b64encode(item.data).decode("utf-8")
+                return {
+                    "type": "input_audio",
+                    "input_audio": {"data": encoded, "format": item.format},
+                }
+            if item.is_document:
+                # Encode as base64 for documents
+                encoded = base64.b64encode(item.data).decode("utf-8")
+                base64_url = f"data:{item.media_type};base64,{encoded}"
+                return {
+                    "type": "file",
+                    "file": {
+                        "filename": f"document.{item.format}",
+                        "file_data": base64_url,
+                    },
+                }
+            # Fall back to text for unknown types
+            return {
+                "type": "text",
+                "text": f"[Unsupported binary content: {item.media_type}]",
+            }
+        case _:
+            msg = f"Unsupported content type: {item}"
+            raise ValueError(msg)
 
 
 def convert_tools(tools: list[ToolDefinition]) -> list[dict[str, Any]]:
