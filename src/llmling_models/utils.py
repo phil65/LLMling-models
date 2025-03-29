@@ -75,9 +75,10 @@ def get_model(
         except ValueError:
             # If provider not recognized, continue with direct approach
             pass
+    from pydantic_ai.providers.openai import OpenAIProvider
 
-    # Default case: use OpenAI model with direct parameters
-    return OpenAIModel(model_name=model_name, api_key=api_key, base_url=base_url)
+    provider = OpenAIProvider(base_url=base_url, api_key=api_key)
+    return OpenAIModel(model_name=model_name, provider=provider)
 
 
 def infer_model(model) -> Model:  # noqa: PLR0911
@@ -120,21 +121,19 @@ def infer_model(model) -> Model:  # noqa: PLR0911
     if model.startswith("copilot:"):
         from httpx import AsyncClient
         from pydantic_ai.models.openai import OpenAIModel
+        from pydantic_ai.providers.openai import OpenAIProvider
 
         token = os.getenv("GITHUB_COPILOT_API_KEY")
-        client = AsyncClient(
-            headers={
-                "Authorization": f"Bearer {token}",
-                "editor-version": "Neovim/0.9.0",
-                "Copilot-Integration-Id": "vscode-chat",
-            }
-        )
-        return OpenAIModel(
-            model_name=model.removeprefix("copilot:"),
-            base_url="https://api.githubcopilot.com",
-            api_key=token,
-            http_client=client,
-        )
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "editor-version": "Neovim/0.9.0",
+            "Copilot-Integration-Id": "vscode-chat",
+        }
+        client = AsyncClient(headers=headers)
+        base_url = "https://api.githubcopilot.com"
+        provider = OpenAIProvider(base_url=base_url, api_key=token, http_client=client)
+        model_name = model.removeprefix("copilot:")
+        return OpenAIModel(model_name=model_name, provider=provider)
 
     if model.startswith("aisuite:"):
         from llmling_models.aisuite_adapter import AISuiteAdapter
