@@ -79,22 +79,13 @@ class TokenOptimizedMultiModel[TModel: Model](MultiModel[TModel]):
             msg = f"No suitable model found for {token_estimate} tokens"
             raise RuntimeError(msg)
 
-        # Sort first by capability, then by limit
         model_options.sort(key=lambda x: (x[1], x[2]))
-
         if self.strategy == "efficient":
-            # Use least capable model that can handle the input
             selected, capability, limit = model_options[0]
         else:  # maximum_context
-            # Use most capable model available
             selected, capability, limit = model_options[-1]
-
-        logger.info(
-            "Selected %s (capability %d) with %d token limit",
-            selected.model_name,
-            capability,
-            limit,
-        )
+        msg = "Selected %s (capability %d) with %d token limit"
+        logger.info(msg, selected.model_name, capability, limit)
         return selected
 
     async def request(

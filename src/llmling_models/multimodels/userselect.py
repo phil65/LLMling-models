@@ -59,12 +59,9 @@ class UserSelectModel(MultiModel[Model]):
         handler: InputHandler,
     ) -> Model:
         """Get model selection from user."""
-        # Format the model list
         model_list = "\n".join(
             f"[{i}] {model.model_name}" for i, model in enumerate(self.available_models)
         )
-
-        # Format and display messages
         display_text = handler.format_messages(
             messages,
             prompt_template=self.prompt_template,
@@ -77,7 +74,6 @@ class UserSelectModel(MultiModel[Model]):
         print("-" * 80)
 
         while True:
-            # Get user input
             selection_prompt = self.input_prompt.format(
                 max=len(self.available_models) - 1
             )
@@ -90,16 +86,11 @@ class UserSelectModel(MultiModel[Model]):
                     selection = await response_or_awaitable
                 else:
                     selection = response_or_awaitable
-
-            # Parse selection
             try:
                 index = int(selection)
                 if 0 <= index < len(self.available_models):
                     selected_model = self.available_models[index]
-                    logger.info(
-                        "User selected model: %s",
-                        selected_model.model_name,
-                    )
+                    logger.info("User selected model: %s", selected_model.model_name)
                     return selected_model
 
             except ValueError:
@@ -117,13 +108,8 @@ class UserSelectModel(MultiModel[Model]):
         model_request_parameters: ModelRequestParameters,
     ) -> tuple[ModelResponse, Usage]:
         """Process request using user-selected model."""
-        # Initialize handler
         handler = self.handler() if isinstance(self.handler, type) else self.handler
-
-        # Let user select model
         selected_model = await self._get_user_selection(messages, handler)
-
-        # Use selected model
         return await selected_model.request(
             messages,
             model_settings,
@@ -138,13 +124,8 @@ class UserSelectModel(MultiModel[Model]):
         model_request_parameters: ModelRequestParameters,
     ) -> AsyncIterator[StreamedResponse]:
         """Stream response using user-selected model."""
-        # Initialize handler
         handler = self.handler() if isinstance(self.handler, type) else self.handler
-
-        # Let user select model
         selected_model = await self._get_user_selection(messages, handler)
-
-        # Stream from selected model
         async with selected_model.request_stream(
             messages,
             model_settings,
