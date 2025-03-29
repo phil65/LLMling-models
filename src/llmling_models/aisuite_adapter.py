@@ -199,32 +199,33 @@ class AISuiteAdapter(Model):
                         msg["tool_calls"] = tool_calls
                     formatted_messages.append(msg)
                 case _:  # ModelRequest
-                    for part in message.parts:
-                        match part:
+                    for req_part in message.parts:
+                        match req_part:
                             case SystemPromptPart():
                                 formatted_messages.append({
                                     "role": "system",
-                                    "content": part.content,
-                                })
-                            case UserPromptPart() if isinstance(part.content, str):
-                                formatted_messages.append({
-                                    "role": "user",
-                                    "content": part.content,
+                                    "content": req_part.content,
                                 })
                             case UserPromptPart():
-                                # Convert sequence of content items to AISuite format
-                                content_items = [
-                                    convert_content_item(item) for item in part.content
-                                ]
-                                formatted_messages.append({
-                                    "role": "user",
-                                    "content": content_items,
-                                })
+                                if isinstance(req_part.content, str):
+                                    formatted_messages.append({
+                                        "role": "user",
+                                        "content": req_part.content,
+                                    })
+                                else:
+                                    content_items = [
+                                        convert_content_item(item)
+                                        for item in req_part.content
+                                    ]
+                                    formatted_messages.append({
+                                        "role": "user",
+                                        "content": content_items,
+                                    })
                             case ToolReturnPart():
                                 formatted_messages.append({
                                     "role": "tool",
-                                    "tool_call_id": part.tool_call_id,
-                                    "content": part.model_response_str(),
+                                    "tool_call_id": req_part.tool_call_id,
+                                    "content": req_part.model_response_str(),
                                 })
 
         kwargs = {}

@@ -243,7 +243,7 @@ class RemoteInputStreamedResponse(StreamedResponse):
             while True:
                 try:
                     raw_data = await self.websocket.recv()
-                    data = anyenv.load_json(raw_data)
+                    data = anyenv.load_json(raw_data, return_type=dict)
 
                     if data.get("error"):
                         msg = f"Server error: {data['error']}"
