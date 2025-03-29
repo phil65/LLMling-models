@@ -142,7 +142,7 @@ class OpenAIStreamedResponse(StreamedResponse):
                     break
 
                 try:
-                    data = anyenv.load_json(line.removeprefix("data: "))
+                    data = anyenv.load_json(line.removeprefix("data: "), return_type=dict)
                 except anyenv.JsonLoadError:
                     continue
 
