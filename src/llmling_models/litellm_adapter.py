@@ -69,13 +69,11 @@ def convert_messages(messages: list[ModelMessage]) -> list[dict[str, Any]]:
                     match part:
                         case SystemPromptPart():
                             result.append({"role": "system", "content": part.content})  # type: ignore
+                        case UserPromptPart() if isinstance(part.content, str):
+                            result.append({"role": "user", "content": part.content})  # type: ignore
                         case UserPromptPart():
-                            # Handle multi-modal content
-                            if isinstance(part.content, str):
-                                result.append({"role": "user", "content": part.content})  # type: ignore
-                            else:
-                                items = [convert_content_item(i) for i in part.content]
-                                result.append({"role": "user", "content": items})  # type: ignore
+                            items = [convert_content_item(i) for i in part.content]
+                            result.append({"role": "user", "content": items})  # type: ignore
                         case ToolReturnPart():
                             result.append({  # type: ignore
                                 "role": "tool",
