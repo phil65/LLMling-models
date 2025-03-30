@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from httpx import AsyncClient as AsyncHTTPClient
+from httpx import AsyncClient as AsyncHTTPClient, Request, Response
 from openai import AsyncOpenAI
 from pydantic_ai.providers import Provider
 
@@ -25,11 +25,9 @@ class CopilotHTTPClient(AsyncHTTPClient):
         super().__init__(**kwargs)
         self.token_manager = token_manager
 
-    async def send(self, request, *args, **kwargs):
-        token = self.token_manager.get_token()
-        request.headers["Authorization"] = f"Bearer {token}"
-        request.headers["editor-version"] = "Neovim/0.9.0"
-        request.headers["Copilot-Integration-Id"] = "vscode-chat"
+    async def send(self, request: Request, *args, **kwargs) -> Response:
+        header = await self.token_manager.generate_headers()
+        request.headers.update(header)
         return await super().send(request, *args, **kwargs)
 
 
