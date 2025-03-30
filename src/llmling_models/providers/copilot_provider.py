@@ -15,10 +15,32 @@ if TYPE_CHECKING:
     from tokonomics import CopilotTokenManager
 
 
-# Initialize the token manager from tokonomics
-
-
 logger = get_logger(__name__)
+
+
+class CopilotHTTPClient(AsyncHTTPClient):
+    """Custom client that adds fresh token headers before each request."""
+
+    def __init__(self, token_manager: CopilotTokenManager, **kwargs):
+        super().__init__(**kwargs)
+        self.token_manager = token_manager
+
+    async def send(self, request, *args, **kwargs):
+        token = self.token_manager.get_token()
+        request.headers["Authorization"] = f"Bearer {token}"
+        request.headers["editor-version"] = "Neovim/0.9.0"
+        request.headers["Copilot-Integration-Id"] = "vscode-chat"
+        return await super().send(request, *args, **kwargs)
+
+
+def _create_client(token_manager: CopilotTokenManager) -> AsyncOpenAI:
+    """Create OpenAI client with Copilot-specific configuration."""
+    client = CopilotHTTPClient(token_manager, timeout=60.0)
+    return AsyncOpenAI(
+        api_key="not-used-but-required",
+        base_url=token_manager._api_endpoint,
+        http_client=client,
+    )
 
 
 class CopilotProvider(Provider[AsyncOpenAI]):
@@ -32,41 +54,7 @@ class CopilotProvider(Provider[AsyncOpenAI]):
         from tokonomics import CopilotTokenManager
 
         self._token_manager = CopilotTokenManager()
-        self._client = self._create_client()
-
-    def _create_client(self) -> AsyncOpenAI:
-        """Create OpenAI client with Copilot-specific configuration."""
-
-        # Custom client that adds fresh token headers before each request
-        class CopilotHTTPClient(AsyncHTTPClient):
-            def __init__(self, token_manager: CopilotTokenManager, **kwargs):
-                super().__init__(**kwargs)
-                self.token_manager = token_manager
-
-            async def send(self, request, *args, **kwargs):
-                # Get fresh token for each request
-                token = self.token_manager.get_token()
-
-                # Set required headers
-                request.headers["Authorization"] = f"Bearer {token}"
-                request.headers["editor-version"] = "Neovim/0.9.0"
-                request.headers["Copilot-Integration-Id"] = "vscode-chat"
-
-                # Send with updated headers
-                return await super().send(request, *args, **kwargs)
-
-        # Create the HTTP client with token manager
-        http_client = CopilotHTTPClient(
-            token_manager=self._token_manager,
-            timeout=60.0,
-        )
-
-        # Create OpenAI client with our custom HTTP client
-        return AsyncOpenAI(
-            api_key="not-used-but-required",
-            base_url=self._token_manager._api_endpoint,
-            http_client=http_client,
-        )
+        self._client = _create_client(self._token_manager)
 
     @property
     def name(self) -> str:
