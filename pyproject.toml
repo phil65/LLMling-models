@@ -27,7 +27,8 @@ classifiers = [
     "Topic :: Documentation",
     "Topic :: Software Development",
     "Topic :: Utilities",
-    "Typing :: Typed","Framework :: Pydantic",
+    "Typing :: Typed",
+    "Framework :: Pydantic",
     "Framework :: Pydantic :: 2",
 
 ]
@@ -46,7 +47,16 @@ dependencies = [
 allow-direct-references = true
 
 
+[project.scripts]
+llmling-models = "llmling_models.__main__:main_cli"
+
 [project.optional-dependencies]
+server = [
+    "uvicorn>=0.25.0",
+    "fastapi>=0.109.0",
+    "pyyaml>=6.0",
+    "websockets>=12.0",
+]
 llm = ["llm>=0.19.1"]
 aisuite = ["aisuite"]
 tokenizers = ["tokenizers"]
@@ -212,7 +222,7 @@ ignore = [
     # "PLR2004", # Magic values instead of named consts
     "SLF001", # Private member accessed
     "TRY003", # Avoid specifying long messages outside the exception class
-    "TC006", # runtime-cast-value
+    "TC006",  # runtime-cast-value
 ]
 
 [tool.ruff.lint.flake8-quotes]
