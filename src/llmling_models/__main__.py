@@ -1,4 +1,4 @@
-"""Command-line interface for running the OpenAI-compatible server."""
+"""Command-line interface for llmling-models."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from typing import Any, cast
 from pydantic_ai.models import Model
 import yaml
 
+from llmling_models.auth import authenticate_copilot, save_token
 from llmling_models.log import get_logger
 from llmling_models.openai_server import ModelRegistry, OpenAIServer
 
@@ -20,35 +21,35 @@ from llmling_models.openai_server import ModelRegistry, OpenAIServer
 logger = get_logger(__name__)
 
 
-def parse_args() -> argparse.Namespace:
-    """Parse command-line arguments."""
-    parser = argparse.ArgumentParser(
-        description="Run an OpenAI-compatible API server using LLMling models."
+def setup_serve_parser(subparsers: Any) -> None:
+    """Set up parser for 'serve' command."""
+    serve_parser = subparsers.add_parser(
+        "serve", help="Run an OpenAI-compatible API server"
     )
 
     # Server configuration
-    parser.add_argument(
+    serve_parser.add_argument(
         "--host",
         type=str,
         default="0.0.0.0",
         help="Host to bind the server to (default: 0.0.0.0)",
     )
-    parser.add_argument(
+    serve_parser.add_argument(
         "--port", type=int, default=8000, help="Port to run the server on (default: 8000)"
     )
-    parser.add_argument(
+    serve_parser.add_argument(
         "--api-key",
         type=str,
         default=None,
         help="API key for authentication (default: none, no authentication)",
     )
-    parser.add_argument(
+    serve_parser.add_argument(
         "--title",
         type=str,
         default="LLMling OpenAI-Compatible API",
         help="API title for documentation",
     )
-    parser.add_argument(
+    serve_parser.add_argument(
         "--description",
         type=str,
         default="OpenAI-compatible API server powered by LLMling models",
@@ -56,7 +57,7 @@ def parse_args() -> argparse.Namespace:
     )
 
     # Model configuration
-    model_group = parser.add_mutually_exclusive_group()
+    model_group = serve_parser.add_mutually_exclusive_group()
     model_group.add_argument(
         "--auto-discover",
         action="store_true",
@@ -72,7 +73,39 @@ def parse_args() -> argparse.Namespace:
         help="Add model mapping (can be specified multiple times)",
     )
 
-    # Logging configuration
+    serve_parser.set_defaults(func=serve_command)
+
+
+def setup_copilot_auth_parser(subparsers: Any) -> None:
+    """Set up parser for 'copilot-auth' command."""
+    auth_parser = subparsers.add_parser(
+        "copilot-auth", help="Authenticate with GitHub Copilot and get API token"
+    )
+
+    auth_parser.add_argument(
+        "--silent",
+        action="store_true",
+        help="Suppress status messages",
+    )
+    auth_parser.add_argument(
+        "--save",
+        action="store_true",
+        help="Save token to .env file if it exists",
+    )
+    auth_parser.add_argument(
+        "--env-var",
+        default="GITHUB_COPILOT_TOKEN",
+        help="Environment variable name to use (default: GITHUB_COPILOT_TOKEN)",
+    )
+
+    auth_parser.set_defaults(func=copilot_auth_command)
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(description="LLMling-models CLI tool")
+
+    # Global options
     parser.add_argument(
         "--log-level",
         type=str,
@@ -81,13 +114,22 @@ def parse_args() -> argparse.Namespace:
         help="Logging level (default: INFO)",
     )
 
+    # Subcommands
+    subparsers = parser.add_subparsers(
+        dest="command", help="Command to run", required=True
+    )
+
+    # Set up subcommand parsers
+    setup_serve_parser(subparsers)
+    setup_copilot_auth_parser(subparsers)
+
     return parser.parse_args()
 
 
 def parse_models_arg(models_arg: list[str]) -> dict[str, str]:
     """Parse model mapping arguments."""
     result = {}
-    for mapping in models_arg:
+    for mapping in models_arg or []:  # Handle None case
         if "=" not in mapping:
             logger.warning(
                 "Ignoring invalid model mapping '%s': missing '=' separator", mapping
@@ -189,7 +231,7 @@ def process_server_settings(config: dict[str, Any]) -> dict[str, Any]:
             settings["api_key"] = auth_cfg.get("admin_key") or auth_cfg.get("api_key")
 
     # Environment variables can override settings
-    if "api_key" in os.environ:
+    if "API_KEY" in os.environ:
         settings["api_key"] = os.environ["API_KEY"]
     if "OPENAI_API_KEY" in os.environ:
         settings["api_key"] = os.environ["OPENAI_API_KEY"]
@@ -197,16 +239,8 @@ def process_server_settings(config: dict[str, Any]) -> dict[str, Any]:
     return settings
 
 
-async def main() -> None:
-    """Main entry point for the server."""
-    args = parse_args()
-
-    # Configure logging
-    logging.basicConfig(
-        level=getattr(logging, args.log_level),
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
-
+async def serve_async(args: argparse.Namespace) -> None:
+    """Run the OpenAI-compatible API server."""
     # Determine models to use
     models: dict[str, str | Model] = {}
     config_settings: dict[str, Any] | None = None
@@ -280,16 +314,49 @@ async def main() -> None:
     await server_instance.serve()
 
 
-def main_cli() -> None:
-    """Command-line entry point for the server."""
+def serve_command(args: argparse.Namespace) -> None:
+    """Run the OpenAI-compatible API server."""
     try:
-        asyncio.run(main())
+        asyncio.run(serve_async(args))
     except KeyboardInterrupt:
         logger.info("Server stopped by user")
     except Exception:
-        logger.exception("Server error: %s")
+        logger.exception("Server error")
+        sys.exit(1)
+
+
+def copilot_auth_command(args: argparse.Namespace) -> None:
+    """Authenticate with GitHub Copilot."""
+    try:
+        result = authenticate_copilot(verbose=not args.silent)
+        print(f"\nToken: {result.token}")
+
+        if args.save:
+            save_token(result.token, args.env_var)
+
+    except Exception:
+        logger.exception("Authentication failed")
+        sys.exit(1)
+
+
+def main_cli() -> None:
+    """Main CLI entry point."""
+    args = parse_args()
+
+    # Configure logging
+    logging.basicConfig(
+        level=getattr(logging, args.log_level),
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+
+    # Execute the selected command
+    if hasattr(args, "func"):
+        args.func(args)
+    else:
+        # This should not happen due to required=True on subparsers
+        print("No command specified. Run with --help to see available commands.")
         sys.exit(1)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main_cli()
