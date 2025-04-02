@@ -27,7 +27,8 @@ classifiers = [
     "Topic :: Documentation",
     "Topic :: Software Development",
     "Topic :: Utilities",
-    "Typing :: Typed",
+    "Typing :: Typed","Framework :: Pydantic",
+    "Framework :: Pydantic :: 2",
 
 ]
 keywords = []
@@ -211,6 +212,7 @@ ignore = [
     # "PLR2004", # Magic values instead of named consts
     "SLF001", # Private member accessed
     "TRY003", # Avoid specifying long messages outside the exception class
+    "TC006", # runtime-cast-value
 ]
 
 [tool.ruff.lint.flake8-quotes]
