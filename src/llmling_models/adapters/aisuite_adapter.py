@@ -7,7 +7,6 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-import aisuite
 from pydantic_ai.messages import (
     AudioUrl,
     BinaryContent,
@@ -151,6 +150,8 @@ class AISuiteAdapter(Model):
 
     def __post_init__(self):
         """Initialize the client."""
+        import aisuite
+
         self._client = aisuite.Client(self.config)
 
     @property

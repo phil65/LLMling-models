@@ -46,7 +46,7 @@ Adapter to use models from the [LLM library](https://llm.datasette.io/) with Pyd
 
 ```python
 from pydantic_ai import Agent
-from llmling_models.llm_adapter import LLMAdapter
+from llmling_models.adapters import LLMAdapter
 
 # Basic usage
 adapter = LLMAdapter(model_name="gpt-4o-mini")
@@ -72,7 +72,7 @@ Adapter to use models from [AISuite](https://github.com/andrewyng/aisuite) with 
 
 ```python
 from pydantic_ai import Agent
-from llmling_models.aisuite_adapter import AISuiteAdapter
+from llmling_models.adapters import AISuiteAdapter
 
 # Basic usage
 adapter = AISuiteAdapter(model="model_name")
@@ -86,7 +86,7 @@ Adapter to use models from the [LiteLLM library](https://github.com/BerriAI/lite
 
 ```python
 from pydantic_ai import Agent
-from llmling_models.litellm_adapter import LiteLLMAdapter
+from llmling_models.adapters import LiteLLMAdapter
 
 # Basic usage
 adapter = LiteLLMAdapter(model="openai/gpt-4o-mini")

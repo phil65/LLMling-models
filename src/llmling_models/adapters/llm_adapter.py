@@ -7,7 +7,6 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-import llm
 from pydantic_ai.messages import (
     ModelMessage,
     ModelResponse,
@@ -27,6 +26,7 @@ from llmling_models.log import get_logger
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
+    import llm
     from pydantic_ai.settings import ModelSettings
 
 logger = get_logger(__name__)
@@ -43,6 +43,8 @@ class LLMAdapter(Model):
 
     def __post_init__(self):
         """Initialize models."""
+        import llm
+
         self._async_model = None
         self._sync_model = None
         try:
@@ -179,6 +181,8 @@ class LLMStreamedResponse(StreamedResponse):
 
     async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
         """Stream response chunks as events."""
+        import llm
+
         try:
             while True:
                 try:

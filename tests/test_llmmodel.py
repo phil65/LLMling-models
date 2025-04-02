@@ -5,7 +5,7 @@ from __future__ import annotations
 from pydantic_ai import Agent
 import pytest
 
-from llmling_models.llm_adapter import LLMAdapter
+from llmling_models.adapters.llm_adapter import LLMAdapter
 
 
 TEST_MODEL = "gpt-4o-mini"

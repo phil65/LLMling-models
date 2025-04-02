@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from llmling_models.llm_adapter import LLMAdapter
+from llmling_models.adapters.llm_adapter import LLMAdapter
 from llmling_models.providers import infer_provider
 from llmling_models.providers.copilot_provider import CopilotProvider
 from llmling_models.providers.grok_provider import GrokProvider

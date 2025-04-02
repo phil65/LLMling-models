@@ -90,15 +90,15 @@ def infer_model(  # noqa: PLR0911
         return model
 
     if provider == "litellm" or model.startswith("litellm:"):
-        from llmling_models.litellm_adapter import LiteLLMAdapter
+        from llmling_models.adapters import LiteLLMAdapter
 
         return LiteLLMAdapter(model=model.removeprefix("litellm:"))
     if provider == "llm" or model.startswith("llm:"):
-        from llmling_models.llm_adapter import LLMAdapter
+        from llmling_models.adapters import LLMAdapter
 
         return LLMAdapter(model=model.removeprefix("llm:"))
     if provider == "aisuite" or model.startswith("aisuite:"):
-        from llmling_models.aisuite_adapter import AISuiteAdapter
+        from llmling_models.adapters import AISuiteAdapter
 
         return AISuiteAdapter(model=model.removeprefix("aisuite:"))
 
