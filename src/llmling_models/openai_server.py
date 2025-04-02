@@ -508,9 +508,7 @@ class OpenAIServer:
         models = self.registry.list_models()
         return {"object": "list", "data": models}
 
-    async def create_chat_completion(
-        self, request: ChatCompletionRequest
-    ) -> Response | StreamingResponse:
+    async def create_chat_completion(self, request: ChatCompletionRequest) -> Response:
         """Handle chat completion requests."""
         try:
             # Get model
