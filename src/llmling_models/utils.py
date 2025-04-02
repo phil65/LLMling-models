@@ -6,7 +6,7 @@ from decimal import Decimal
 import importlib.util
 import logging
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ImportString
 from pydantic_ai.messages import (
@@ -81,10 +81,26 @@ def get_model(
     return OpenAIModel(model_name=model_name, provider=provider)
 
 
-def infer_model(model) -> Model:  # noqa: PLR0911
+def infer_model(  # noqa: PLR0911
+    model,
+    provider: Literal["pydantic-ai", "litellm", "llm", "aisuite"] = "pydantic-ai",
+) -> Model:
     """Extended infer_model from pydantic-ai."""
     if not isinstance(model, str):
         return model
+
+    if provider == "litellm" or model.startswith("litellm:"):
+        from llmling_models.litellm_adapter import LiteLLMAdapter
+
+        return LiteLLMAdapter(model=model.removeprefix("litellm:"))
+    if provider == "llm" or model.startswith("llm:"):
+        from llmling_models.llm_adapter import LLMAdapter
+
+        return LLMAdapter(model=model.removeprefix("llm:"))
+    if provider == "aisuite" or model.startswith("aisuite:"):
+        from llmling_models.aisuite_adapter import AISuiteAdapter
+
+        return AISuiteAdapter(model=model.removeprefix("aisuite:"))
 
     if model.startswith("openrouter:"):
         key = os.getenv("OPENROUTER_API_KEY")
@@ -105,11 +121,6 @@ def infer_model(model) -> Model:  # noqa: PLR0911
     if model.startswith("copilot:"):
         key = os.getenv("GITHUB_COPILOT_API_KEY")
         return get_model(model, base_url="https://api.githubcopilot.com", api_key=key)
-    if model.startswith("llm:"):
-        from llmling_models.llm_adapter import LLMAdapter
-
-        return LLMAdapter(model=model.removeprefix("llm:"))
-
     if model.startswith("openai:"):
         return get_model(model.removeprefix("openai:"))
 
@@ -131,14 +142,10 @@ def infer_model(model) -> Model:  # noqa: PLR0911
         }
         client = AsyncClient(headers=headers)
         base_url = "https://api.githubcopilot.com"
-        provider = OpenAIProvider(base_url=base_url, api_key=token, http_client=client)
+        prov = OpenAIProvider(base_url=base_url, api_key=token, http_client=client)
         model_name = model.removeprefix("copilot:")
-        return OpenAIModel(model_name=model_name, provider=provider)
+        return OpenAIModel(model_name=model_name, provider=prov)
 
-    if model.startswith("aisuite:"):
-        from llmling_models.aisuite_adapter import AISuiteAdapter
-
-        return AISuiteAdapter(model=model.removeprefix("aisuite:"))
     if model == "input":
         from llmling_models import InputModel
 
