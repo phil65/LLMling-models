@@ -5,8 +5,9 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+from pydantic_ai import BinaryContent, ImageUrl
 from pydantic_ai.messages import (
     ModelMessage,
     ModelResponse,
@@ -30,6 +31,70 @@ if TYPE_CHECKING:
     from pydantic_ai.settings import ModelSettings
 
 logger = get_logger(__name__)
+
+
+async def _map_async_usage(response: llm.AsyncResponse) -> Usage:
+    """Map async LLM usage to Pydantic-AI usage."""
+    await response._force()  # Ensure usage is available
+    return Usage(
+        request_tokens=response.input_tokens,
+        response_tokens=response.output_tokens,
+        total_tokens=((response.input_tokens or 0) + (response.output_tokens or 0)),
+        details=response.token_details,
+    )
+
+
+def _map_sync_usage(response: llm.Response) -> Usage:
+    """Map sync LLM usage to Pydantic-AI usage."""
+    response._force()
+    return Usage(
+        request_tokens=response.input_tokens,
+        response_tokens=response.output_tokens,
+        total_tokens=((response.input_tokens or 0) + (response.output_tokens or 0)),
+        details=response.token_details,
+    )
+
+
+def _build_prompt(
+    messages: list[ModelMessage], attachments: list[Any] | None = None
+) -> tuple[str, str | None, list[Any]]:
+    """Build a prompt and optional system prompt from messages, with attachments."""
+    import llm
+
+    prompt_parts = []
+    system = None
+    llm_attachments = []
+
+    # Process any provided attachments
+    if attachments:
+        llm_attachments.extend(attachments)
+
+    for message in messages:
+        if isinstance(message, ModelResponse):
+            for part in message.parts:
+                if isinstance(part, TextPart | ToolReturnPart):
+                    prompt_parts.append(f"Assistant: {part.content}")  # noqa: PERF401
+        else:  # ModelRequest
+            for part in message.parts:
+                if isinstance(part, SystemPromptPart):
+                    system = part.content
+                elif isinstance(part, UserPromptPart | RetryPromptPart):
+                    prompt_parts.append(f"Human: {part.content}")
+                    # Handle multi-modal content
+                    if hasattr(part, "content") and not isinstance(part.content, str):
+                        for item in part.content:
+                            if isinstance(item, ImageUrl):
+                                # Convert ImageURL to LLM Attachment
+                                llm_attachments.append(llm.Attachment(url=item.url))
+                            elif isinstance(item, BinaryContent) and item.is_image:
+                                # Convert BinaryContent to LLM Attachment
+                                llm_attachments.append(
+                                    llm.Attachment(
+                                        content=item.data, type=item.media_type
+                                    )
+                                )
+
+    return "\n".join(prompt_parts), system, llm_attachments
 
 
 @dataclass
@@ -82,16 +147,20 @@ class LLMAdapter(Model):
         model_request_parameters: ModelRequestParameters,
     ) -> tuple[ModelResponse, Usage]:
         """Make a request to the model."""
-        prompt, system = self._build_prompt(messages)
+        prompt, system, attachments = _build_prompt(messages)
 
         if self._async_model:
-            response = await self._async_model.prompt(prompt, system=system, stream=False)
+            response = await self._async_model.prompt(
+                prompt, system=system, stream=False, attachments=attachments
+            )
             text = await response.text()
-            usage = await self._map_async_usage(response)
+            usage = await _map_async_usage(response)
         elif self._sync_model:
-            response = self._sync_model.prompt(prompt, system=system, stream=False)
+            response = self._sync_model.prompt(
+                prompt, system=system, stream=False, attachments=attachments
+            )
             text = response.text()
-            usage = self._map_sync_usage(response)
+            usage = _map_sync_usage(response)
         else:
             msg = "No model available"
             raise RuntimeError(msg)
@@ -109,12 +178,16 @@ class LLMAdapter(Model):
         model_request_parameters: ModelRequestParameters,
     ) -> AsyncIterator[StreamedResponse]:
         """Make a streaming request to the model."""
-        prompt, system = self._build_prompt(messages)
+        prompt, system, attachments = _build_prompt(messages)
 
         if self._async_model:
-            response = await self._async_model.prompt(prompt, system=system, stream=True)
+            response = await self._async_model.prompt(
+                prompt, system=system, stream=True, attachments=attachments
+            )
         elif self._sync_model and self._sync_model.can_stream:
-            response = self._sync_model.prompt(prompt, system=system, stream=True)
+            response = self._sync_model.prompt(
+                prompt, system=system, stream=True, attachments=attachments
+            )
         else:
             msg = (
                 "No streaming capable model available. "
@@ -123,48 +196,6 @@ class LLMAdapter(Model):
             raise RuntimeError(msg)
 
         yield LLMStreamedResponse(response=response)
-
-    @staticmethod
-    def _build_prompt(messages: list[ModelMessage]) -> tuple[str, str | None]:
-        """Build a prompt and optional system prompt from messages."""
-        prompt_parts = []
-        system = None
-
-        for message in messages:
-            if isinstance(message, ModelResponse):
-                for part in message.parts:
-                    if isinstance(part, TextPart | ToolReturnPart):
-                        prompt_parts.append(f"Assistant: {part.content}")  # noqa: PERF401
-            else:  # ModelRequest
-                for part in message.parts:  # type: ignore
-                    if isinstance(part, SystemPromptPart):
-                        system = part.content
-                    elif isinstance(part, UserPromptPart | RetryPromptPart):
-                        prompt_parts.append(f"Human: {part.content}")
-
-        return "\n".join(prompt_parts), system
-
-    @staticmethod
-    async def _map_async_usage(response: llm.AsyncResponse) -> Usage:
-        """Map async LLM usage to Pydantic-AI usage."""
-        await response._force()  # Ensure usage is available
-        return Usage(
-            request_tokens=response.input_tokens,
-            response_tokens=response.output_tokens,
-            total_tokens=((response.input_tokens or 0) + (response.output_tokens or 0)),
-            details=response.token_details,
-        )
-
-    @staticmethod
-    def _map_sync_usage(response: llm.Response) -> Usage:
-        """Map sync LLM usage to Pydantic-AI usage."""
-        response._force()  # Ensure usage is available
-        return Usage(
-            request_tokens=response.input_tokens,
-            response_tokens=response.output_tokens,
-            total_tokens=((response.input_tokens or 0) + (response.output_tokens or 0)),
-            details=response.token_details,
-        )
 
 
 @dataclass(kw_only=True)
@@ -190,20 +221,16 @@ class LLMStreamedResponse(StreamedResponse):
                         chunk = await self.response.__anext__()
                     else:
                         chunk = next(iter(self.response))
+                    self._usage = Usage(
+                        request_tokens=self.response.input_tokens,
+                        response_tokens=self.response.output_tokens,
+                        total_tokens=(
+                            (self.response.input_tokens or 0)
+                            + (self.response.output_tokens or 0)
+                        ),
+                        details=self.response.token_details,
+                    )
 
-                    # Update usage if available
-                    if hasattr(self.response, "usage"):
-                        self._usage = Usage(
-                            request_tokens=self.response.input_tokens,
-                            response_tokens=self.response.output_tokens,
-                            total_tokens=(
-                                (self.response.input_tokens or 0)
-                                + (self.response.output_tokens or 0)
-                            ),
-                            details=self.response.token_details,
-                        )
-
-                    # Emit text delta event
                     yield self._parts_manager.handle_text_delta(
                         vendor_part_id="content",
                         content=chunk,
