@@ -107,8 +107,8 @@ async def test_cost_optimized_token_limit(
         patch("llmling_models.multimodels.cost.get_model_costs", mock_get_costs),
     ):
         # Create models
-        expensive = ExpensiveModel(custom_result_text="Expensive response")
-        cheap = CheapModel(custom_result_text="Cheap response")
+        expensive = ExpensiveModel(custom_output_text="Expensive response")
+        cheap = CheapModel(custom_output_text="Cheap response")
 
         # Configure cost-optimized model
         cost_model = CostOptimizedMultiModel[Any](
@@ -146,8 +146,8 @@ async def test_cost_optimized_budget_limit(
         patch("llmling_models.multimodels.cost.get_model_costs", mock_get_costs),
     ):
         # Create models
-        expensive = ExpensiveModel(custom_result_text="Expensive response")
-        cheap = CheapModel(custom_result_text="Cheap response")
+        expensive = ExpensiveModel(custom_output_text="Expensive response")
+        cheap = CheapModel(custom_output_text="Cheap response")
 
         # Configure cost-optimized model with very low budget
         cost_model = CostOptimizedMultiModel[Any](
@@ -176,8 +176,8 @@ async def test_cost_optimized_cheapest(
         patch("llmling_models.multimodels.cost.get_model_costs", mock_get_costs),
     ):
         # Create models
-        expensive = ExpensiveModel(custom_result_text="Expensive response")
-        cheap = CheapModel(custom_result_text="Cheap response")
+        expensive = ExpensiveModel(custom_output_text="Expensive response")
+        cheap = CheapModel(custom_output_text="Cheap response")
 
         # Configure cost-optimized model with budget > cheap model cost
         cost_model = CostOptimizedMultiModel[Any](
@@ -209,8 +209,8 @@ async def test_cost_optimized_best_within_budget(
         patch("llmling_models.multimodels.cost.get_model_costs", mock_get_costs),
     ):
         # Create models
-        expensive = ExpensiveModel(custom_result_text="Expensive response")
-        cheap = CheapModel(custom_result_text="Cheap response")
+        expensive = ExpensiveModel(custom_output_text="Expensive response")
+        cheap = CheapModel(custom_output_text="Cheap response")
 
         # Configure cost-optimized model with high budget
         cost_model = CostOptimizedMultiModel[Any](

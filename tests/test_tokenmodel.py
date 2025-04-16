@@ -56,9 +56,9 @@ async def test_token_optimized_efficient():
         await print_model_limits(model)
 
     # Create models
-    large = LargeModel(custom_result_text="Large model response")
-    medium = MediumModel(custom_result_text="Medium model response")
-    standard = StandardModel(custom_result_text="Standard model response")
+    large = LargeModel(custom_output_text="Large model response")
+    medium = MediumModel(custom_output_text="Medium model response")
+    standard = StandardModel(custom_output_text="Standard model response")
 
     # Configure token-optimized model
     token_model = TokenOptimizedMultiModel[Any](
@@ -76,9 +76,9 @@ async def test_token_optimized_efficient():
 async def test_token_optimized_exceeds_limits():
     """Test token-optimized model handling too-long inputs."""
     # Create models
-    large = LargeModel(custom_result_text="Large model response")
-    medium = MediumModel(custom_result_text="Medium model response")
-    standard = StandardModel(custom_result_text="Standard model response")
+    large = LargeModel(custom_output_text="Large model response")
+    medium = MediumModel(custom_output_text="Medium model response")
+    standard = StandardModel(custom_output_text="Standard model response")
 
     # Configure token-optimized model
     token_model = TokenOptimizedMultiModel[Any](

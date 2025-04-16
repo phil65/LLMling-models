@@ -168,7 +168,7 @@ def infer_model(  # noqa: PLR0911
     if model.startswith("test:"):
         from pydantic_ai.models.test import TestModel
 
-        return TestModel(custom_result_text=model.removeprefix("test:"))
+        return TestModel(custom_output_text=model.removeprefix("test:"))
     if model.startswith("gemini:"):
         model = model.replace("gemini:", "google-gla:")
     return infer_model_(model)  # type: ignore
