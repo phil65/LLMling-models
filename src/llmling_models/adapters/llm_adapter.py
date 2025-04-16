@@ -71,9 +71,9 @@ def _build_prompt(
 
     for message in messages:
         if isinstance(message, ModelResponse):
-            for part in message.parts:
-                if isinstance(part, TextPart | ToolReturnPart):
-                    prompt_parts.append(f"Assistant: {part.content}")  # noqa: PERF401
+            for rsp_part in message.parts:
+                if isinstance(rsp_part, TextPart | ToolReturnPart):
+                    prompt_parts.append(f"Assistant: {rsp_part.content}")  # noqa: PERF401
         else:  # ModelRequest
             for part in message.parts:
                 if isinstance(part, SystemPromptPart):
