@@ -239,13 +239,13 @@ class AISuiteAdapter(Model):
         tools = []
         if model_request_parameters.function_tools:
             tools.extend(convert_tools(model_request_parameters.function_tools))
-        if model_request_parameters.result_tools:
-            tools.extend(convert_tools(model_request_parameters.result_tools))
+        if model_request_parameters.ouput_tools:
+            tools.extend(convert_tools(model_request_parameters.ouput_tools))
 
         if tools:
             kwargs["tools"] = tools
-            # Set tool_choice based on allow_text_result
-            if not model_request_parameters.allow_text_result:
+            # Set tool_choice based on allow_text_output
+            if not model_request_parameters.allow_text_output:
                 kwargs["tool_choice"] = {"type": "function", "function": {"name": "auto"}}
             else:
                 kwargs["tool_choice"] = "auto"

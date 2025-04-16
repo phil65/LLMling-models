@@ -210,12 +210,12 @@ class LiteLLMAdapter(PydanticModel):
         tools = []
         if model_request_parameters.function_tools:
             tools.extend(convert_tools(model_request_parameters.function_tools))
-        if model_request_parameters.result_tools:
-            tools.extend(convert_tools(model_request_parameters.result_tools))
+        if model_request_parameters.ouput_tools:
+            tools.extend(convert_tools(model_request_parameters.ouput_tools))
 
         if tools:
             params["tools"] = tools
-            if not model_request_parameters.allow_text_result:
+            if not model_request_parameters.allow_text_output:
                 params["tool_choice"] = "required"
             else:
                 params["tool_choice"] = "auto"
@@ -277,11 +277,11 @@ class LiteLLMAdapter(PydanticModel):
         tools = []
         if model_request_parameters.function_tools:
             tools.extend(convert_tools(model_request_parameters.function_tools))
-        if model_request_parameters.result_tools:
-            tools.extend(convert_tools(model_request_parameters.result_tools))
+        if model_request_parameters.ouput_tools:
+            tools.extend(convert_tools(model_request_parameters.ouput_tools))
         if tools:
             params["tools"] = tools
-            if not model_request_parameters.allow_text_result:
+            if not model_request_parameters.allow_text_output:
                 params["tool_choice"] = "required"
             else:
                 params["tool_choice"] = "auto"

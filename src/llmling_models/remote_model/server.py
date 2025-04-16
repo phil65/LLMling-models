@@ -75,8 +75,8 @@ class ModelServer:
                 # Create model parameters
                 model_params = ModelRequestParameters(
                     function_tools=[],
-                    allow_text_result=True,
-                    result_tools=[],
+                    allow_text_output=True,
+                    ouput_tools=[],
                 )
 
                 # Get response
@@ -114,8 +114,8 @@ class ModelServer:
                 # Create model parameters
                 model_params = ModelRequestParameters(
                     function_tools=[],
-                    allow_text_result=True,
-                    result_tools=[],
+                    allow_text_output=True,
+                    ouput_tools=[],
                 )
 
                 while True:

@@ -539,15 +539,15 @@ class OpenAIServer:
                 function_tools = convert_tools(request.tools)
 
             # Determine if we should force tool usage
-            allow_text_result = True
+            allow_text_output = True
             if request.tool_choice and request.tool_choice != "auto":
-                allow_text_result = False
+                allow_text_output = False
 
             # Prepare request parameters
             request_params = ModelRequestParameters(
                 function_tools=function_tools,
-                allow_text_result=allow_text_result,
-                result_tools=[],  # Not used in OpenAI API
+                allow_text_output=allow_text_output,
+                ouput_tools=[],  # Not used in OpenAI API
             )
 
             # Check if streaming is requested
@@ -761,15 +761,15 @@ class OpenAIServer:
                     function_tools = convert_tools(request.tools)
 
                 # Determine if we should force tool usage
-                allow_text_result = True
+                allow_text_output = True
                 if request.tool_choice and request.tool_choice != "auto":
-                    allow_text_result = False
+                    allow_text_output = False
 
                 # Prepare request parameters
                 request_params = ModelRequestParameters(
                     function_tools=function_tools,
-                    allow_text_result=allow_text_result,
-                    result_tools=[],  # Not used in OpenAI API
+                    allow_text_output=allow_text_output,
+                    ouput_tools=[],  # Not used in OpenAI API
                 )
 
                 # Process request with streaming
