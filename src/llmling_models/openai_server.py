@@ -547,7 +547,7 @@ class OpenAIServer:
             request_params = ModelRequestParameters(
                 function_tools=function_tools,
                 allow_text_output=allow_text_output,
-                ouput_tools=[],  # Not used in OpenAI API
+                output_tools=[],  # Not used in OpenAI API
             )
 
             # Check if streaming is requested
@@ -769,7 +769,7 @@ class OpenAIServer:
                 request_params = ModelRequestParameters(
                     function_tools=function_tools,
                     allow_text_output=allow_text_output,
-                    ouput_tools=[],  # Not used in OpenAI API
+                    output_tools=[],  # Not used in OpenAI API
                 )
 
                 # Process request with streaming

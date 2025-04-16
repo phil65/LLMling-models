@@ -76,7 +76,7 @@ class ModelServer:
                 model_params = ModelRequestParameters(
                     function_tools=[],
                     allow_text_output=True,
-                    ouput_tools=[],
+                    output_tools=[],
                 )
 
                 # Get response
@@ -115,7 +115,7 @@ class ModelServer:
                 model_params = ModelRequestParameters(
                     function_tools=[],
                     allow_text_output=True,
-                    ouput_tools=[],
+                    output_tools=[],
                 )
 
                 while True:
