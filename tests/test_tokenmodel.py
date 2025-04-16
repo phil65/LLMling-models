@@ -69,7 +69,7 @@ async def test_token_optimized_efficient():
     # Test with agent using short prompt (should fit in standard model)
     agent = Agent[None, str](token_model)
     result = await agent.run("Test " * 100)  # ~400 chars -> ~100 tokens
-    assert result.data == "Standard model response"
+    assert result.output == "Standard model response"
 
 
 @pytest.mark.asyncio

@@ -149,6 +149,6 @@ if __name__ == "__main__":
         prompt = "You are helping test user model selection."
         agent: Agent[None, str] = Agent(model=model, system_prompt=prompt)
         result = await agent.run("What is the meaning of life?")
-        print(f"\nSelected model's response: {result.data}")
+        print(f"\nSelected model's response: {result.output}")
 
     asyncio.run(test())

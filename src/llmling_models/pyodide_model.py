@@ -405,7 +405,7 @@ if __name__ == "__main__":
         model = SimpleOpenAIModel(model="gpt-4o-mini")
         agent: Agent[None, str] = Agent(model=model)
         result = await agent.run("Hello!")
-        print(f"\nResponse: {result.data}")
+        print(f"\nResponse: {result.output}")
         print("\nStreaming response:")
         async with agent.run_stream("Tell me a short story") as stream:
             async for chunk in stream.stream():

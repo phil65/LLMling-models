@@ -125,6 +125,6 @@ if __name__ == "__main__":
         model = OpenAIModel("Mistral-7B-Instruct-v0.3", provider=provider)
         agent = Agent(model=model)
         result = await agent.run("Explain gravity for a 6 years old")
-        print(result.data)
+        print(result.output)
 
     asyncio.run(main())

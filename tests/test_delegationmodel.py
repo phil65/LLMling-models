@@ -43,7 +43,7 @@ async def test_delegation_with_list():
 
     agent = Agent[None, str](delegation_model)
     result = await agent.run("A complex task")
-    assert result.data == "Model 1 response"
+    assert result.output == "Model 1 response"
 
 
 @pytest.mark.asyncio
@@ -70,7 +70,7 @@ async def test_delegation_with_descriptions():
 
     agent = Agent[None, str](delegation_model)
     result = await agent.run("A complex calculation")
-    assert result.data == "Complex response"
+    assert result.output == "Complex response"
 
 
 @pytest.mark.asyncio

@@ -198,6 +198,6 @@ if __name__ == "__main__":
 
         agent: Agent[None, str] = Agent(delegation_model)
         result = await agent.run("Find the highest prime number known to mankind")
-        print(result.data)
+        print(result.output)
 
     asyncio.run(test())

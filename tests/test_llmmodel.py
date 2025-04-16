@@ -24,7 +24,7 @@ async def test_async_basic_usage():
     agent = Agent(adapter)
 
     result = await agent.run("Test prompt")
-    assert result.data.count(" ") > 3  # noqa: PLR2004
+    assert result.output.count(" ") > 3  # noqa: PLR2004
 
 
 def test_sync_basic_usage():
@@ -33,7 +33,7 @@ def test_sync_basic_usage():
     agent = Agent(adapter)
 
     result = agent.run_sync("Write a short poem")
-    assert result.data.count(" ") > 3  # noqa: PLR2004
+    assert result.output.count(" ") > 3  # noqa: PLR2004
 
 
 @pytest.mark.asyncio

@@ -194,7 +194,7 @@ if __name__ == "__main__":
         # Test regular input
         print("\nTesting regular input:")
         result = await agent.run("What's your favorite color?")
-        print(f"\nYour response was: {result.data}")
+        print(f"\nYour response was: {result.output}")
 
         # Test streaming input
         print("\nTesting streaming input:")

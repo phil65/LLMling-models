@@ -75,7 +75,7 @@ def main() -> None:
 
         # Generate commit message
         result = agent.run_sync(prompt)
-        commit_message = result.data.strip()
+        commit_message = result.output.strip()
         print(f"Generated message: {commit_message}")
 
         # Write the AI-generated message to the commit message file

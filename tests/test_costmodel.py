@@ -191,7 +191,7 @@ async def test_cost_optimized_cheapest(
         result = await agent.run("Test prompt")
 
         # Should select cheapest model
-        assert result.data == "Cheap response"
+        assert result.output == "Cheap response"
 
         # Verify our mocks were called
         assert mock_get_limits.called
@@ -224,7 +224,7 @@ async def test_cost_optimized_best_within_budget(
         result = await agent.run("Test prompt")
 
         # Should select most expensive model within budget
-        assert result.data == "Expensive response"
+        assert result.output == "Expensive response"
 
         # Verify our mocks were called
         assert mock_get_limits.called

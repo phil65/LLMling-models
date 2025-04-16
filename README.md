@@ -159,7 +159,7 @@ agent = Agent(
 
 # Run interactive conversation
 result = await agent.run("What's your favorite color?")
-print(f"You responded: {result.data}")
+print(f"You responded: {result.output}")
 
 # Supports streaming input
 async with agent.run_stream("Tell me a story...") as response:
@@ -334,7 +334,7 @@ agent = Agent(model)
 
 # The request will be forwarded to the remote operator
 result = await agent.run("What's the meaning of life?")
-print(f"Remote operator responded: {result.data}")
+print(f"Remote operator responded: {result.output}")
 
 # Streaming also works with WebSocket protocol
 async with agent.run_stream("Tell me a story...") as response:
