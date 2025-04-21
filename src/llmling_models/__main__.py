@@ -241,7 +241,8 @@ def process_server_settings(config: dict[str, Any]) -> dict[str, Any]:
 
 async def serve_async(args: argparse.Namespace) -> None:
     """Run the OpenAI-compatible API server."""
-    # Determine models to use
+    import uvicorn
+
     models: dict[str, str | Model] = {}
     config_settings: dict[str, Any] | None = None
 
@@ -282,27 +283,18 @@ async def serve_async(args: argparse.Namespace) -> None:
         logger.error("No models available, exiting")
         sys.exit(1)
 
-    # Server settings
     host = config_settings["host"] if config_settings else args.host
     port = config_settings["port"] if config_settings else args.port
     api_key = config_settings["api_key"] if config_settings else args.api_key
     title = config_settings["title"] if config_settings else args.title
     description = config_settings["description"] if config_settings else args.description
-
-    # Initialize models
     registry = ModelRegistry(models)
-
-    # Create server
     server = OpenAIServer(
         registry=registry,
         api_key=api_key,
         title=title,
         description=description,
     )
-
-    # Run server
-    import uvicorn
-
     logger.info("Starting server at %s:%d with %d models", host, port, len(models))
     uvicorn_config = uvicorn.Config(
         app=server.app,
