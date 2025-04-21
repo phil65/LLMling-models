@@ -1,0 +1,8 @@
+*.db
+*.py[cod]
+__pycache__/
+assets/external/
+.env
+.env*
+venv/
+.venv/
