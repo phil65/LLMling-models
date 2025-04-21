@@ -21,6 +21,7 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.models import Model, ModelRequestParameters
 from pydantic_ai.settings import ModelSettings
+import tokonomics
 
 from llmling_models.log import get_logger
 from llmling_models.openai_server.helpers import (
@@ -49,7 +50,6 @@ class ModelRegistry:
             models: Dictionary mapping model names to models or model identifiers
         """
         self.models: dict[str, Model] = {}
-
         if models:
             for name, model_or_id in models.items():
                 if isinstance(model_or_id, str):
@@ -65,12 +65,8 @@ class ModelRegistry:
             A new ModelRegistry instance with auto-populated models.
         """
         registry = cls({})  # Empty registry
-
         try:
-            import tokonomics
-
             all_models = await tokonomics.get_all_models()
-
             for model_info in all_models:
                 try:
                     # Use the pydantic_model_id directly as the key
@@ -78,16 +74,10 @@ class ModelRegistry:
                     registry.models[model_id] = infer_model(model_id)
                     logger.debug("Auto-registered model: %s", model_id)
                 except Exception as e:  # noqa: BLE001
-                    logger.warning(
-                        "Failed to register model %s: %s",
-                        model_info.pydantic_ai_id,
-                        str(e),
-                    )
+                    msg = "Failed to register model %s: %s"
+                    logger.warning(msg, model_info.pydantic_ai_id, str(e))
 
             logger.info("Auto-populated %d models from tokonomics", len(registry.models))
-
-        except ImportError:
-            logger.warning("tokonomics not available, no models auto-populated")
         except Exception as e:  # noqa: BLE001
             logger.warning("Error auto-populating models: %s", str(e))
 
@@ -95,10 +85,8 @@ class ModelRegistry:
 
     def add_model(self, name: str, model_or_id: str | Model) -> None:
         """Add a model to the registry."""
-        if isinstance(model_or_id, str):
-            self.models[name] = infer_model(model_or_id)
-        else:
-            self.models[name] = model_or_id
+        model = infer_model(model_or_id) if isinstance(model_or_id, str) else model_or_id
+        self.models[name] = model
 
     def get_model(self, name: str) -> Model:
         """Get a model by name."""
@@ -172,12 +160,10 @@ class OpenAIServer:
             "/v1/models",
             dependencies=[Depends(self.verify_api_key)] if self.api_key else None,
         )(self.list_models)
-
-        # Chat completions endpoints
-        self.app.post(
-            "/v1/chat/completions",
-            dependencies=[Depends(self.verify_api_key)] if self.api_key else None,
-        )(self.create_chat_completion)
+        deps = [Depends(self.verify_api_key)] if self.api_key else None
+        self.app.post("/v1/chat/completions", dependencies=deps)(
+            self.create_chat_completion
+        )
 
         # WebSocket endpoint for chat completions
         if self.api_key:
@@ -305,18 +291,17 @@ class OpenAIServer:
                 model_request_parameters=request_params,
             ) as stream:
                 # First chunk with role
+                choice = {
+                    "index": 0,
+                    "delta": {"role": "assistant"},
+                    "finish_reason": None,
+                }
                 first_chunk = {
                     "id": response_id,
                     "object": "chat.completion.chunk",
                     "created": int(time.time()),
                     "model": model_name,
-                    "choices": [
-                        {
-                            "index": 0,
-                            "delta": {"role": "assistant"},
-                            "finish_reason": None,
-                        }
-                    ],
+                    "choices": [choice],
                 }
                 yield f"data: {anyenv.dump_json(first_chunk)}\n\n"
 
@@ -324,7 +309,6 @@ class OpenAIServer:
                 content_buffer = ""
                 async for event in stream:
                     if isinstance(event, PartStartEvent):
-                        # Handle new part
                         if isinstance(event.part, TextPart):
                             new_content = str(event.part.content)
                             if new_content != content_buffer:
@@ -332,18 +316,17 @@ class OpenAIServer:
                                 content_buffer = new_content
 
                                 if delta:
+                                    choice = {
+                                        "index": 0,
+                                        "delta": {"content": delta},
+                                        "finish_reason": None,
+                                    }
                                     chunk_data = {
                                         "id": response_id,
                                         "object": "chat.completion.chunk",
                                         "created": int(time.time()),
                                         "model": model_name,
-                                        "choices": [
-                                            {
-                                                "index": 0,
-                                                "delta": {"content": delta},
-                                                "finish_reason": None,
-                                            }
-                                        ],
+                                        "choices": [choice],
                                     }
                                     yield f"data: {anyenv.dump_json(chunk_data)}\n\n"
 
@@ -354,18 +337,17 @@ class OpenAIServer:
                         content_buffer += delta
 
                         if delta:
+                            choice = {
+                                "index": 0,
+                                "delta": {"content": delta},
+                                "finish_reason": None,
+                            }
                             chunk_data = {
                                 "id": response_id,
                                 "object": "chat.completion.chunk",
                                 "created": int(time.time()),
                                 "model": model_name,
-                                "choices": [
-                                    {
-                                        "index": 0,
-                                        "delta": {"content": delta},
-                                        "finish_reason": None,
-                                    }
-                                ],
+                                "choices": [choice],
                             }
                             yield f"data: {anyenv.dump_json(chunk_data)}\n\n"
 
@@ -382,18 +364,17 @@ class OpenAIServer:
 
         except Exception as e:
             logger.exception("Error during streaming response")
+            choice = {
+                "index": 0,
+                "delta": {"content": f"Error: {e!s}"},
+                "finish_reason": "error",
+            }
             error_chunk = {
                 "id": response_id,
                 "object": "chat.completion.chunk",
                 "created": int(time.time()),
                 "model": model_name,
-                "choices": [
-                    {
-                        "index": 0,
-                        "delta": {"content": f"Error: {e!s}"},
-                        "finish_reason": "error",
-                    }
-                ],
+                "choices": [choice],
             }
             yield f"data: {anyenv.dump_json(error_chunk)}\n\n"
             yield "data: [DONE]\n\n"
@@ -470,19 +451,17 @@ class OpenAIServer:
                             model_settings=cast(ModelSettings, settings),
                             model_request_parameters=request_params,
                         ) as stream:
-                            # First chunk with role
+                            choice = {
+                                "index": 0,
+                                "delta": {"role": "assistant"},
+                                "finish_reason": None,
+                            }
                             first_chunk = {
                                 "id": response_id,
                                 "object": "chat.completion.chunk",
                                 "created": int(time.time()),
                                 "model": request.model,
-                                "choices": [
-                                    {
-                                        "index": 0,
-                                        "delta": {"role": "assistant"},
-                                        "finish_reason": None,
-                                    }
-                                ],
+                                "choices": [choice],
                             }
                             await websocket.send_json(first_chunk)
 
@@ -498,18 +477,17 @@ class OpenAIServer:
                                             content_buffer = new_content
 
                                             if delta:
+                                                choice = {
+                                                    "index": 0,
+                                                    "delta": {"content": delta},
+                                                    "finish_reason": None,
+                                                }
                                                 chunk_data = {
                                                     "id": response_id,
                                                     "object": "chat.completion.chunk",
                                                     "created": int(time.time()),
                                                     "model": request.model,
-                                                    "choices": [
-                                                        {
-                                                            "index": 0,
-                                                            "delta": {"content": delta},
-                                                            "finish_reason": None,
-                                                        }
-                                                    ],
+                                                    "choices": [choice],
                                                 }
                                                 await websocket.send_json(chunk_data)
 
