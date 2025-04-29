@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+from schemez import Schema
 
 from llmling_models.log import get_logger
 
@@ -12,7 +13,7 @@ from llmling_models.log import get_logger
 logger = get_logger(__name__)
 
 
-class OpenAIModelInfo(BaseModel):
+class OpenAIModelInfo(Schema):
     """OpenAI model info format."""
 
     id: str
@@ -20,17 +21,17 @@ class OpenAIModelInfo(BaseModel):
     owned_by: str = "llmling"
     created: int
     description: str | None = None
-    permissions: list[str] = []
+    permissions: list[str] = Field(default_factory=list)
 
 
-class FunctionCall(BaseModel):
+class FunctionCall(Schema):
     """Function call information."""
 
     name: str
     arguments: str
 
 
-class ToolCall(BaseModel):
+class ToolCall(Schema):
     """Tool call information."""
 
     id: str
@@ -38,7 +39,7 @@ class ToolCall(BaseModel):
     function: FunctionCall
 
 
-class OpenAIMessage(BaseModel):
+class OpenAIMessage(Schema):
     """OpenAI chat message format."""
 
     role: Literal["system", "user", "assistant", "tool", "function"]
@@ -49,7 +50,7 @@ class OpenAIMessage(BaseModel):
     tool_call_id: str | None = None  # For tool responses
 
 
-class FunctionDefinition(BaseModel):
+class FunctionDefinition(Schema):
     """Function definition."""
 
     name: str
@@ -57,14 +58,14 @@ class FunctionDefinition(BaseModel):
     parameters: dict[str, Any]
 
 
-class ToolDefinitionSchema(BaseModel):
+class ToolDefinitionSchema(Schema):
     """Tool definition schema."""
 
     type: str = "function"
     function: FunctionDefinition
 
 
-class ChatCompletionRequest(BaseModel):
+class ChatCompletionRequest(Schema):
     """OpenAI chat completion request."""
 
     model: str
@@ -77,7 +78,7 @@ class ChatCompletionRequest(BaseModel):
     response_format: dict[str, str] | None = None
 
 
-class Choice(BaseModel):
+class Choice(Schema):
     """Choice in a completion response."""
 
     index: int = 0
@@ -85,7 +86,7 @@ class Choice(BaseModel):
     finish_reason: str = "stop"
 
 
-class ChatCompletionResponse(BaseModel):
+class ChatCompletionResponse(Schema):
     """OpenAI chat completion response."""
 
     id: str
@@ -96,7 +97,7 @@ class ChatCompletionResponse(BaseModel):
     usage: dict[str, int] | None = None
 
 
-class ChatCompletionChunk(BaseModel):
+class ChatCompletionChunk(Schema):
     """Chunk of a streaming chat completion."""
 
     id: str

@@ -5,7 +5,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import ConfigDict
 from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
@@ -14,6 +14,7 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.models import KnownModelName, Model
 from pydantic_ai.result import Usage
+from schemez import Schema
 
 from llmling_models.log import get_logger
 from llmling_models.utils import infer_model
@@ -28,7 +29,7 @@ if TYPE_CHECKING:
     from pydantic_ai.settings import ModelSettings
 
 
-class PrePostPromptConfig(BaseModel):
+class PrePostPromptConfig(Schema):
     """Configuration for pre/post prompts."""
 
     text: str

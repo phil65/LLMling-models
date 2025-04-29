@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import ConfigDict
 from pydantic_ai.models import Model
+from schemez import Schema
 
 
-class PydanticModel(Model, BaseModel):
+class PydanticModel(Model, Schema):
     """Base for models that can be configured via YAML."""
 
-    model_config = ConfigDict(
-        arbitrary_types_allowed=True,
-        extra="forbid",
-        use_attribute_docstrings=True,
-    )
+    model_config = ConfigDict(arbitrary_types_allowed=True)
