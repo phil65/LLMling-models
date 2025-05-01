@@ -81,7 +81,38 @@ def get_model(
     return OpenAIModel(model_name=model_name, provider=provider)
 
 
-def infer_model(  # noqa: PLR0911
+def infer_model(
+    model,
+    provider: Literal["pydantic-ai", "litellm", "llm", "aisuite"] = "pydantic-ai",
+) -> Model:
+    """Extended infer_model from pydantic-ai with fallback support.
+
+    For fallback models, use comma-separated model names.
+    Example: "openai:gpt-4,openai:gpt-3.5-turbo"
+    """
+    from pydantic_ai.models.fallback import FallbackModel
+
+    # If model is already a Model instance or something else not string
+    if not isinstance(model, str):
+        return model
+
+    # Check for comma-separated model list (fallback case)
+    if "," in model:
+        model_names = [name.strip() for name in model.split(",")]
+        if len(model_names) <= 1:
+            # Shouldn't happen with the comma check, but just to be safe
+            return _infer_single_model(model, provider)
+
+        # Create fallback model chain
+        default_model = _infer_single_model(model_names[0], provider)
+        fallback_models = [_infer_single_model(m, provider) for m in model_names[1:]]
+        return FallbackModel(default_model, *fallback_models)
+
+    # Regular single model case
+    return _infer_single_model(model, provider)
+
+
+def _infer_single_model(  # noqa: PLR0911
     model,
     provider: Literal["pydantic-ai", "litellm", "llm", "aisuite"] = "pydantic-ai",
 ) -> Model:
