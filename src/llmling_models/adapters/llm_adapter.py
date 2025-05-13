@@ -145,7 +145,7 @@ class LLMAdapter(Model):
         messages: list[ModelMessage],
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
-    ) -> tuple[ModelResponse, Usage]:
+    ) -> ModelResponse:
         """Make a request to the model."""
         prompt, system, attachments = _build_prompt(messages)
 
@@ -164,11 +164,8 @@ class LLMAdapter(Model):
         else:
             msg = "No model available"
             raise RuntimeError(msg)
-
-        return ModelResponse(
-            parts=[TextPart(text)],
-            timestamp=datetime.now(UTC),
-        ), usage
+        ts = datetime.now(UTC)
+        return ModelResponse(parts=[TextPart(text)], timestamp=ts, usage=usage)
 
     @asynccontextmanager
     async def request_stream(

@@ -194,7 +194,7 @@ class LiteLLMAdapter(PydanticModel):
         messages: list[ModelMessage],
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
-    ) -> tuple[ModelResponse, Usage]:
+    ) -> ModelResponse:
         """Make a request to the model."""
         from litellm import Choices, ModelResponse as LiteLLMModelResponse, acompletion
 
@@ -250,7 +250,8 @@ class LiteLLMAdapter(PydanticModel):
                 total_tokens=usage_data.get("total_tokens", 0),
             )
 
-            return ModelResponse(parts=parts, timestamp=datetime.now(UTC)), usage_obj
+            ts = datetime.now(UTC)
+            return ModelResponse(parts=parts, timestamp=ts, usage=usage_obj)
 
         except Exception as e:
             msg = f"LiteLLM request failed: {e}"

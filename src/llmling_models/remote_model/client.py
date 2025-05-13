@@ -62,16 +62,13 @@ class RemoteProxyModel(PydanticModel):
         messages: list[ModelMessage],
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
-    ) -> tuple[ModelResponse, Usage]:
+    ) -> ModelResponse:
         """Make request to remote model."""
         if self.protocol == "websocket":
             return await self._request_websocket(messages)
         return await self._request_rest(messages)
 
-    async def _request_rest(
-        self,
-        messages: list[ModelMessage],
-    ) -> tuple[ModelResponse, Usage]:
+    async def _request_rest(self, messages: list[ModelMessage]) -> ModelResponse:
         """Make REST request to remote model."""
         headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
         async with httpx.AsyncClient(headers=headers) as client:
@@ -97,20 +94,17 @@ class RemoteProxyModel(PydanticModel):
                 model_response = ModelResponse(
                     parts=[TextPart(data["content"])],
                     timestamp=datetime.now(UTC),
+                    usage=Usage(**data.get("usage", {})),
                 )
-                usage = Usage(**data.get("usage", {}))
             except httpx.HTTPError as e:
                 if hasattr(e, "response") and e.response is not None:  # type: ignore
                     logger.exception("Error response: %s", e.response.text)  # type: ignore
                 msg = f"HTTP error: {e}"
                 raise RuntimeError(msg) from e
             else:
-                return model_response, usage
+                return model_response
 
-    async def _request_websocket(
-        self,
-        messages: list[ModelMessage],
-    ) -> tuple[ModelResponse, Usage]:
+    async def _request_websocket(self, messages: list[ModelMessage]) -> ModelResponse:
         """Make WebSocket request to remote model."""
         import anyenv
         import websockets
@@ -152,7 +146,7 @@ class RemoteProxyModel(PydanticModel):
                     msg = "Received empty response from server"
                     raise RuntimeError(msg)
                 ts = datetime.now(UTC)
-                return ModelResponse(parts=[TextPart(content)], timestamp=ts), usage
+                return ModelResponse(parts=[TextPart(content)], timestamp=ts, usage=usage)
 
             except (websockets.ConnectionClosed, ValueError, KeyError) as e:
                 msg = f"WebSocket error: {e}"

@@ -107,7 +107,7 @@ class InputModel(PydanticModel):
         messages: list[ModelMessage],
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
-    ) -> tuple[ModelResponse, Usage]:
+    ) -> ModelResponse:
         """Get response from human input."""
         # Format and display messages using handler
         handler = self.handler() if isinstance(self.handler, type) else self.handler
@@ -132,10 +132,7 @@ class InputModel(PydanticModel):
                 response = response_or_awaitable
 
         parts: list[ModelResponsePart] = [TextPart(response)]
-        return ModelResponse(
-            parts=parts,
-            timestamp=datetime.now(UTC),
-        ), Usage()
+        return ModelResponse(parts=parts, timestamp=datetime.now(UTC), usage=Usage())
 
     @asynccontextmanager
     async def request_stream(

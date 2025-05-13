@@ -23,7 +23,6 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     from pydantic_ai.settings import ModelSettings
-    from pydantic_ai.usage import Usage
 
 logger = get_logger(__name__)
 TModel = TypeVar("TModel", bound=Model)
@@ -93,7 +92,7 @@ class DelegationMultiModel(MultiModel[TModel]):
         part = UserPromptPart(content=selection_text)
         selection_msg = ModelRequest(parts=[part])
 
-        response, _ = await selector.request(
+        response = await selector.request(
             [selection_msg],
             model_settings,
             model_request_parameters,
@@ -132,7 +131,7 @@ class DelegationMultiModel(MultiModel[TModel]):
         messages: list[ModelMessage],
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
-    ) -> tuple[ModelResponse, Usage]:
+    ) -> ModelResponse:
         """Process request using dynamically selected model."""
         # Extract the actual prompt
         prompt = self._get_last_prompt(messages)

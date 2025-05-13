@@ -117,7 +117,7 @@ class AugmentedModel(Model):
         messages: list[ModelMessage],
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
-    ) -> tuple[ModelResponse, Usage]:
+    ) -> ModelResponse:
         """Process request with pre/post prompting."""
         total_cost = Usage()
         all_messages = messages.copy()
@@ -130,12 +130,12 @@ class AugmentedModel(Model):
 
             # Get expanded question
             pre_request = ModelRequest(parts=[UserPromptPart(content=pre_prompt)])
-            pre_response, pre_cost = await pre_model.request(
+            pre_response = await pre_model.request(
                 [pre_request],
                 model_settings,
                 model_request_parameters,
             )
-            total_cost += pre_cost
+            total_cost += pre_response.usage
 
             # Replace original question with expanded version
             expanded_question = str(pre_response.parts[0].content)  # type: ignore
@@ -146,12 +146,12 @@ class AugmentedModel(Model):
 
         # Process with main model
         main_model = self._get_model("main")
-        main_response, main_cost = await main_model.request(
+        main_response = await main_model.request(
             all_messages,
             model_settings,
             model_request_parameters,
         )
-        total_cost += main_cost
+        total_cost += main_response.usage
         logger.debug("Main response: %s", str(main_response.parts[0].content))  # type: ignore
 
         # Post-process if configured
@@ -163,12 +163,12 @@ class AugmentedModel(Model):
 
             # Create post-processing request
             post_request = ModelRequest(parts=[UserPromptPart(content=post_prompt)])
-            post_response, post_cost = await post_model.request(
+            post_response = await post_model.request(
                 [post_request],
                 model_settings,
                 model_request_parameters,
             )
-            total_cost += post_cost
+            total_cost += post_response.usage
             logger.debug(
                 "Post-processed response: %s",
                 str(post_response.parts[0].content),  # type: ignore
@@ -176,11 +176,13 @@ class AugmentedModel(Model):
 
             # Add post-prompt messages to the chain
             all_messages.extend([main_response, post_request, post_response])
-            return post_response, total_cost
+            post_response.usage = total_cost
+            return post_response
 
         # If no post-processing, add main response to message chain
         all_messages.append(main_response)
-        return main_response, total_cost
+        main_response.usage = total_cost
+        return main_response
 
     @asynccontextmanager
     async def request_stream(
@@ -200,7 +202,7 @@ class AugmentedModel(Model):
 
             # Get expanded question
             pre_request = ModelRequest(parts=[UserPromptPart(content=pre_prompt)])
-            pre_response, _ = await pre_model.request(
+            pre_response = await pre_model.request(
                 [pre_request],
                 model_settings,
                 model_request_parameters,

@@ -11,7 +11,6 @@ from pydantic_ai.models import (
     StreamedResponse,
 )
 from pydantic_ai.settings import ModelSettings
-from pydantic_ai.usage import Usage
 
 from llmling_models import PydanticModel, infer_model
 
@@ -54,7 +53,7 @@ class StringModel(PydanticModel):
         messages: list[ModelMessage],
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
-    ) -> tuple[ModelResponse, Usage]:
+    ) -> ModelResponse:
         """Create and delegate to inferred model."""
         model = infer_model(self.identifier)  # type: ignore
         return await model.request(messages, model_settings, model_request_parameters)

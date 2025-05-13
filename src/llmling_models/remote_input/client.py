@@ -79,16 +79,13 @@ class RemoteInputModel(PydanticModel):
         messages: list[ModelMessage],
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
-    ) -> tuple[ModelResponse, Usage]:
+    ) -> ModelResponse:
         """Make request to remote operator."""
         if self.protocol == "websocket":
             return await self._request_websocket(messages)
         return await self._request_rest(messages)
 
-    async def _request_rest(
-        self,
-        messages: list[ModelMessage],
-    ) -> tuple[ModelResponse, Usage]:
+    async def _request_rest(self, messages: list[ModelMessage]) -> ModelResponse:
         """Make REST request to remote operator."""
         headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
         async with httpx.AsyncClient(headers=headers) as client:
@@ -121,7 +118,8 @@ class RemoteInputModel(PydanticModel):
                 return ModelResponse(
                     parts=[TextPart(response_data["content"])],
                     timestamp=datetime.now(UTC),
-                ), Usage()
+                    usage=Usage(),
+                )
 
             except httpx.HTTPError as e:
                 if hasattr(e, "response") and e.response is not None:  # type: ignore
@@ -129,10 +127,7 @@ class RemoteInputModel(PydanticModel):
                 msg = f"HTTP error: {e}"
                 raise RuntimeError(msg) from e
 
-    async def _request_websocket(
-        self,
-        messages: list[ModelMessage],
-    ) -> tuple[ModelResponse, Usage]:
+    async def _request_websocket(self, messages: list[ModelMessage]) -> ModelResponse:
         """Make WebSocket request to remote operator."""
         import anyenv
         import websockets
@@ -172,7 +167,8 @@ class RemoteInputModel(PydanticModel):
                 return ModelResponse(
                     parts=[TextPart(response_text)],
                     timestamp=datetime.now(UTC),
-                ), Usage()
+                    usage=Usage(),
+                )
 
             except (websockets.ConnectionClosed, ValueError, KeyError) as e:
                 msg = f"WebSocket error: {e}"

@@ -169,7 +169,7 @@ class AISuiteAdapter(Model):
         messages: list[ModelMessage],
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
-    ) -> tuple[ModelResponse, Usage]:
+    ) -> ModelResponse:
         """Make a request to the model."""
         assert self._client
         formatted_messages = []
@@ -284,10 +284,9 @@ class AISuiteAdapter(Model):
         if not parts:
             parts.append(TextPart(""))
 
-        return ModelResponse(
-            parts=parts,
-            timestamp=datetime.now(UTC),
-        ), Usage()  # AISuite doesn't provide token counts yet
+        # AISuite doesn't provide token counts yet
+        ts = datetime.now(UTC)
+        return ModelResponse(parts=parts, timestamp=ts, usage=Usage())
 
     @asynccontextmanager
     async def request_stream(

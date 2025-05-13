@@ -18,7 +18,6 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     from pydantic_ai.messages import ModelMessage, ModelResponse
-    from pydantic_ai.result import Usage
     from pydantic_ai.settings import ModelSettings
 
     from llmling_models.input_handlers import InputHandler
@@ -106,7 +105,7 @@ class UserSelectModel(MultiModel[Model]):
         messages: list[ModelMessage],
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
-    ) -> tuple[ModelResponse, Usage]:
+    ) -> ModelResponse:
         """Process request using user-selected model."""
         handler = self.handler() if isinstance(self.handler, type) else self.handler
         selected_model = await self._get_user_selection(messages, handler)

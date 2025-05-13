@@ -17,7 +17,6 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     from pydantic_ai.messages import ModelMessage, ModelResponse
-    from pydantic_ai.result import Usage
     from pydantic_ai.settings import ModelSettings
 
 logger = get_logger(__name__)
@@ -93,7 +92,7 @@ class TokenOptimizedMultiModel[TModel: Model](MultiModel[TModel]):
         messages: list[ModelMessage],
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
-    ) -> tuple[ModelResponse, Usage]:
+    ) -> ModelResponse:
         """Process request using token-optimized model selection."""
         selected_model = await self._select_model(messages)
         return await selected_model.request(

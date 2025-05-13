@@ -308,7 +308,7 @@ class SimpleOpenAIModel(PydanticModel):
         messages: list[ModelMessage],
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
-    ) -> tuple[ModelResponse, Usage]:
+    ) -> ModelResponse:
         """Make request to OpenAI API."""
         import httpx
 
@@ -357,7 +357,8 @@ class SimpleOpenAIModel(PydanticModel):
                     total_tokens=usage_data.get("total_tokens", 0),
                 )
 
-                return ModelResponse(parts=parts, timestamp=datetime.now(UTC)), usage
+                ts = datetime.now(UTC)
+                return ModelResponse(parts=parts, timestamp=ts, usage=usage)
 
             except httpx.HTTPError as e:
                 msg = f"OpenAI request failed: {e}"
