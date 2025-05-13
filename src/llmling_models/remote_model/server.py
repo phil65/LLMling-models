@@ -80,7 +80,7 @@ class ModelServer:
                 )
 
                 # Get response
-                response, usage = await self.model.request(
+                response = await self.model.request(
                     messages,
                     model_settings=None,
                     model_request_parameters=model_params,
@@ -90,7 +90,7 @@ class ModelServer:
                     if hasattr(response.parts[0], "content")
                     else ""
                 )
-                return {"content": content, "usage": asdict(usage)}
+                return {"content": content, "usage": asdict(response.usage)}
 
             except Exception as e:
                 logger.exception("Error processing completion request")

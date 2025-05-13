@@ -233,7 +233,7 @@ class OpenAIServer:
                 )
 
             # Non-streaming response
-            response, usage = await model.request(
+            response = await model.request(
                 messages,
                 model_settings=cast(ModelSettings, settings),
                 model_request_parameters=request_params,
@@ -245,6 +245,7 @@ class OpenAIServer:
             )
 
             # Add usage information
+            usage = response.usage
             if openai_response.usage and usage:
                 openai_response.usage.update({
                     "prompt_tokens": usage.request_tokens or 0,
@@ -527,7 +528,7 @@ class OpenAIServer:
 
                     # Non-streaming response
                     else:
-                        response, usage = await model.request(
+                        response = await model.request(
                             messages,
                             model_settings=cast(ModelSettings, settings),
                             model_request_parameters=request_params,
@@ -539,6 +540,7 @@ class OpenAIServer:
                         )
 
                         # Add usage information
+                        usage = response.usage
                         if openai_response.usage and usage:
                             openai_response.usage.update({
                                 "prompt_tokens": usage.request_tokens or 0,
