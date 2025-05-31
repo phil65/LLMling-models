@@ -5,7 +5,10 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+import inspect
+import json
 from typing import TYPE_CHECKING, Any
+import uuid
 
 from pydantic_ai import BinaryContent, ImageUrl
 from pydantic_ai.messages import (
@@ -15,6 +18,7 @@ from pydantic_ai.messages import (
     RetryPromptPart,
     SystemPromptPart,
     TextPart,
+    ToolCallPart,
     ToolReturnPart,
     UserPromptPart,
 )
@@ -29,6 +33,7 @@ if TYPE_CHECKING:
 
     import llm
     from pydantic_ai.settings import ModelSettings
+    from pydantic_ai.tools import ToolDefinition
 
 logger = get_logger(__name__)
 
@@ -51,7 +56,6 @@ def _map_sync_usage(response: llm.Response) -> Usage:
         request_tokens=response.input_tokens,
         response_tokens=response.output_tokens,
         total_tokens=((response.input_tokens or 0) + (response.output_tokens or 0)),
-        details=response.token_details,
     )
 
 
@@ -72,20 +76,29 @@ def _build_prompt(
     for message in messages:
         if isinstance(message, ModelResponse):
             for rsp_part in message.parts:
-                if isinstance(rsp_part, TextPart | ToolReturnPart):
-                    prompt_parts.append(f"Assistant: {rsp_part.content}")  # noqa: PERF401
+                if isinstance(rsp_part, TextPart):
+                    prompt_parts.append(f"Assistant: {rsp_part.content}")
+                elif isinstance(rsp_part, ToolCallPart):
+                    # Include tool calls in conversation
+                    call_info = f"{rsp_part.tool_name}({rsp_part.args_as_json_str()})"
+                    prompt_parts.append(f"Assistant called tool: {call_info}")
         else:  # ModelRequest
             for part in message.parts:
                 if isinstance(part, SystemPromptPart):
                     system = part.content
                 elif isinstance(part, UserPromptPart | RetryPromptPart):
-                    prompt_parts.append(f"Human: {part.content}")
-                    # Handle multi-modal content
-                    if hasattr(part, "content") and not isinstance(part.content, str):
+                    if isinstance(part.content, str):
+                        prompt_parts.append(f"Human: {part.content}")
+                    else:
+                        # Handle multi-modal content - convert to text for now
+                        text_parts = []
                         for item in part.content:
-                            if isinstance(item, ImageUrl):
+                            if isinstance(item, str):
+                                text_parts.append(item)
+                            elif isinstance(item, ImageUrl):
                                 # Convert ImageURL to LLM Attachment
                                 llm_attachments.append(llm.Attachment(url=item.url))
+                                text_parts.append("[Image attached]")
                             elif isinstance(item, BinaryContent) and item.is_image:
                                 # Convert BinaryContent to LLM Attachment
                                 llm_attachments.append(
@@ -93,8 +106,125 @@ def _build_prompt(
                                         content=item.data, type=item.media_type
                                     )
                                 )
+                                text_parts.append("[Image attached]")
+                        prompt_parts.append(f"Human: {' '.join(text_parts)}")
+                elif isinstance(part, ToolReturnPart):
+                    # Include tool results in conversation
+                    result = part.model_response_str()
+                    prompt_parts.append(f"Tool {part.tool_call_id} returned: {result}")
 
     return "\n".join(prompt_parts), system, llm_attachments
+
+
+def _create_noop_function(tool_def: ToolDefinition) -> Any:
+    """Create a NOOP fn that LLM can call but returns markers instead of executing."""
+    schema = tool_def.parameters_json_schema
+    properties = schema.get("properties", {})
+    required = schema.get("required", [])
+
+    # Build parameter list for function signature
+    params = []
+    annotations = {}
+
+    for param_name, param_info in properties.items():
+        param_type = param_info.get("type", "string")
+        default_value = inspect.Parameter.empty
+
+        # Map JSON schema types to Python types
+        if param_type == "string":
+            annotations[param_name] = str
+        elif param_type == "integer":
+            annotations[param_name] = int
+        elif param_type == "number":
+            annotations[param_name] = float
+        elif param_type == "boolean":
+            annotations[param_name] = bool
+        elif param_type == "array":
+            annotations[param_name] = list
+        elif param_type == "object":
+            annotations[param_name] = dict
+        else:
+            annotations[param_name] = Any
+
+        # Set default to None if parameter is not required
+        if param_name not in required:
+            default_value = None
+            # Update annotation to include None
+            if param_name in annotations:
+                annotations[param_name] = annotations[param_name] | None
+
+        param = inspect.Parameter(
+            param_name,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            default=default_value,
+            annotation=annotations[param_name],
+        )
+        params.append(param)
+
+    # Create function signature
+    sig = inspect.Signature(params)
+
+    def noop_function(*args, **kwargs):
+        """NOOP function that returns tool call marker."""
+        # Bind arguments to parameter names
+        bound = sig.bind(*args, **kwargs)
+        bound.apply_defaults()
+
+        # Create unique call ID
+        call_id = f"call_{uuid.uuid4().hex[:16]}"
+
+        # Return structured marker
+        marker = {
+            "__TOOL_CALL_MARKER__": {
+                "tool_name": tool_def.name,
+                "args": dict(bound.arguments),
+                "call_id": call_id,
+            }
+        }
+
+        return json.dumps(marker)
+
+    # Set function metadata
+    noop_function.__name__ = tool_def.name
+    noop_function.__doc__ = tool_def.description
+    noop_function.__signature__ = sig
+    noop_function.__annotations__ = annotations
+
+    return noop_function
+
+
+def _extract_tool_calls_from_text(text: str) -> tuple[str, list[ToolCallPart]]:
+    """Extract tool call markers from LLM response text."""
+    tool_calls = []
+    clean_text = text
+
+    # Look for JSON objects containing our marker
+    import re
+
+    # Find potential JSON objects in the text
+    json_pattern = r'\{[^{}]*"__TOOL_CALL_MARKER__"[^{}]*\}'
+    matches = re.findall(json_pattern, text)
+
+    for match in matches:
+        try:
+            marker_data = json.loads(match)
+            if "__TOOL_CALL_MARKER__" in marker_data:
+                call_info = marker_data["__TOOL_CALL_MARKER__"]
+
+                tool_call = ToolCallPart(
+                    tool_name=call_info["tool_name"],
+                    args=json.dumps(call_info["args"]),
+                    tool_call_id=call_info["call_id"],
+                )
+                tool_calls.append(tool_call)
+
+                # Remove the marker from the text
+                clean_text = clean_text.replace(match, "")
+
+        except (json.JSONDecodeError, KeyError) as e:
+            logger.debug("Failed to parse tool call marker: %s", e)
+
+    return clean_text.strip(), tool_calls
 
 
 @dataclass
@@ -117,9 +247,10 @@ class LLMAdapter(Model):
             self.needs_key = self._async_model.needs_key
             self.key_env_var = self._async_model.key_env_var
             self.can_stream = self._async_model.can_stream
-            return  # noqa: TRY300
         except llm.UnknownModelError:
             pass
+        else:
+            return
 
         try:
             self._sync_model = llm.get_model(self.model)
@@ -149,23 +280,83 @@ class LLMAdapter(Model):
         """Make a request to the model."""
         prompt, system, attachments = _build_prompt(messages)
 
-        if self._async_model:
-            response = await self._async_model.prompt(
-                prompt, system=system, stream=False, attachments=attachments
-            )
-            text = await response.text()
-            usage = await _map_async_usage(response)
-        elif self._sync_model:
-            response = self._sync_model.prompt(
-                prompt, system=system, stream=False, attachments=attachments
-            )
-            text = response.text()
-            usage = _map_sync_usage(response)
+        # Check if tools are present
+        tools = []
+        if model_request_parameters.function_tools:
+            tools.extend(model_request_parameters.function_tools)
+        if model_request_parameters.output_tools:
+            tools.extend(model_request_parameters.output_tools)
+
+        if tools:
+            # Create NOOP functions for LLM to call
+            noop_functions = [_create_noop_function(tool) for tool in tools]
+
+            if self._async_model:
+                chain_response = self._async_model.chain(
+                    prompt,
+                    system=system,
+                    tools=noop_functions,
+                    attachments=attachments,
+                )
+                text = await chain_response.text()
+
+                # Get usage from final response if available
+                final_response = None
+                async for response in chain_response.responses():
+                    final_response = response
+                usage = (
+                    await _map_async_usage(final_response) if final_response else Usage()
+                )
+
+            elif self._sync_model:
+                chain_response = self._sync_model.chain(
+                    prompt,
+                    system=system,
+                    tools=noop_functions,
+                    attachments=attachments,
+                )
+                text = chain_response.text()
+
+                # Get usage from final response if available
+                final_response = None
+                for response in chain_response.responses():
+                    final_response = response
+                usage = _map_sync_usage(final_response) if final_response else Usage()
+
+            else:
+                msg = "No model available"
+                raise RuntimeError(msg)
+
+            # Extract tool calls from the response
+            clean_text, tool_calls = _extract_tool_calls_from_text(text)
+
+            parts: list[Any] = []
+            if clean_text:
+                parts.append(TextPart(clean_text))
+            parts.extend(tool_calls)
+
         else:
-            msg = "No model available"
-            raise RuntimeError(msg)
+            # No tools - use regular prompt() method
+            if self._async_model:
+                response = await self._async_model.prompt(
+                    prompt, system=system, stream=False, attachments=attachments
+                )
+                text = await response.text()
+                usage = await _map_async_usage(response)
+            elif self._sync_model:
+                response = self._sync_model.prompt(
+                    prompt, system=system, stream=False, attachments=attachments
+                )
+                text = response.text()
+                usage = _map_sync_usage(response)
+            else:
+                msg = "No model available"
+                raise RuntimeError(msg)
+
+            parts = [TextPart(text)]
+
         ts = datetime.now(UTC)
-        return ModelResponse(parts=[TextPart(text)], timestamp=ts, usage=usage)
+        return ModelResponse(parts=parts, timestamp=ts, usage=usage)
 
     @asynccontextmanager
     async def request_stream(
@@ -177,29 +368,63 @@ class LLMAdapter(Model):
         """Make a streaming request to the model."""
         prompt, system, attachments = _build_prompt(messages)
 
-        if self._async_model:
-            response = await self._async_model.prompt(
-                prompt, system=system, stream=True, attachments=attachments
-            )
-        elif self._sync_model and self._sync_model.can_stream:
-            response = self._sync_model.prompt(
-                prompt, system=system, stream=True, attachments=attachments
-            )
-        else:
-            msg = (
-                "No streaming capable model available. "
-                "Either async model is missing or sync model doesn't support streaming."
-            )
-            raise RuntimeError(msg)
+        # Check if tools are present
+        tools = []
+        if model_request_parameters.function_tools:
+            tools.extend(model_request_parameters.function_tools)
+        if model_request_parameters.output_tools:
+            tools.extend(model_request_parameters.output_tools)
 
-        yield LLMStreamedResponse(response=response)
+        if tools:
+            # Create NOOP functions for LLM to call
+            noop_functions = [_create_noop_function(tool) for tool in tools]
+
+            if self._async_model:
+                chain_response = self._async_model.chain(
+                    prompt,
+                    system=system,
+                    tools=noop_functions,
+                    attachments=attachments,
+                )
+            elif self._sync_model:
+                chain_response = self._sync_model.chain(
+                    prompt,
+                    system=system,
+                    tools=noop_functions,
+                    attachments=attachments,
+                )
+            else:
+                msg = "No model available"
+                raise RuntimeError(msg)
+
+            yield LLMStreamedResponse(response=chain_response, is_chain=True)
+        else:
+            # No tools - use regular streaming
+
+            if self._async_model:
+                response = await self._async_model.prompt(
+                    prompt, system=system, stream=True, attachments=attachments
+                )
+            elif self._sync_model and self._sync_model.can_stream:
+                response = self._sync_model.prompt(
+                    prompt, system=system, stream=True, attachments=attachments
+                )
+            else:
+                msg = (
+                    "No streaming capable model available. "
+                    "Either async model is missing or sync model not supporting streaming"
+                )
+                raise RuntimeError(msg)
+
+            yield LLMStreamedResponse(response=response, is_chain=False)
 
 
 @dataclass(kw_only=True)
 class LLMStreamedResponse(StreamedResponse):
     """Stream implementation for LLM responses."""
 
-    response: llm.Response | llm.AsyncResponse
+    response: Any  # llm.Response | llm.AsyncResponse | ChainResponse
+    is_chain: bool = False
     _timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     _model_name: str = "llm"
 
@@ -212,32 +437,132 @@ class LLMStreamedResponse(StreamedResponse):
         import llm
 
         try:
-            while True:
+            if self.is_chain:
+                # Handle chain responses (with tools)
+
+                try:
+                    if hasattr(self.response, "__aiter__"):
+                        # Async chain
+                        async for chunk in self.response:
+                            if chunk:  # Only yield non-empty chunks
+                                yield self._parts_manager.handle_text_delta(
+                                    vendor_part_id="content",
+                                    content=str(chunk),
+                                )
+                    else:
+                        # Sync chain
+                        for chunk in self.response:
+                            if chunk:  # Only yield non-empty chunks
+                                yield self._parts_manager.handle_text_delta(
+                                    vendor_part_id="content",
+                                    content=chunk,
+                                )
+                except Exception as e:  # noqa: BLE001
+                    logger.debug("Chain streaming failed, falling back to text: %s", e)
+                    # Fallback: try to get final text
+                    try:
+                        if hasattr(self.response, "text"):
+                            if callable(self.response.text):
+                                if hasattr(self.response, "__aiter__"):
+                                    text = await self.response.text()  # pyright: ignore
+                                else:
+                                    text = self.response.text()
+                            else:
+                                text = str(self.response.text)
+                            if text:
+                                yield self._parts_manager.handle_text_delta(
+                                    vendor_part_id="content",
+                                    content=str(text),
+                                )
+                    except Exception as fallback_e:  # noqa: BLE001
+                        logger.warning(
+                            "Could not get text from chain response: %s", fallback_e
+                        )
+
+                # Try to get usage from final response if available
+                try:
+                    if hasattr(self.response, "responses"):
+                        final_response = None
+                        if hasattr(self.response.responses, "__aiter__"):
+                            async for resp in self.response.responses():
+                                final_response = resp
+                        else:
+                            for resp in self.response.responses():
+                                final_response = resp
+
+                        if final_response and isinstance(
+                            final_response, llm.AsyncResponse
+                        ):
+                            self._usage = await _map_async_usage(final_response)
+                        elif final_response:
+                            self._usage = _map_sync_usage(final_response)
+                except Exception as e:  # noqa: BLE001
+                    logger.debug("Could not extract usage from chain response: %s", e)
+            else:
+                # Handle regular streaming responses
+                # LLM library's AsyncResponse with stream=True sometimes
+                # doesn't support direct iteration
+                # Use fallback to get complete text at once
+                try:
+                    if hasattr(self.response, "text"):
+                        if callable(self.response.text):
+                            if isinstance(self.response, llm.AsyncResponse):
+                                text = await self.response.text()
+                            else:
+                                text = self.response.text()
+                        else:
+                            text = self.response.text
+
+                        if text:
+                            # Stream the text character by character to simulate streaming
+                            for char in str(text):
+                                yield self._parts_manager.handle_text_delta(
+                                    vendor_part_id="content",
+                                    content=char,
+                                )
+
+                            # Update usage after streaming
+                            if isinstance(self.response, llm.AsyncResponse):
+                                self._usage = await _map_async_usage(self.response)
+                            else:
+                                self._usage = _map_sync_usage(self.response)
+                        return
+
+                except Exception as e:  # noqa: BLE001
+                    logger.debug("Text fallback failed, trying iteration: %s", e)
+
+                # Fallback to direct iteration if text method fails
+                chunk_count = 0
+                while True:
+                    try:
+                        if isinstance(self.response, llm.AsyncResponse):
+                            chunk = await self.response.__anext__()
+                        else:
+                            chunk = next(iter(self.response))
+
+                        chunk_count += 1
+
+                        if chunk:  # Only yield non-empty chunks
+                            yield self._parts_manager.handle_text_delta(
+                                vendor_part_id="content",
+                                content=chunk,
+                            )
+
+                    except (StopIteration, StopAsyncIteration):
+                        break
+
+                # Update usage after iteration
                 try:
                     if isinstance(self.response, llm.AsyncResponse):
-                        chunk = await self.response.__anext__()
+                        self._usage = await _map_async_usage(self.response)
                     else:
-                        chunk = next(iter(self.response))
-                    self._usage = Usage(
-                        request_tokens=self.response.input_tokens,
-                        response_tokens=self.response.output_tokens,
-                        total_tokens=(
-                            (self.response.input_tokens or 0)
-                            + (self.response.output_tokens or 0)
-                        ),
-                        details=self.response.token_details,
-                    )
-
-                    yield self._parts_manager.handle_text_delta(
-                        vendor_part_id="content",
-                        content=chunk,
-                    )
-
-                except (StopIteration, StopAsyncIteration):
-                    break
+                        self._usage = _map_sync_usage(self.response)
+                except Exception as e:  # noqa: BLE001
+                    logger.debug("Could not get usage from response: %s", e)
 
         except Exception as e:
             msg = f"Stream error: {e}"
+            logger.exception(msg)
             raise RuntimeError(msg) from e
 
     @property
@@ -261,13 +586,23 @@ if __name__ == "__main__":
         adapter = LLMAdapter(model="gpt-4o-mini")
         agent: Agent[None, str] = Agent(model=adapter)
 
-        print("\nTesting sync request:")
+        print("\nTesting basic request:")
         response = await agent.run("Say hello!")
-        print(f"Response: {response.data}")
+        print(f"Response: {response.output}")
 
         print("\nTesting streaming:")
         async with agent.run_stream("Tell me a story") as stream:
             async for chunk in stream.stream_text(delta=True):
-                print(chunk)
+                print(chunk, end="", flush=True)
+
+        print("\n\nTesting with tools:")
+
+        @agent.tool_plain
+        def multiply(a: int, b: int) -> int:
+            """Multiply two numbers."""
+            return a * b
+
+        tool_response = await agent.run("What is 42 multiplied by 56?")
+        print(f"Tool response: {tool_response.output}")
 
     asyncio.run(test())
