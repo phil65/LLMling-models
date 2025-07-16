@@ -125,7 +125,7 @@ def _create_noop_function(tool_def: ToolDefinition) -> Any:
 
     # Build parameter list for function signature
     params = []
-    annotations = {}
+    annotations: dict[str, type | Any] = {}
 
     for param_name, param_info in properties.items():
         param_type = param_info.get("type", "string")
