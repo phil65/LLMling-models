@@ -377,7 +377,7 @@ class LLMAdapter(Model):
             noop_functions = [_create_noop_function(tool) for tool in tools]
 
             if self._async_model:
-                chain_response = self._async_model.chain(
+                chain_response: Any = self._async_model.chain(
                     prompt,
                     system=system,
                     tools=noop_functions,
