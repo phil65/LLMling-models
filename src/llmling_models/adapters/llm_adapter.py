@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 import inspect
 import json
+import re
 from typing import TYPE_CHECKING, Any
 import uuid
 
@@ -197,10 +198,6 @@ def _extract_tool_calls_from_text(text: str) -> tuple[str, list[ToolCallPart]]:
     """Extract tool call markers from LLM response text."""
     tool_calls = []
     clean_text = text
-
-    # Look for JSON objects containing our marker
-    import re
-
     # Find potential JSON objects in the text
     json_pattern = r'\{[^{}]*"__TOOL_CALL_MARKER__"[^{}]*\}'
     matches = re.findall(json_pattern, text)
