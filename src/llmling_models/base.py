@@ -7,7 +7,7 @@ from pydantic_ai.models import Model
 from schemez import Schema
 
 
-class PydanticModel(Model, Schema):
+class PydanticModel(Schema, Model):
     """Base for models that can be configured via YAML."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
