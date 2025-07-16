@@ -298,9 +298,9 @@ class LLMAdapter(Model):
                 text = await async_chain_response.text()
 
                 # Get usage from final response if available
-                final_response = None
-                async for response in async_chain_response.responses():
-                    final_response = response
+                final_response: Any = None
+                async for async_response in async_chain_response.responses():
+                    final_response = async_response
                 usage = (
                     await _map_async_usage(final_response) if final_response else Usage()
                 )
