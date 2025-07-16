@@ -289,17 +289,17 @@ class LLMAdapter(Model):
             noop_functions = [_create_noop_function(tool) for tool in tools]
 
             if self._async_model:
-                chain_response = self._async_model.chain(
+                async_chain_response = self._async_model.chain(
                     prompt,
                     system=system,
                     tools=noop_functions,
                     attachments=attachments,
                 )
-                text = await chain_response.text()
+                text = await async_chain_response.text()
 
                 # Get usage from final response if available
                 final_response = None
-                async for response in chain_response.responses():
+                async for response in async_chain_response.responses():
                     final_response = response
                 usage = (
                     await _map_async_usage(final_response) if final_response else Usage()
