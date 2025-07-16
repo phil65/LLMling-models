@@ -129,7 +129,7 @@ def _create_noop_function(tool_def: ToolDefinition) -> Any:
 
     for param_name, param_info in properties.items():
         param_type = param_info.get("type", "string")
-        default_value = inspect.Parameter.empty
+        default_value: Any = inspect.Parameter.empty
 
         # Map JSON schema types to Python types
         if param_type == "string":
@@ -188,7 +188,7 @@ def _create_noop_function(tool_def: ToolDefinition) -> Any:
     # Set function metadata
     noop_function.__name__ = tool_def.name
     noop_function.__doc__ = tool_def.description
-    noop_function.__signature__ = sig
+    noop_function.__signature__ = sig  # type: ignore
     noop_function.__annotations__ = annotations
 
     return noop_function
