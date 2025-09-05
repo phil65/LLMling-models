@@ -299,7 +299,9 @@ class LLMAdapter(Model):
                 async for async_response in async_chain_response.responses():
                     final_response = async_response
                 usage = (
-                    await _map_async_usage(final_response) if final_response else Usage()
+                    await _map_async_usage(final_response)
+                    if final_response
+                    else RequestUsage()
                 )
 
             elif self._sync_model:
@@ -315,7 +317,9 @@ class LLMAdapter(Model):
                 final_response = None
                 for response in chain_response.responses():
                     final_response = response
-                usage = _map_sync_usage(final_response) if final_response else Usage()
+                usage = (
+                    _map_sync_usage(final_response) if final_response else RequestUsage()
+                )
 
             else:
                 msg = "No model available"

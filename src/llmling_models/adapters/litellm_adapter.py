@@ -332,7 +332,6 @@ class LiteLLMStreamedResponse(StreamedResponse):
                     self._usage = RequestUsage(
                         input_tokens=chunk.usage.get("prompt_tokens", 0),
                         output_tokens=chunk.usage.get("completion_tokens", 0),
-                        total_tokens=chunk.usage.get("total_tokens", 0),
                     )
 
                 if not chunk.choices:
