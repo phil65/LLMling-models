@@ -248,8 +248,8 @@ class OpenAIServer:
             usage = response.usage
             if openai_response.usage and usage:
                 openai_response.usage.update({
-                    "prompt_tokens": usage.request_tokens or 0,
-                    "completion_tokens": usage.response_tokens or 0,
+                    "prompt_tokens": usage.input_tokens or 0,
+                    "completion_tokens": usage.output_tokens or 0,
                     "total_tokens": usage.total_tokens or 0,
                 })
 
@@ -543,8 +543,8 @@ class OpenAIServer:
                         usage = response.usage
                         if openai_response.usage and usage:
                             openai_response.usage.update({
-                                "prompt_tokens": usage.request_tokens or 0,
-                                "completion_tokens": usage.response_tokens or 0,
+                                "prompt_tokens": usage.input_tokens or 0,
+                                "completion_tokens": usage.output_tokens or 0,
                                 "total_tokens": usage.total_tokens or 0,
                             })
 

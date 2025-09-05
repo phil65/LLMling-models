@@ -61,8 +61,8 @@ async with agent.run_stream("Test prompt") as response:
 # Usage statistics
 result = await agent.run("Test prompt")
 usage = result.usage()
-print(f"Request tokens: {usage.request_tokens}")
-print(f"Response tokens: {usage.response_tokens}")
+print(f"Request tokens: {usage.input_tokens}")
+print(f"Response tokens: {usage.output_tokens}")
 ```
 (Examples need to be wrapped in async function and run with `asyncio.run`)
 

@@ -9,7 +9,14 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import Field
-from pydantic_ai import AudioUrl, BinaryContent, DocumentUrl, ImageUrl
+from pydantic_ai import (
+    AudioUrl,
+    BinaryContent,
+    DocumentUrl,
+    ImageUrl,
+    RequestUsage,
+    RunContext,
+)
 from pydantic_ai.messages import (
     ModelMessage,
     ModelResponse,
@@ -22,7 +29,6 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 from pydantic_ai.models import ModelRequestParameters, StreamedResponse
-from pydantic_ai.result import Usage
 
 from llmling_models.base import PydanticModel
 from llmling_models.log import get_logger
@@ -244,10 +250,9 @@ class LiteLLMAdapter(PydanticModel):
                     parts.append(part)
 
             usage_data = getattr(response, "usage", {})
-            usage_obj = Usage(
-                request_tokens=usage_data.get("prompt_tokens", 0),
-                response_tokens=usage_data.get("completion_tokens", 0),
-                total_tokens=usage_data.get("total_tokens", 0),
+            usage_obj = RequestUsage(
+                input_tokens=usage_data.get("prompt_tokens", 0),
+                output_tokens=usage_data.get("completion_tokens", 0),
             )
 
             ts = datetime.now(UTC)
@@ -264,6 +269,7 @@ class LiteLLMAdapter(PydanticModel):
         messages: list[ModelMessage],
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
+        run_context: RunContext[Any] | None = None,
     ) -> AsyncIterator[StreamedResponse]:
         """Stream responses from the model."""
         import litellm
@@ -314,7 +320,7 @@ class LiteLLMStreamedResponse(StreamedResponse):
 
     def __post_init__(self):
         """Initialize usage."""
-        self._usage = Usage()
+        self._usage = RequestUsage()
         self._content_part_id = "content"  # Default part ID for content
         self._tool_calls: dict[str, dict[str, Any]] = {}  # Track tool calls by index
 
@@ -323,9 +329,9 @@ class LiteLLMStreamedResponse(StreamedResponse):
         try:
             async for chunk in self.response:
                 if hasattr(chunk, "usage") and chunk.usage:
-                    self._usage = Usage(
-                        request_tokens=chunk.usage.get("prompt_tokens", 0),
-                        response_tokens=chunk.usage.get("completion_tokens", 0),
+                    self._usage = RequestUsage(
+                        input_tokens=chunk.usage.get("prompt_tokens", 0),
+                        output_tokens=chunk.usage.get("completion_tokens", 0),
                         total_tokens=chunk.usage.get("total_tokens", 0),
                     )
 

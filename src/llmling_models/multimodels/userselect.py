@@ -5,9 +5,10 @@ from __future__ import annotations
 from collections.abc import Awaitable
 from contextlib import asynccontextmanager
 import inspect
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, ImportString
+from pydantic_ai import RunContext
 from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
 
 from llmling_models.log import get_logger
@@ -121,6 +122,7 @@ class UserSelectModel(MultiModel[Model]):
         messages: list[ModelMessage],
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
+        run_context: RunContext[Any] | None = None,
     ) -> AsyncIterator[StreamedResponse]:
         """Stream response using user-selected model."""
         handler = self.handler() if isinstance(self.handler, type) else self.handler

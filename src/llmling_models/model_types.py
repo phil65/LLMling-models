@@ -1,8 +1,9 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field
+from pydantic_ai import RunContext
 from pydantic_ai.messages import ModelMessage, ModelResponse
 from pydantic_ai.models import (
     KnownModelName,
@@ -64,6 +65,7 @@ class StringModel(PydanticModel):
         messages: list[ModelMessage],
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
+        run_context: RunContext[Any] | None = None,
     ) -> AsyncIterator[StreamedResponse]:
         """Stream from inferred model."""
         model = infer_model(self.identifier)  # type: ignore

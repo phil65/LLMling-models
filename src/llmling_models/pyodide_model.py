@@ -9,6 +9,7 @@ import os
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 from pydantic import Field, TypeAdapter
+from pydantic_ai import RequestUsage
 from pydantic_ai.messages import (
     ModelMessage,
     ModelResponse,
@@ -21,7 +22,6 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 from pydantic_ai.models import ModelRequestParameters, StreamedResponse
-from pydantic_ai.result import Usage
 
 from llmling_models.base import PydanticModel
 from llmling_models.log import get_logger
@@ -122,7 +122,7 @@ class OpenAIStreamedResponse(StreamedResponse):
 
     def __post_init__(self):
         """Initialize usage tracking and parts manager."""
-        self._usage = Usage()
+        self._usage = RequestUsage()
         self._has_yielded_start = False
 
     async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
@@ -209,10 +209,9 @@ class OpenAIStreamedResponse(StreamedResponse):
 
                 # Update usage if available
                 if usage := data.get("usage"):
-                    self._usage = Usage(
-                        request_tokens=usage.get("prompt_tokens", 0),
-                        response_tokens=usage.get("completion_tokens", 0),
-                        total_tokens=usage.get("total_tokens", 0),
+                    self._usage = RequestUsage(
+                        input_tokens=usage.get("prompt_tokens", 0),
+                        output_tokens=usage.get("completion_tokens", 0),
                     )
 
         except Exception as e:
@@ -351,10 +350,9 @@ class SimpleOpenAIModel(PydanticModel):
 
                 # Extract usage
                 usage_data = data.get("usage", {})
-                usage = Usage(
-                    request_tokens=usage_data.get("prompt_tokens", 0),
-                    response_tokens=usage_data.get("completion_tokens", 0),
-                    total_tokens=usage_data.get("total_tokens", 0),
+                usage = RequestUsage(
+                    input_tokens=usage_data.get("prompt_tokens", 0),
+                    output_tokens=usage_data.get("completion_tokens", 0),
                 )
 
                 ts = datetime.now(UTC)

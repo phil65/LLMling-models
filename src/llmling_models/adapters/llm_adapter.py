@@ -11,7 +11,7 @@ import re
 from typing import TYPE_CHECKING, Any
 import uuid
 
-from pydantic_ai import BinaryContent, ImageUrl
+from pydantic_ai import BinaryContent, ImageUrl, RequestUsage, RunContext
 from pydantic_ai.messages import (
     ModelMessage,
     ModelResponse,
@@ -24,7 +24,6 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
-from pydantic_ai.result import Usage
 
 from llmling_models.log import get_logger
 
@@ -39,24 +38,22 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-async def _map_async_usage(response: llm.AsyncResponse) -> Usage:
+async def _map_async_usage(response: llm.AsyncResponse) -> RequestUsage:
     """Map async LLM usage to Pydantic-AI usage."""
     await response._force()  # Ensure usage is available
-    return Usage(
-        request_tokens=response.input_tokens,
-        response_tokens=response.output_tokens,
-        total_tokens=((response.input_tokens or 0) + (response.output_tokens or 0)),
-        details=response.token_details,
+    return RequestUsage(
+        input_tokens=response.input_tokens or 0,
+        output_tokens=response.output_tokens or 0,
+        details=response.token_details or {},
     )
 
 
-def _map_sync_usage(response: llm.Response) -> Usage:
+def _map_sync_usage(response: llm.Response) -> RequestUsage:
     """Map sync LLM usage to Pydantic-AI usage."""
     response._force()
-    return Usage(
-        request_tokens=response.input_tokens,
-        response_tokens=response.output_tokens,
-        total_tokens=((response.input_tokens or 0) + (response.output_tokens or 0)),
+    return RequestUsage(
+        input_tokens=response.input_tokens or 0,
+        output_tokens=response.output_tokens or 0,
     )
 
 
@@ -361,6 +358,7 @@ class LLMAdapter(Model):
         messages: list[ModelMessage],
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
+        run_context: RunContext[Any] | None = None,
     ) -> AsyncIterator[StreamedResponse]:
         """Make a streaming request to the model."""
         prompt, system, attachments = _build_prompt(messages)
@@ -413,7 +411,11 @@ class LLMAdapter(Model):
                 )
                 raise RuntimeError(msg)
 
-            yield LLMStreamedResponse(response=response, is_chain=False)
+            yield LLMStreamedResponse(
+                ModelRequestParameters(),
+                response=response,
+                is_chain=False,
+            )
 
 
 @dataclass(kw_only=True)
@@ -427,7 +429,12 @@ class LLMStreamedResponse(StreamedResponse):
 
     def __post_init__(self):
         """Initialize usage."""
-        self._usage = Usage()
+        self._usage = RequestUsage()
+
+    @property
+    def provider_name(self) -> str | None:
+        """Get the provider name."""
+        return "llm"
 
     async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
         """Stream response chunks as events."""

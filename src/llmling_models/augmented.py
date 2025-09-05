@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pydantic import ConfigDict
+from pydantic_ai import RequestUsage, RunContext
 from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
@@ -13,7 +14,6 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 from pydantic_ai.models import KnownModelName, Model
-from pydantic_ai.result import Usage
 from schemez import Schema
 
 from llmling_models.log import get_logger
@@ -119,7 +119,7 @@ class AugmentedModel(Model):
         model_request_parameters: ModelRequestParameters,
     ) -> ModelResponse:
         """Process request with pre/post prompting."""
-        total_cost = Usage()
+        total_cost = RequestUsage()
         all_messages = messages.copy()
 
         # Pre-process the question if configured
@@ -190,6 +190,7 @@ class AugmentedModel(Model):
         messages: list[ModelMessage],
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
+        run_context: RunContext[Any] | None = None,
     ) -> AsyncIterator[StreamedResponse]:
         """Stream response with pre/post processing."""
         all_messages = messages.copy()

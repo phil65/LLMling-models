@@ -7,9 +7,10 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 import inspect
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, ImportString
+from pydantic_ai import RequestUsage, RunContext
 from pydantic_ai.messages import (
     ModelMessage,
     ModelResponse,
@@ -18,7 +19,6 @@ from pydantic_ai.messages import (
     TextPart,
 )
 from pydantic_ai.models import ModelRequestParameters, StreamedResponse
-from pydantic_ai.result import Usage
 
 from llmling_models.base import PydanticModel
 from llmling_models.log import get_logger
@@ -43,7 +43,7 @@ class InputStreamedResponse(StreamedResponse):
 
     def __post_init__(self):
         """Initialize usage tracking."""
-        self._usage = Usage()
+        self._usage = RequestUsage()
 
     async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
         """Stream characters as events."""
@@ -132,7 +132,11 @@ class InputModel(PydanticModel):
                 response = response_or_awaitable
 
         parts: list[ModelResponsePart] = [TextPart(response)]
-        return ModelResponse(parts=parts, timestamp=datetime.now(UTC), usage=Usage())
+        return ModelResponse(
+            parts=parts,
+            timestamp=datetime.now(UTC),
+            usage=RequestUsage(),
+        )
 
     @asynccontextmanager
     async def request_stream(
@@ -140,6 +144,7 @@ class InputModel(PydanticModel):
         messages: list[ModelMessage],
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
+        run_context: RunContext[Any] | None = None,
     ) -> AsyncIterator[StreamedResponse]:
         """Stream responses character by character."""
         # Format and display messages using handler

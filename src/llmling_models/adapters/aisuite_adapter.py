@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
+from pydantic_ai import RequestUsage, RunContext
 from pydantic_ai.messages import (
     AudioUrl,
     BinaryContent,
@@ -23,7 +24,6 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
-from pydantic_ai.result import Usage
 
 
 if TYPE_CHECKING:
@@ -116,7 +116,7 @@ class AISuiteStreamedResponse(StreamedResponse):
 
     def __post_init__(self):
         """Initialize usage."""
-        self._usage = Usage()  # Initialize with empty usage
+        self._usage = RequestUsage()  # Initialize with empty usage
 
     async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
         """Not supported yet."""
@@ -286,7 +286,7 @@ class AISuiteAdapter(Model):
 
         # AISuite doesn't provide token counts yet
         ts = datetime.now(UTC)
-        return ModelResponse(parts=parts, timestamp=ts, usage=Usage())
+        return ModelResponse(parts=parts, timestamp=ts, usage=RequestUsage())
 
     @asynccontextmanager
     async def request_stream(
@@ -294,6 +294,7 @@ class AISuiteAdapter(Model):
         messages: list[ModelMessage],
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
+        run_context: RunContext[Any] | None = None,
     ) -> AsyncIterator[StreamedResponse]:
         """Streaming is not supported yet."""
         msg = "Streaming not supported by AISuite adapter"
