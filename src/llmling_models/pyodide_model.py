@@ -9,7 +9,7 @@ import os
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 from pydantic import Field, TypeAdapter
-from pydantic_ai import RequestUsage
+from pydantic_ai import RequestUsage, RunContext
 from pydantic_ai.messages import (
     ModelMessage,
     ModelResponse,
@@ -375,6 +375,7 @@ class SimpleOpenAIModel(PydanticModel):
         messages: list[ModelMessage],
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
+        run_context: RunContext[Any] | None = None,
     ) -> AsyncIterator[StreamedResponse]:
         """Stream response from OpenAI API."""
         import httpx
