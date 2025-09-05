@@ -131,6 +131,7 @@ class UserSelectModel(MultiModel[Model]):
             messages,
             model_settings,
             model_request_parameters,
+            run_context,
         ) as stream:
             yield stream
 

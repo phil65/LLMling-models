@@ -73,6 +73,7 @@ class StringModel(PydanticModel):
             messages,
             model_settings,
             model_request_parameters,
+            run_context,
         ) as stream:
             yield stream
 
