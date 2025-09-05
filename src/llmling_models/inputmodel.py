@@ -45,6 +45,11 @@ class InputStreamedResponse(StreamedResponse):
         """Initialize usage tracking."""
         self._usage = RequestUsage()
 
+    @property
+    def provider_name(self) -> str | None:
+        """Get the provider name."""
+        return "input"
+
     async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
         """Stream characters as events."""
         try:
@@ -169,7 +174,7 @@ class InputModel(PydanticModel):
             else:
                 char_stream = stream_or_awaitable
 
-        yield InputStreamedResponse(stream=char_stream)
+        yield InputStreamedResponse(ModelRequestParameters(), stream=char_stream)
 
 
 if __name__ == "__main__":

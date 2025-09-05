@@ -125,6 +125,11 @@ class OpenAIStreamedResponse(StreamedResponse):
         self._usage = RequestUsage()
         self._has_yielded_start = False
 
+    @property
+    def provider_name(self) -> str | None:
+        """Get the provider name."""
+        return "pyodide"
+
     async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
         """Stream response chunks."""
         import anyenv
@@ -385,7 +390,9 @@ class SimpleOpenAIModel(PydanticModel):
             url = f"{base_url}/chat/completions"
             response = await client.post(url, headers=headers, json=payload)
             response.raise_for_status()
-            yield OpenAIStreamedResponse(response=response, _model_name=self.model_name)
+            yield OpenAIStreamedResponse(
+                ModelRequestParameters(), response=response, _model_name=self.model_name
+            )
 
         except httpx.HTTPError as e:
             msg = f"OpenAI stream request failed: {e}"

@@ -206,7 +206,10 @@ class RemoteInputModel(PydanticModel):
             data = anyenv.dump_json({"prompt": prompt, "conversation": conversation})
             await websocket.send(data)
 
-            yield RemoteInputStreamedResponse(websocket=websocket)
+            yield RemoteInputStreamedResponse(
+                ModelRequestParameters(),
+                websocket=websocket,
+            )
 
         except websockets.ConnectionClosed as e:
             msg = f"WebSocket error: {e}"
@@ -229,6 +232,11 @@ class RemoteInputStreamedResponse(StreamedResponse):
     @property
     def model_name(self) -> str:
         """Get response model_name."""
+        return "remote-input"
+
+    @property
+    def provider_name(self) -> str:
+        """Get response provider name."""
         return "remote-input"
 
     async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:

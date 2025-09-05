@@ -302,7 +302,11 @@ class LiteLLMAdapter(PydanticModel):
                 **params,
             )
 
-            yield LiteLLMStreamedResponse(response=stream, _model_name=self.model)
+            yield LiteLLMStreamedResponse(
+                ModelRequestParameters(),
+                response=stream,
+                _model_name=self.model,
+            )
 
         except Exception as e:
             msg = f"LiteLLM streaming request failed: {e}"
@@ -323,6 +327,11 @@ class LiteLLMStreamedResponse(StreamedResponse):
         self._usage = RequestUsage()
         self._content_part_id = "content"  # Default part ID for content
         self._tool_calls: dict[str, dict[str, Any]] = {}  # Track tool calls by index
+
+    @property
+    def provider_name(self) -> str | None:
+        """Get the provider name."""
+        return "litellm"
 
     async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
         """Stream chunks as events."""

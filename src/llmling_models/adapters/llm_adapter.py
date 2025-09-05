@@ -396,7 +396,11 @@ class LLMAdapter(Model):
                 msg = "No model available"
                 raise RuntimeError(msg)
 
-            yield LLMStreamedResponse(response=chain_response, is_chain=True)
+            yield LLMStreamedResponse(
+                ModelRequestParameters(),
+                response=chain_response,
+                is_chain=True,
+            )
         else:
             # No tools - use regular streaming
 

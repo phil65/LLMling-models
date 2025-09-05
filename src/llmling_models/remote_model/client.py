@@ -173,7 +173,10 @@ class RemoteProxyModel(PydanticModel):
         try:
             payload = ModelMessagesTypeAdapter.dump_json(messages)
             await websocket.send(payload)
-            yield RemoteProxyStreamedResponse(websocket=websocket)
+            yield RemoteProxyStreamedResponse(
+                ModelRequestParameters(),
+                websocket=websocket,
+            )
 
         except websockets.ConnectionClosed as e:
             msg = f"WebSocket error: {e}"
@@ -196,6 +199,11 @@ class RemoteProxyStreamedResponse(StreamedResponse):
     @property
     def model_name(self) -> str:
         """Get response model_name."""
+        return "remote-proxy"
+
+    @property
+    def provider_name(self) -> str | None:
+        """Get the provider name."""
         return "remote-proxy"
 
     async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
