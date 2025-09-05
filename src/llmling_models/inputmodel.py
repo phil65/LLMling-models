@@ -57,10 +57,12 @@ class InputStreamedResponse(StreamedResponse):
                 try:
                     char = await self.stream.__anext__()
                     # Emit text delta event for each character
-                    yield self._parts_manager.handle_text_delta(
+                    event = self._parts_manager.handle_text_delta(
                         vendor_part_id="content",
                         content=char,
                     )
+                    if event is not None:
+                        yield event
                 except StopAsyncIteration:
                     break
 

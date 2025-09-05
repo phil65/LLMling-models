@@ -258,10 +258,12 @@ class RemoteInputStreamedResponse(StreamedResponse):
                         break
 
                     # Emit text delta event for each chunk
-                    yield self._parts_manager.handle_text_delta(
+                    event = self._parts_manager.handle_text_delta(
                         vendor_part_id="content",
                         content=data["chunk"],
                     )
+                    if event is not None:
+                        yield event
 
                 except (websockets.ConnectionClosed, ValueError, KeyError) as e:
                     msg = f"Stream error: {e}"

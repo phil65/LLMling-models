@@ -457,18 +457,22 @@ class LLMStreamedResponse(StreamedResponse):
                         # Async chain
                         async for chunk in self.response:
                             if chunk:  # Only yield non-empty chunks
-                                yield self._parts_manager.handle_text_delta(
+                                event = self._parts_manager.handle_text_delta(
                                     vendor_part_id="content",
                                     content=str(chunk),
                                 )
+                                if event is not None:
+                                    yield event
                     else:
                         # Sync chain
                         for chunk in self.response:
                             if chunk:  # Only yield non-empty chunks
-                                yield self._parts_manager.handle_text_delta(
+                                event = self._parts_manager.handle_text_delta(
                                     vendor_part_id="content",
                                     content=chunk,
                                 )
+                                if event is not None:
+                                    yield event
                 except Exception as e:  # noqa: BLE001
                     logger.debug("Chain streaming failed, falling back to text: %s", e)
                     # Fallback: try to get final text
@@ -482,10 +486,12 @@ class LLMStreamedResponse(StreamedResponse):
                             else:
                                 text = str(self.response.text)
                             if text:
-                                yield self._parts_manager.handle_text_delta(
+                                event = self._parts_manager.handle_text_delta(
                                     vendor_part_id="content",
                                     content=str(text),
                                 )
+                                if event is not None:
+                                    yield event
                     except Exception as fallback_e:  # noqa: BLE001
                         logger.warning(
                             "Could not get text from chain response: %s", fallback_e
@@ -528,10 +534,12 @@ class LLMStreamedResponse(StreamedResponse):
                         if text:
                             # Stream the text character by character to simulate streaming
                             for char in str(text):
-                                yield self._parts_manager.handle_text_delta(
+                                event = self._parts_manager.handle_text_delta(
                                     vendor_part_id="content",
                                     content=char,
                                 )
+                                if event is not None:
+                                    yield event
 
                             # Update usage after streaming
                             if isinstance(self.response, llm.AsyncResponse):
@@ -555,10 +563,12 @@ class LLMStreamedResponse(StreamedResponse):
                         chunk_count += 1
 
                         if chunk:  # Only yield non-empty chunks
-                            yield self._parts_manager.handle_text_delta(
+                            event = self._parts_manager.handle_text_delta(
                                 vendor_part_id="content",
                                 content=chunk,
                             )
+                            if event is not None:
+                                yield event
 
                     except (StopIteration, StopAsyncIteration):
                         break

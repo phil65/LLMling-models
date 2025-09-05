@@ -230,10 +230,12 @@ class RemoteProxyStreamedResponse(StreamedResponse):
 
                     chunk = data.get("chunk")
                     if chunk:  # Only emit non-empty chunks
-                        yield self._parts_manager.handle_text_delta(
+                        event = self._parts_manager.handle_text_delta(
                             vendor_part_id="content",
                             content=chunk,
                         )
+                        if event is not None:
+                            yield event
 
                 except (websockets.ConnectionClosed, ValueError, KeyError) as e:
                     msg = f"Stream error: {e}"

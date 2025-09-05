@@ -349,10 +349,12 @@ class LiteLLMStreamedResponse(StreamedResponse):
                 choice = chunk.choices[0]
                 delta = choice.delta
                 if content := delta.get("content"):
-                    yield self._parts_manager.handle_text_delta(
+                    event = self._parts_manager.handle_text_delta(
                         vendor_part_id=self._content_part_id,
                         content=content,
                     )
+                    if event is not None:
+                        yield event
 
                 # Handle tool calls
                 if tool_calls := delta.get("tool_calls", []):

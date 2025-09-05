@@ -171,13 +171,15 @@ class OpenAIStreamedResponse(StreamedResponse):
                             vendor_part_id=content_id,
                             content=content,
                         )
-                        yield event
+                        if event is not None:
+                            yield event
                     else:
                         event = self._parts_manager.handle_text_delta(
                             vendor_part_id=content_id,
                             content=content,
                         )
-                        yield event
+                        if event is not None:
+                            yield event
 
                 # Handle tool calls
                 if tool_call_delta := delta.get("tool_calls", []):
