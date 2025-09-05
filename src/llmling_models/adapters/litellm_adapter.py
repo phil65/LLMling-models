@@ -400,7 +400,7 @@ if __name__ == "__main__":
         model = LiteLLMAdapter(model="gpt-4o-mini")
         agent: Agent[None, str] = Agent(model=model)
         response = await agent.run("Tell me a brief story about a clever fox")
-        print(f"Response: {response.data}")
+        print(f"Response: {response.output}")
         print("\nTesting streaming:")
         async with agent.run_stream("List 3 interesting science facts") as stream:
             async for chunk in stream.stream_text(delta=True):
@@ -414,6 +414,6 @@ if __name__ == "__main__":
         print("\nTesting with tools:")
         tool_agent: Agent[None, str] = Agent(model=model, tools=[multiply])
         tool_response = await tool_agent.run("What is 42 multiplied by 56?")
-        print(f"Tool response: {tool_response.data}")
+        print(f"Tool response: {tool_response.output}")
 
     asyncio.run(test())

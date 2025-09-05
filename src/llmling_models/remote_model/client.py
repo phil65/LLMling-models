@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from urllib.parse import urlparse
 
 import httpx
-from pydantic_ai import RunContext
+from pydantic_ai import RequestUsage, RunContext
 from pydantic_ai.messages import (
     ModelMessage,
     ModelMessagesTypeAdapter,
@@ -18,7 +18,6 @@ from pydantic_ai.messages import (
     TextPart,
 )
 from pydantic_ai.models import ModelRequestParameters, StreamedResponse
-from pydantic_ai.result import Usage
 
 from llmling_models.base import PydanticModel
 from llmling_models.log import get_logger
@@ -95,7 +94,7 @@ class RemoteProxyModel(PydanticModel):
                 model_response = ModelResponse(
                     parts=[TextPart(data["content"])],
                     timestamp=datetime.now(UTC),
-                    usage=Usage(**data.get("usage", {})),
+                    usage=RequestUsage(**data.get("usage", {})),
                 )
             except httpx.HTTPError as e:
                 if hasattr(e, "response") and e.response is not None:  # type: ignore
@@ -121,7 +120,7 @@ class RemoteProxyModel(PydanticModel):
 
                 # Accumulate response chunks
                 chunks: list[str] = []
-                usage = Usage()
+                usage = RequestUsage()
 
                 while True:
                     raw_data = await websocket.recv()
@@ -133,7 +132,7 @@ class RemoteProxyModel(PydanticModel):
                         raise RuntimeError(msg)
 
                     if data.get("usage"):
-                        usage = Usage(**data["usage"])
+                        usage = RequestUsage(**data["usage"])
 
                     chunk = data.get("chunk")
                     if chunk is not None:  # Include empty strings but not None
@@ -192,7 +191,7 @@ class RemoteProxyStreamedResponse(StreamedResponse):
 
     def __post_init__(self):
         """Initialize usage tracking."""
-        self._usage = Usage()
+        self._usage = RequestUsage()
 
     @property
     def model_name(self) -> str:
@@ -216,7 +215,7 @@ class RemoteProxyStreamedResponse(StreamedResponse):
                         raise RuntimeError(msg)
 
                     if data.get("usage"):
-                        self._usage = Usage(**data["usage"])
+                        self._usage = RequestUsage(**data["usage"])
 
                     if data.get("done", False):
                         break

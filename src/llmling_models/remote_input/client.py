@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from urllib.parse import urlparse
 
 import httpx
-from pydantic_ai import RunContext
+from pydantic_ai import RequestUsage, RunContext
 from pydantic_ai.messages import (
     ModelMessage,
     ModelResponse,
@@ -17,7 +17,6 @@ from pydantic_ai.messages import (
     TextPart,
 )
 from pydantic_ai.models import ModelRequestParameters, StreamedResponse
-from pydantic_ai.result import Usage
 
 from llmling_models.base import PydanticModel
 from llmling_models.log import get_logger
@@ -119,7 +118,7 @@ class RemoteInputModel(PydanticModel):
                 return ModelResponse(
                     parts=[TextPart(response_data["content"])],
                     timestamp=datetime.now(UTC),
-                    usage=Usage(),
+                    usage=RequestUsage(),
                 )
 
             except httpx.HTTPError as e:
@@ -168,7 +167,7 @@ class RemoteInputModel(PydanticModel):
                 return ModelResponse(
                     parts=[TextPart(response_text)],
                     timestamp=datetime.now(UTC),
-                    usage=Usage(),
+                    usage=RequestUsage(),
                 )
 
             except (websockets.ConnectionClosed, ValueError, KeyError) as e:
@@ -225,7 +224,7 @@ class RemoteInputStreamedResponse(StreamedResponse):
 
     def __post_init__(self):
         """Initialize usage tracking."""
-        self._usage = Usage()
+        self._usage = RequestUsage()
 
     @property
     def model_name(self) -> str:
@@ -284,6 +283,6 @@ if __name__ == "__main__":
         model = RemoteInputModel(url="http://localhost:8000", api_key="test-key")
         agent: Agent[None, str] = Agent(model=model)
         response = await agent.run("Hello! How are you?")
-        print(f"\nResponse: {response.data}")
+        print(f"\nResponse: {response.output}")
 
     asyncio.run(test())

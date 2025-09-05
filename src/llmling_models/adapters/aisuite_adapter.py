@@ -314,7 +314,7 @@ if __name__ == "__main__":
         adapter = AISuiteAdapter(model="openai:gpt-4o-mini")
         agent: Agent[None, str] = Agent(model=adapter)
         response = await agent.run("Say hello!")
-        print(response.data)
+        print(response.output)
 
         @agent.tool_plain
         def calculate(a: int, b: int, operation: str) -> int:
@@ -330,6 +330,6 @@ if __name__ == "__main__":
             return 0
 
         tool_response = await agent.run("What is 42 multiplied by 56?")
-        print(f"Tool response: {tool_response.data}")
+        print(f"Tool response: {tool_response.output}")
 
     asyncio.run(test())
