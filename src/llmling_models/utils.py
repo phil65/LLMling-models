@@ -226,10 +226,7 @@ def estimate_tokens(messages: list[ModelMessage]) -> int:
     return tokonomics.count_tokens(content)
 
 
-def estimate_request_cost(
-    costs: dict[str, str] | ModelCosts,
-    token_count: int,
-) -> Decimal:
+def estimate_request_cost(costs: ModelCosts, token_count: int) -> Decimal:
     """Estimate input cost for a request.
 
     Args:
@@ -240,16 +237,8 @@ def estimate_request_cost(
         Decimal: Estimated input cost in USD
     """
     # Extract input cost per token
-    if isinstance(costs, dict):
-        input_cost = Decimal(costs["input_cost_per_token"])
-    else:
-        input_cost = Decimal(str(costs.input_cost_per_token))
-
+    input_cost = Decimal(costs["input_cost_per_token"])
     estimated_cost = input_cost * token_count
-    logger.debug(
-        "Estimated cost: %s * %d tokens = %s",
-        input_cost,
-        token_count,
-        estimated_cost,
-    )
+    msg = "Estimated cost: %s * %d tokens = %s"
+    logger.debug(msg, input_cost, token_count, estimated_cost)
     return estimated_cost
