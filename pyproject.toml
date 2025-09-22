@@ -242,6 +242,9 @@ combine-as-imports = true
 "__init__.py" = ["E402", "I001"]
 "scripts/*" = ["INP001"]
 
+[tool.ty.environment]
+python-version = "3.12"
+
 [tool.pyright]
 venvPath = "."
 venv = ".venv"
