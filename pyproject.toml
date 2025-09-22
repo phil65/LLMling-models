@@ -39,7 +39,7 @@ dependencies = [
     "pydantic",
     # Only add below (Copier)
     "pydantic-ai-slim>=1.0.0",
-    "tokonomics>=0.2.1",
+    "tokonomics>=0.4.0",
     "anyenv",
     "schemez>=0.0.1",
 ]
