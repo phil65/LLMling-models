@@ -65,7 +65,7 @@ def get_model(
         return SimpleOpenAIModel(model=model_name, api_key=api_key, base_url=base_url)
 
     # For regular environments and recognized providers, use the provider interface
-    from pydantic_ai.models.openai import OpenAIModel
+    from pydantic_ai.models.openai import OpenAIResponsesModel
 
     if provider_name:
         try:
@@ -79,7 +79,7 @@ def get_model(
     from pydantic_ai.providers.openai import OpenAIProvider
 
     provider = OpenAIProvider(base_url=base_url, api_key=api_key)
-    return OpenAIModel(model_name=model_name, provider=provider)
+    return OpenAIResponsesModel(model_name=model_name, provider=provider)
 
 
 def infer_model(
@@ -163,7 +163,7 @@ def _infer_single_model(  # noqa: PLR0911
 
     if model.startswith("copilot:"):
         from httpx import AsyncClient
-        from pydantic_ai.models.openai import OpenAIModel
+        from pydantic_ai.models.openai import OpenAIResponsesModel
         from pydantic_ai.providers.openai import OpenAIProvider
 
         token = os.getenv("GITHUB_COPILOT_API_KEY")
@@ -176,7 +176,7 @@ def _infer_single_model(  # noqa: PLR0911
         base_url = "https://api.githubcopilot.com"
         prov = OpenAIProvider(base_url=base_url, api_key=token, http_client=client)
         model_name = model.removeprefix("copilot:")
-        return OpenAIModel(model_name=model_name, provider=prov)
+        return OpenAIResponsesModel(model_name=model_name, provider=prov)
 
     if model == "input":
         from llmling_models import InputModel
