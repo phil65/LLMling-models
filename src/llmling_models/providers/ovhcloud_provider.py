@@ -117,12 +117,12 @@ if __name__ == "__main__":
     import asyncio
 
     from pydantic_ai import Agent
-    from pydantic_ai.models.openai import OpenAIModel
+    from pydantic_ai.models.openai import OpenAIResponsesModel
 
     async def main():
         # Example using model name for automatic endpoint construction
         provider = OVHCloudProvider(model_name="mistral-7b-instruct-v0-3")
-        model = OpenAIModel("Mistral-7B-Instruct-v0.3", provider=provider)
+        model = OpenAIResponsesModel("Mistral-7B-Instruct-v0.3", provider=provider)
         agent = Agent(model=model)
         result = await agent.run("Explain gravity for a 6 years old")
         print(result.output)

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, overload
 
 from openai import AsyncOpenAI
 from pydantic_ai.models import cached_async_http_client
+from pydantic_ai.models.openai import OpenAIResponsesModel
 from pydantic_ai.providers import Provider
 
 from llmling_models.log import get_logger
@@ -100,11 +101,11 @@ if __name__ == "__main__":
     import asyncio
 
     from pydantic_ai import Agent
-    from pydantic_ai.models.openai import OpenAIModel
+    from pydantic_ai.models.openai import OpenAIResponsesModel
 
     async def main():
         provider = OpenRouterProvider()
-        model = OpenAIModel("openai/o3-mini", provider=provider)
+        model = OpenAIResponsesModel("openai/o3-mini", provider=provider)
         agent = Agent(model=model)
         result = await agent.run("Hello, world!")
         print(result)

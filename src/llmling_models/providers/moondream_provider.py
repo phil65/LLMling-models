@@ -100,11 +100,11 @@ if __name__ == "__main__":
     import asyncio
 
     from pydantic_ai import Agent, BinaryContent
-    from pydantic_ai.models.openai import OpenAIModel
+    from pydantic_ai.models.openai import OpenAIResponsesModel
 
     async def main():
         provider = MoondreamProvider()
-        model = OpenAIModel("moondream-2B", provider=provider)
+        model = OpenAIResponsesModel("moondream-2B", provider=provider)
         agent = Agent(model=model)
         result = await agent.run([
             "Hello, world!",

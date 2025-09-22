@@ -74,11 +74,11 @@ if __name__ == "__main__":
     import asyncio
 
     from pydantic_ai import Agent
-    from pydantic_ai.models.openai import OpenAIModel
+    from pydantic_ai.models.openai import OpenAIResponsesModel
 
     async def main():
         provider = CopilotProvider()
-        model = OpenAIModel("gpt-4o-mini", provider=provider)
+        model = OpenAIResponsesModel("gpt-4o-mini", provider=provider)
         agent = Agent(model=model)
         result = await agent.run("Hello, world!")
         print(result)

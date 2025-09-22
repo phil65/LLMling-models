@@ -97,11 +97,11 @@ if __name__ == "__main__":
     import asyncio
 
     from pydantic_ai import Agent
-    from pydantic_ai.models.openai import OpenAIModel
+    from pydantic_ai.models.openai import OpenAIResponsesModel
 
     async def main():
         provider = PerplexityProvider()
-        model = OpenAIModel("MODEL_NAME", provider=provider)
+        model = OpenAIResponsesModel("MODEL_NAME", provider=provider)
         agent = Agent(model=model)
         result = await agent.run("Hello, world!")
         print(result)
