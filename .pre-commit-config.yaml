@@ -34,19 +34,19 @@ repos:
       - id: detect-private-key
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.17.1
+    rev: v1.18.2
     hooks:
       - id: mypy
         additional_dependencies: [orjson, pydantic]
 
   - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.12.12
+    rev: v0.13.1
     hooks:
       - id: ruff
       - id: ruff-format
 
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v4.8.3
+    rev: v4.9.1
     hooks:
       - id: commitizen
         stages: [commit-msg]
