@@ -397,7 +397,7 @@ class LLMAdapter(Model):
                 raise RuntimeError(msg)
 
             yield LLMStreamedResponse(
-                ModelRequestParameters(),
+                model_request_parameters=ModelRequestParameters(),
                 response=chain_response,
                 is_chain=True,
             )
@@ -420,7 +420,7 @@ class LLMAdapter(Model):
                 raise RuntimeError(msg)
 
             yield LLMStreamedResponse(
-                ModelRequestParameters(),
+                model_request_parameters=ModelRequestParameters(),
                 response=response,
                 is_chain=False,
             )

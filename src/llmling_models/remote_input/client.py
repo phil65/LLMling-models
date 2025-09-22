@@ -207,7 +207,7 @@ class RemoteInputModel(PydanticModel):
             await websocket.send(data)
 
             yield RemoteInputStreamedResponse(
-                ModelRequestParameters(),
+                model_request_parameters=ModelRequestParameters(),
                 websocket=websocket,
             )
 

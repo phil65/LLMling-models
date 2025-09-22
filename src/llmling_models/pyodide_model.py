@@ -394,7 +394,9 @@ class SimpleOpenAIModel(PydanticModel):
             response = await client.post(url, headers=headers, json=payload)
             response.raise_for_status()
             yield OpenAIStreamedResponse(
-                ModelRequestParameters(), response=response, _model_name=self.model_name
+                model_request_parameters=ModelRequestParameters(),
+                response=response,
+                _model_name=self.model_name,
             )
 
         except httpx.HTTPError as e:

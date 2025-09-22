@@ -174,7 +174,7 @@ class RemoteProxyModel(PydanticModel):
             payload = ModelMessagesTypeAdapter.dump_json(messages)
             await websocket.send(payload)
             yield RemoteProxyStreamedResponse(
-                ModelRequestParameters(),
+                model_request_parameters=ModelRequestParameters(),
                 websocket=websocket,
             )
 

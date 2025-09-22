@@ -303,7 +303,7 @@ class LiteLLMAdapter(PydanticModel):
             )
 
             yield LiteLLMStreamedResponse(
-                ModelRequestParameters(),
+                model_request_parameters=ModelRequestParameters(),
                 response=stream,
                 _model_name=self.model,
             )

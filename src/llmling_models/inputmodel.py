@@ -176,7 +176,9 @@ class InputModel(PydanticModel):
             else:
                 char_stream = stream_or_awaitable
 
-        yield InputStreamedResponse(ModelRequestParameters(), stream=char_stream)
+        yield InputStreamedResponse(
+            model_request_parameters=ModelRequestParameters(), stream=char_stream
+        )
 
 
 if __name__ == "__main__":
