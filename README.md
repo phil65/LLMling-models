@@ -415,57 +415,6 @@ LLMling-models extends the capabilities of pydantic-ai with additional provider 
 
 The package includes the following provider implementations:
 
-#### OpenRouter Provider
-
-Connect to OpenRouter's API service to access multiple models from different providers:
-
-```python
-from pydantic_ai import Agent
-from pydantic_ai.models.openai import OpenAIModel
-from llmling_models.providers import infer_provider
-
-# Method 1: Using infer_provider
-provider = infer_provider("openrouter")
-model = OpenAIModel("anthropic/claude-3-opus", provider=provider)
-
-# Method 2: Direct instantiation
-from llmling_models.providers.openrouter_provider import OpenRouterProvider
-provider = OpenRouterProvider(api_key="your-api-key")  # Or use OPENROUTER_API_KEY env var
-model = OpenAIModel("openai/o3-mini", provider=provider)
-
-agent = Agent(model=model)
-result = await agent.run("Hello world!")
-```
-
-#### Grok (X.AI) Provider
-
-Connect to X.AI's Grok models:
-
-```python
-from pydantic_ai import Agent
-from pydantic_ai.models.openai import OpenAIModel
-from llmling_models.providers.grok_provider import GrokProvider
-
-provider = GrokProvider(api_key="your-api-key")  # Or use X_AI_API_KEY/GROK_API_KEY env var
-model = OpenAIModel("grok-2-1212", provider=provider)
-agent = Agent(model=model)
-result = await agent.run("Hello Grok!")
-```
-
-#### Perplexity Provider
-
-Connect to Perplexity's API for advanced web search and reasoning capabilities:
-
-```python
-from pydantic_ai import Agent
-from pydantic_ai.models.openai import OpenAIModel
-from llmling_models.providers.perplexity_provider import PerplexityProvider
-
-provider = PerplexityProvider(api_key="your-api-key")  # Or use PERPLEXITY_API_KEY env var
-model = OpenAIModel("sonar-medium-online", provider=provider)
-agent = Agent(model=model)
-result = await agent.run("What's the latest on quantum computing?")
-```
 
 #### GitHub Copilot Provider
 

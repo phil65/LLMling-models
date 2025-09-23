@@ -8,10 +8,7 @@ import pytest
 from llmling_models.adapters.llm_adapter import LLMAdapter
 from llmling_models.providers import infer_provider
 from llmling_models.providers.copilot_provider import CopilotProvider
-from llmling_models.providers.grok_provider import GrokProvider
 from llmling_models.providers.lm_studio_provider import LMStudioProvider
-from llmling_models.providers.openrouter_provider import OpenRouterProvider
-from llmling_models.providers.perplexity_provider import PerplexityProvider
 from llmling_models.pyodide_model import SimpleOpenAIModel
 from llmling_models.utils import infer_model
 
@@ -75,9 +72,6 @@ def test_infer_provider_returns_correct_provider_classes():
     """Test that infer_provider returns the correct provider class instances."""
     provider_map: dict[str, type[Provider]] = {
         "copilot": CopilotProvider,
-        "openrouter": OpenRouterProvider,
-        "grok": GrokProvider,
-        "perplexity": PerplexityProvider,
         "lm-studio": LMStudioProvider,
     }
 

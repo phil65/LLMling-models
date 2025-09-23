@@ -2,6 +2,7 @@
 
 from typing import Any
 from pydantic_ai.providers import Provider, infer_provider as _infer_provider
+import os
 
 
 def infer_provider(provider: str) -> Provider[Any]:  # noqa: PLR0911
@@ -11,23 +12,25 @@ def infer_provider(provider: str) -> Provider[Any]:  # noqa: PLR0911
 
         return CopilotProvider()
     if provider == "openrouter":
-        from llmling_models.providers.openrouter_provider import OpenRouterProvider
+        from pydantic_ai.providers.openrouter import OpenRouterProvider
 
         return OpenRouterProvider()
     if provider == "grok":
-        from llmling_models.providers.grok_provider import GrokProvider
+        from pydantic_ai.providers.grok import GrokProvider
 
-        return GrokProvider()
+        api_key = os.environ.get("X_AI_API_KEY") or os.environ.get("GROK_API_KEY") or ""
+        return GrokProvider(api_key=api_key)
     if provider == "perplexity":
-        from llmling_models.providers.perplexity_provider import PerplexityProvider
+        from pydantic_ai.providers.openai import OpenAIProvider
 
-        return PerplexityProvider()
+        api_key = os.environ.get("PERPLEXITY_API_KEY") or ""
+        return OpenAIProvider(base_url="https://api.perplexity.ai", api_key=api_key)
     if provider == "lm-studio":
         from llmling_models.providers.lm_studio_provider import LMStudioProvider
 
         return LMStudioProvider()
     if provider == "together":
-        from llmling_models.providers.together_provider import TogetherProvider
+        from pydantic_ai.providers.together import TogetherProvider
 
         return TogetherProvider()
     if provider == "ovhcloud":
