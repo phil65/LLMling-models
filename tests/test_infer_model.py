@@ -19,10 +19,7 @@ if TYPE_CHECKING:
 
 # Set environment variables for testing
 # os.environ["OPENAI_API_KEY"] = "test_key"
-os.environ["OPENROUTER_API_KEY"] = "test_key"
-os.environ["X_AI_API_KEY"] = "test_key"
 os.environ["GITHUB_COPILOT_API_KEY"] = "test_key"
-os.environ["PERPLEXITY_API_KEY"] = "test_key"
 
 
 def test_direct_model_instance():
