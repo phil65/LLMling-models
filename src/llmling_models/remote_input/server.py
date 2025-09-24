@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
-from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect, status
+from fastapi import FastAPI, Header, HTTPException, WebSocketDisconnect, status
 from fastapi.security import HTTPBearer
 from pydantic import BaseModel
 
 from llmling_models.log import get_logger
+
+
+if TYPE_CHECKING:
+    from fastapi import WebSocket
 
 
 logger = get_logger(__name__)

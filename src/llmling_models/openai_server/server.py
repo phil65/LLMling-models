@@ -8,18 +8,17 @@ import time
 from typing import TYPE_CHECKING, Annotated, Any, cast
 
 import anyenv
-from fastapi import Depends, FastAPI, Header, HTTPException, Response, WebSocket
+from fastapi import Depends, FastAPI, Header, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import create_model
 from pydantic_ai.messages import (
-    ModelMessage,
     PartDeltaEvent,
     PartStartEvent,
     TextPart,
     TextPartDelta,
 )
-from pydantic_ai.models import Model, ModelRequestParameters
+from pydantic_ai.models import ModelRequestParameters
 from pydantic_ai.settings import ModelSettings
 import tokonomics
 
@@ -35,6 +34,12 @@ from llmling_models.utils import infer_model
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
+
+    from fastapi import WebSocket
+    from pydantic_ai.messages import (
+        ModelMessage,
+    )
+    from pydantic_ai.models import Model
 
 
 logger = get_logger(__name__)

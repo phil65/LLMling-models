@@ -11,11 +11,9 @@ import re
 from typing import TYPE_CHECKING, Any
 import uuid
 
-from pydantic_ai import BinaryContent, ImageUrl, RequestUsage, RunContext
+from pydantic_ai import BinaryContent, ImageUrl, RequestUsage
 from pydantic_ai.messages import (
-    ModelMessage,
     ModelResponse,
-    ModelResponseStreamEvent,
     RetryPromptPart,
     SystemPromptPart,
     TextPart,
@@ -32,6 +30,11 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     import llm
+    from pydantic_ai import RunContext
+    from pydantic_ai.messages import (
+        ModelMessage,
+        ModelResponseStreamEvent,
+    )
     from pydantic_ai.settings import ModelSettings
     from pydantic_ai.tools import ToolDefinition
 

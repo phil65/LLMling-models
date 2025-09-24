@@ -7,28 +7,32 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from pydantic_ai import RequestUsage, RunContext
+from pydantic_ai import RequestUsage
 from pydantic_ai.messages import (
     AudioUrl,
     BinaryContent,
     DocumentUrl,
     ImageUrl,
-    ModelMessage,
     ModelResponse,
-    ModelResponseStreamEvent,
     SystemPromptPart,
     TextPart,
     ToolCallPart,
     ToolReturnPart,
-    UserContent,
     UserPromptPart,
 )
-from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
+from pydantic_ai.models import Model, StreamedResponse
 
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
+    from pydantic_ai import RunContext
+    from pydantic_ai.messages import (
+        ModelMessage,
+        ModelResponseStreamEvent,
+        UserContent,
+    )
+    from pydantic_ai.models import ModelRequestParameters
     from pydantic_ai.settings import ModelSettings
     from pydantic_ai.tools import ToolDefinition
 

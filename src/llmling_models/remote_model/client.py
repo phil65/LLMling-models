@@ -9,12 +9,10 @@ from typing import TYPE_CHECKING, Any, Literal
 from urllib.parse import urlparse
 
 import httpx
-from pydantic_ai import RequestUsage, RunContext
+from pydantic_ai import RequestUsage
 from pydantic_ai.messages import (
-    ModelMessage,
     ModelMessagesTypeAdapter,
     ModelResponse,
-    ModelResponseStreamEvent,
     TextPart,
 )
 from pydantic_ai.models import ModelRequestParameters, StreamedResponse
@@ -26,6 +24,11 @@ from llmling_models.log import get_logger
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
+    from pydantic_ai import RunContext
+    from pydantic_ai.messages import (
+        ModelMessage,
+        ModelResponseStreamEvent,
+    )
     from pydantic_ai.settings import ModelSettings
     from websockets import ClientConnection
 

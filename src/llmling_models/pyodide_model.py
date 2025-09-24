@@ -9,12 +9,9 @@ import os
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 from pydantic import Field, TypeAdapter
-from pydantic_ai import RequestUsage, RunContext
+from pydantic_ai import RequestUsage
 from pydantic_ai.messages import (
-    ModelMessage,
     ModelResponse,
-    ModelResponsePart,
-    ModelResponseStreamEvent,
     SystemPromptPart,
     TextPart,
     ToolCallPart,
@@ -38,6 +35,12 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     import httpx
+    from pydantic_ai import RunContext
+    from pydantic_ai.messages import (
+        ModelMessage,
+        ModelResponsePart,
+        ModelResponseStreamEvent,
+    )
     from pydantic_ai.settings import ModelSettings
     from pydantic_ai.tools import ToolDefinition
 

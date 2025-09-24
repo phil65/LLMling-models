@@ -9,13 +9,10 @@ from datetime import UTC, datetime
 import inspect
 from typing import TYPE_CHECKING, Any
 
-from pydantic import Field, ImportString
-from pydantic_ai import RequestUsage, RunContext
+from pydantic import Field
+from pydantic_ai import RequestUsage
 from pydantic_ai.messages import (
-    ModelMessage,
     ModelResponse,
-    ModelResponsePart,
-    ModelResponseStreamEvent,
     TextPart,
 )
 from pydantic_ai.models import ModelRequestParameters, StreamedResponse
@@ -27,6 +24,13 @@ from llmling_models.log import get_logger
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
+    from pydantic import ImportString
+    from pydantic_ai import RunContext
+    from pydantic_ai.messages import (
+        ModelMessage,
+        ModelResponsePart,
+        ModelResponseStreamEvent,
+    )
     from pydantic_ai.settings import ModelSettings
 
 

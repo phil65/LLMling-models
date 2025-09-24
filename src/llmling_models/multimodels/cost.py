@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import Field
-from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
+from pydantic_ai.models import Model
 
 from llmling_models.log import get_logger
 from llmling_models.multi import MultiModel
@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 
     from pydantic_ai import RunContext
     from pydantic_ai.messages import ModelMessage, ModelResponse
+    from pydantic_ai.models import ModelRequestParameters, StreamedResponse
     from pydantic_ai.settings import ModelSettings
 
 logger = get_logger(__name__)

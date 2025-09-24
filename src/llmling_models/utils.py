@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ImportString
 from pydantic_ai.messages import (
-    ModelMessage,
     SystemPromptPart,
     TextPart,
     ToolReturnPart,
@@ -23,6 +22,9 @@ from pydantic_ai.models.openai import OpenAIChatModel
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    from pydantic_ai.messages import (
+        ModelMessage,
+    )
     from pydantic_ai.models import Model
     from tokonomics import ModelCosts, TokenLimits
 

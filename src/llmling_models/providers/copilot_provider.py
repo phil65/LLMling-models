@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from httpx import AsyncClient as AsyncHTTPClient, Request, Response
+from httpx import AsyncClient as AsyncHTTPClient
 from openai import AsyncOpenAI
 from pydantic_ai.providers import Provider
 
@@ -12,6 +12,7 @@ from llmling_models.log import get_logger
 
 
 if TYPE_CHECKING:
+    from httpx import Request, Response
     from tokonomics import CopilotTokenManager
 
 

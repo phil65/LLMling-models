@@ -6,8 +6,8 @@ import contextlib
 from dataclasses import asdict
 from typing import TYPE_CHECKING, Any
 
-from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect, status
-from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter, ModelResponse
+from fastapi import FastAPI, Header, HTTPException, WebSocketDisconnect, status
+from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelResponse
 from pydantic_ai.models import ModelRequestParameters
 
 from llmling_models.log import get_logger
@@ -15,6 +15,8 @@ from llmling_models.utils import infer_model
 
 
 if TYPE_CHECKING:
+    from fastapi import WebSocket
+    from pydantic_ai.messages import ModelMessage
     from pydantic_ai.models import Model
 
 logger = get_logger(__name__)

@@ -15,17 +15,13 @@ from pydantic_ai import (
     DocumentUrl,
     ImageUrl,
     RequestUsage,
-    RunContext,
 )
 from pydantic_ai.messages import (
-    ModelMessage,
     ModelResponse,
-    ModelResponseStreamEvent,
     SystemPromptPart,
     TextPart,
     ToolCallPart,
     ToolReturnPart,
-    UserContent,
     UserPromptPart,
 )
 from pydantic_ai.models import ModelRequestParameters, StreamedResponse
@@ -37,6 +33,14 @@ from llmling_models.log import get_logger
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
+    from pydantic_ai import (
+        RunContext,
+    )
+    from pydantic_ai.messages import (
+        ModelMessage,
+        ModelResponseStreamEvent,
+        UserContent,
+    )
     from pydantic_ai.settings import ModelSettings
     from pydantic_ai.tools import ToolDefinition
 

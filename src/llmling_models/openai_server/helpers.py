@@ -8,10 +8,8 @@ import uuid
 
 import anyenv
 from pydantic_ai.messages import (
-    ModelMessage,
     ModelRequest,
     ModelResponse,
-    ModelResponsePart,
     SystemPromptPart,
     TextPart,
     ToolCallPart,
@@ -27,12 +25,20 @@ from llmling_models.openai_server.models import (
     FunctionCall,
     OpenAIMessage,
     ToolCall,
-    ToolDefinitionSchema,
 )
 
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
+
+    from pydantic_ai.messages import (
+        ModelMessage,
+        ModelResponsePart,
+    )
+
+    from llmling_models.openai_server.models import (
+        ToolDefinitionSchema,
+    )
 
 
 logger = get_logger(__name__)

@@ -1,19 +1,27 @@
-from collections.abc import AsyncIterator
+from __future__ import annotations
+
 from contextlib import asynccontextmanager
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import Field
-from pydantic_ai import RunContext
-from pydantic_ai.messages import ModelMessage, ModelResponse
 from pydantic_ai.models import (
     KnownModelName,
     Model,
-    ModelRequestParameters,
-    StreamedResponse,
 )
-from pydantic_ai.settings import ModelSettings
 
 from llmling_models import PydanticModel, infer_model
+
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
+    from pydantic_ai import RunContext
+    from pydantic_ai.messages import ModelMessage, ModelResponse
+    from pydantic_ai.models import (
+        ModelRequestParameters,
+        StreamedResponse,
+    )
+    from pydantic_ai.settings import ModelSettings
 
 
 AllModels = Literal[

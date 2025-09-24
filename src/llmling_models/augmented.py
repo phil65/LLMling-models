@@ -6,14 +6,12 @@ from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any
 
 from pydantic import ConfigDict
-from pydantic_ai import RequestUsage, RunContext
+from pydantic_ai import RequestUsage
 from pydantic_ai.messages import (
-    ModelMessage,
     ModelRequest,
-    ModelResponse,
     UserPromptPart,
 )
-from pydantic_ai.models import KnownModelName, Model
+from pydantic_ai.models import Model
 from schemez import Schema
 
 from llmling_models.log import get_logger
@@ -25,7 +23,16 @@ logger = get_logger(__name__)
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-    from pydantic_ai.models import ModelRequestParameters, StreamedResponse
+    from pydantic_ai import RunContext
+    from pydantic_ai.messages import (
+        ModelMessage,
+        ModelResponse,
+    )
+    from pydantic_ai.models import (
+        KnownModelName,
+        ModelRequestParameters,
+        StreamedResponse,
+    )
     from pydantic_ai.settings import ModelSettings
 
 
