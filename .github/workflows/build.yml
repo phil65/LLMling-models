@@ -8,7 +8,7 @@ jobs:
     continue-on-error: ${{ matrix.python_version == '3.14' }}
     strategy:
       matrix:
-        python_version: ["3.12", "3.13", "3.14"]
+        python_version: ["3.13", "3.14"]
         os: ["ubuntu-latest", "macos-latest", "windows-latest"]
     steps:
       - name: Check out repository
