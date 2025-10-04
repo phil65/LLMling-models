@@ -35,73 +35,6 @@ I will try to keep this up to date as fast as possible.
 
 ## Available Models
 
-### LLM Library Adapter
-
-Adapter to use models from the [LLM library](https://llm.datasette.io/) with Pydantic-AI:
-
-```python
-from pydantic_ai import Agent
-from llmling_models.adapters import LLMAdapter
-
-# Basic usage
-adapter = LLMAdapter(model_name="gpt-4o-mini")
-agent = Agent(model=adapter)
-result = await agent.run("Write a short poem")
-
-# Streaming support
-async with agent.run_stream("Test prompt") as response:
-    async for chunk in response.stream():
-        print(chunk)
-
-# Usage statistics
-result = await agent.run("Test prompt")
-usage = result.usage()
-print(f"Request tokens: {usage.input_tokens}")
-print(f"Response tokens: {usage.output_tokens}")
-```
-(Examples need to be wrapped in async function and run with `asyncio.run`)
-
-### AISuite Adapter
-
-Adapter to use models from [AISuite](https://github.com/andrewyng/aisuite) with Pydantic-AI:
-
-```python
-from pydantic_ai import Agent
-from llmling_models.adapters import AISuiteAdapter
-
-# Basic usage
-adapter = AISuiteAdapter(model="model_name")
-agent = Agent(adapter)
-result = await agent.run("Write a story")
-```
-
-### LiteLLM Adapter
-
-Adapter to use models from the [LiteLLM library](https://github.com/BerriAI/litellm) with Pydantic-AI:
-
-```python
-from pydantic_ai import Agent
-from llmling_models.adapters import LiteLLMAdapter
-
-# Basic usage
-adapter = LiteLLMAdapter(model="openai/gpt-4o-mini")
-agent = Agent(model=adapter)
-result = await agent.run("Write a short poem")
-
-# Tool usage
-@agent.tool_plain
-def multiply(a: int, b: int) -> int:
-    """Calculate a simple math operation."""
-    return a * b
-
-result = await agent.run("What is 42 multiplied by 56?")
-
-# Streaming support
-async with agent.run_stream("Tell me a story") as stream:
-    async for chunk in stream.stream_text(delta=True):
-        print(chunk, end="", flush=True)
-```
-
 
 ### Multi-Models
 
@@ -479,8 +412,6 @@ model = infer_model("copilot:gpt-4o-mini")       # GitHub Copilot (requires toke
 model = infer_model("lm-studio:model-name")      # LM Studio local models
 
 # LLMling's special models
-model = infer_model("llm:gpt-4")                # LLM library adapter
-model = infer_model("aisuite:anthropic:claude") # AISuite adapter
 model = infer_model("simple-openai:gpt-4")      # Simple HTTPX-based OpenAI client
 model = infer_model("input")                    # Interactive human input model
 model = infer_model("remote_model:ws://url")    # Remote model proxy
@@ -519,8 +450,6 @@ pip install llmling-models
 
 - Python 3.12+
 - pydantic-ai
-- llm (optional, for LLM adapter)
-- aisuite (optional, for aisuite adapter)
 - Either tokenizers or transformers for improved token calculation
 
 ## License
