@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from llmling_models.adapters.llm_adapter import LLMAdapter
 from llmling_models.providers import infer_provider
 from llmling_models.providers.copilot_provider import CopilotProvider
 from llmling_models.providers.lm_studio_provider import LMStudioProvider
@@ -27,13 +26,6 @@ def test_direct_model_instance():
     simple_model = SimpleOpenAIModel(model="gpt-4")
     result = infer_model(simple_model)
     assert result is simple_model
-
-
-def test_llm_adapter():
-    """Test creating an LLM adapter."""
-    model = infer_model("llm:gpt-4o-mini")
-    assert isinstance(model, LLMAdapter)
-    assert model.model_name == "gpt-4o-mini"
 
 
 def test_simple_openai():

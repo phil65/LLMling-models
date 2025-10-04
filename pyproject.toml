@@ -55,12 +55,9 @@ server = [
     "pyyaml>=6.0",
     "websockets>=12.0",
 ]
-llm = ["llm>=0.19.1"]
-aisuite = ["aisuite"]
 tokenizers = ["tokenizers"]
 transformers = ["transformers"]
 remote = ["fastapi", "uvicorn", "websockets"]
-litellm = ["litellm>=1.63.14"]
 
 [tool.uv]
 default-groups = ["dev", "lint", "docs"]
