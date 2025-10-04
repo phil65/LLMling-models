@@ -11,10 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import Field
 from pydantic_ai import RequestUsage
-from pydantic_ai.messages import (
-    ModelResponse,
-    TextPart,
-)
+from pydantic_ai.messages import ModelResponse, TextPart
 from pydantic_ai.models import ModelRequestParameters, StreamedResponse
 
 from llmling_models.base import PydanticModel

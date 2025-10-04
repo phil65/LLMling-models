@@ -24,10 +24,7 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     from pydantic_ai import RunContext
-    from pydantic_ai.messages import (
-        ModelMessage,
-        ModelResponse,
-    )
+    from pydantic_ai.messages import ModelMessage, ModelResponse
     from pydantic_ai.models import (
         KnownModelName,
         ModelRequestParameters,
