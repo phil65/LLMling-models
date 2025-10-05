@@ -27,7 +27,6 @@ class SimpleTestModel(TestModel):
         return "simple-test-model"
 
 
-@pytest.mark.asyncio
 async def test_delegation_with_list():
     """Test delegation model with simple list of models."""
     test_models = [
@@ -46,7 +45,6 @@ async def test_delegation_with_list():
     assert result.output == "Model 1 response"
 
 
-@pytest.mark.asyncio
 async def test_delegation_with_descriptions():
     """Test delegation model with model descriptions."""
     complex_model = ComplexTestModel(custom_output_text="Complex response")
@@ -73,7 +71,6 @@ async def test_delegation_with_descriptions():
     assert result.output == "Complex response"
 
 
-@pytest.mark.asyncio
 async def test_delegation_invalid_selection():
     """Test delegation model when selector returns invalid model name."""
     test_models = [

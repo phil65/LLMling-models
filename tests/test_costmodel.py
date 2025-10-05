@@ -85,7 +85,6 @@ def mock_get_costs() -> AsyncMock:
     return AsyncMock(side_effect=_get_costs)
 
 
-@pytest.mark.asyncio
 async def test_cost_optimized_token_limit(
     mock_get_limits: AsyncMock,
     mock_get_costs: AsyncMock,
@@ -126,7 +125,6 @@ async def test_cost_optimized_token_limit(
         assert mock_get_limits.called
 
 
-@pytest.mark.asyncio
 async def test_cost_optimized_budget_limit(
     mock_get_limits: AsyncMock,
     mock_get_costs: AsyncMock,
@@ -165,7 +163,6 @@ async def test_cost_optimized_budget_limit(
         assert mock_get_costs.called
 
 
-@pytest.mark.asyncio
 async def test_cost_optimized_cheapest(
     mock_get_limits: AsyncMock,
     mock_get_costs: AsyncMock,
@@ -198,7 +195,6 @@ async def test_cost_optimized_cheapest(
         assert mock_get_costs.called
 
 
-@pytest.mark.asyncio
 async def test_cost_optimized_best_within_budget(
     mock_get_limits: AsyncMock,
     mock_get_costs: AsyncMock,

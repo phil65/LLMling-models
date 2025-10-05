@@ -48,7 +48,6 @@ class StandardModel(TestModel):
         return "gpt-3.5-turbo"
 
 
-@pytest.mark.asyncio
 async def test_token_optimized_efficient():
     """Test token-optimized model selecting smallest sufficient model."""
     # Print limits for debugging
@@ -72,7 +71,6 @@ async def test_token_optimized_efficient():
     assert result.output == "Standard model response"
 
 
-@pytest.mark.asyncio
 async def test_token_optimized_exceeds_limits():
     """Test token-optimized model handling too-long inputs."""
     # Create models
