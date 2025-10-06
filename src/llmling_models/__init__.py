@@ -1,6 +1,17 @@
+"""LLMling-models: Pydantic-AI models for LLMling-agent"""
+
 from __future__ import annotations
 
 from importlib.metadata import version
+
+__version__ = version("llmling-models")
+__title__ = "LLMling-models"
+__description__ = "Pydantic-AI models for LLMling-agent"
+__author__ = "Philipp Temminghoff"
+__author_email__ = "philipptemminghoff@googlemail.com"
+__copyright__ = "Copyright (c) 2024 Philipp Temminghoff"
+__license__ = "MIT"
+__url__ = "https://github.com/phil65/llmling-models"
 
 from llmling_models.base import PydanticModel
 from llmling_models.multi import MultiModel
