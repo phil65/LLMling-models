@@ -29,7 +29,7 @@ dependencies = [
   "anyenv",
   "pydantic",
   # Only add below (Copier)
-  "pydantic-ai-slim[openai]>=1.0.0",
+  "pydantic-ai-slim>=1.0.0",
   "schemez>=0.0.1",
   "tokonomics>=0.4.0",
 ]
@@ -58,6 +58,7 @@ transformers = ["transformers"]
 [dependency-groups]
 dev = [
   "devtools",
+  "openai",
   "pyreadline3",
   "pytest",
   # Only add below (Copier)
