@@ -1,4 +1,7 @@
-"""LLMling-models: Pydantic-AI models for LLMling-agent"""
+"""LLMling-models: main package.
+
+Pydantic-AI models for LLMling-agent.
+"""
 
 from __future__ import annotations
 
@@ -6,7 +9,7 @@ from importlib.metadata import version
 
 __version__ = version("llmling-models")
 __title__ = "LLMling-models"
-__description__ = "Pydantic-AI models for LLMling-agent"
+
 __author__ = "Philipp Temminghoff"
 __author_email__ = "philipptemminghoff@googlemail.com"
 __copyright__ = "Copyright (c) 2024 Philipp Temminghoff"
