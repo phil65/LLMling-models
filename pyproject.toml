@@ -45,6 +45,7 @@ Source = "https://github.com/phil65/llmling-models"
 llmling-models = "llmling_models.__main__:main_cli"
 
 [project.optional-dependencies]
+openai = ["openai"]
 remote = ["fastapi", "uvicorn", "websockets"]
 server = [
   "uvicorn>=0.25.0",
