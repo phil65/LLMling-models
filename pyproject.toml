@@ -1,5 +1,6 @@
 [project]
 name = "llmling-models"
+version = "0.11.2"
 description = "Pydantic-AI models for LLMling-agent"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -32,7 +33,6 @@ dependencies = [
   "schemez>=0.0.1",
   "tokonomics>=0.4.0",
 ]
-dynamic = ["version"]
 
 [project.urls]
 "Code coverage" = "https://app.codecov.io/gh/phil65/llmling-models"
@@ -79,7 +79,7 @@ lint = [
 ]
 
 [build-system]
-requires = ["hatch-regex-commit", "hatchling"]
+requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.coverage.report]
@@ -90,11 +90,6 @@ exclude_lines = [
   "except ImportError",
   'if __name__ == "__main__":',
 ]
-
-[tool.hatch.version]
-source = "regex_commit"
-commit_extra_args = ["-e"]
-path = "src/llmling_models/__init__.py"
 
 [tool.mknodes]
 allowed-commit-types = [
