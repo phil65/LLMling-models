@@ -40,7 +40,7 @@ repos:
         additional_dependencies: [orjson, pydantic]
 
   - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.13.1
+    rev: v0.13.3
     hooks:
       - id: ruff
       - id: ruff-format
