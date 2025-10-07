@@ -169,9 +169,9 @@ def pydantic_response_to_openai(
 async def generate_stream_chunks(
     response_id: str,
     model_name: str,
-    stream: AsyncGenerator[str, None],
+    stream: AsyncGenerator[str],
     allow_tools: bool = True,
-) -> AsyncGenerator[str, None]:
+) -> AsyncGenerator[str]:
     """Generate streaming response chunks in OpenAI format."""
     created = int(time.time())
 

@@ -286,7 +286,7 @@ class OpenAIServer:
         settings: Any,
         request_params: ModelRequestParameters,
         model_name: str,
-    ) -> AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[str]:
         """Stream response in OpenAI format."""
         response_id = f"chatcmpl-{int(time.time() * 1000)}"
 
