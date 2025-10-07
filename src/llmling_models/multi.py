@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING
 
 from pydantic import Field, model_validator
 from pydantic_ai.models import Model
@@ -17,10 +17,9 @@ if TYPE_CHECKING:
 
 
 logger = get_logger(__name__)
-TModel = TypeVar("TModel", bound=Model)
 
 
-class MultiModel[TModel](PydanticModel):
+class MultiModel[TModel: Model](PydanticModel):
     """Base for model configurations that combine multiple language models.
 
     This provides the base interface for YAML-configurable multi-model setups,
