@@ -72,12 +72,8 @@ class CostOptimizedMultiModel[TModel: Model](MultiModel[TModel]):
                 continue
 
             if token_estimate > limits.input_tokens:
-                logger.debug(
-                    "Token limit exceeded for %s: %d > %d",
-                    model_name,
-                    token_estimate,
-                    limits.input_tokens,
-                )
+                msg = "Token limit exceeded for %s: %d > %d"
+                logger.debug(msg, model_name, token_estimate, limits.input_tokens)
                 continue
 
             # Check costs
@@ -88,12 +84,8 @@ class CostOptimizedMultiModel[TModel: Model](MultiModel[TModel]):
 
             # Calculate total estimated cost
             estimated_cost = estimate_request_cost(costs, token_estimate)
-            logger.debug(
-                "Estimated cost for %s: $%s (max: $%s)",
-                model_name,
-                estimated_cost,
-                max_input_cost,
-            )
+            msg = "Estimated cost for %s: $%s (max: $%s)"
+            logger.debug(msg, model_name, estimated_cost, max_input_cost)
 
             if estimated_cost <= max_input_cost:
                 model_options.append((model, estimated_cost))
@@ -113,11 +105,8 @@ class CostOptimizedMultiModel[TModel: Model](MultiModel[TModel]):
         else:  # best_within_budget
             selected, cost = model_options[-1]
 
-        logger.info(
-            "Selected %s with estimated cost $%s",
-            selected.__class__.__name__,
-            cost,
-        )
+        msg = "Selected %s with estimated cost $%s"
+        logger.info(msg, selected.__class__.__name__, cost)
         return selected
 
     async def request(
@@ -127,12 +116,8 @@ class CostOptimizedMultiModel[TModel: Model](MultiModel[TModel]):
         model_request_parameters: ModelRequestParameters,
     ) -> ModelResponse:
         """Process request using cost-optimized model selection."""
-        selected_model = await self._select_model(messages)
-        return await selected_model.request(
-            messages,
-            model_settings,
-            model_request_parameters,
-        )
+        selected = await self._select_model(messages)
+        return await selected.request(messages, model_settings, model_request_parameters)
 
     @asynccontextmanager
     async def request_stream(

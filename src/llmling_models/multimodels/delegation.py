@@ -6,10 +6,7 @@ from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, model_validator
-from pydantic_ai.messages import (
-    ModelRequest,
-    UserPromptPart,
-)
+from pydantic_ai.messages import ModelRequest, UserPromptPart
 from pydantic_ai.models import Model
 
 from llmling_models.log import get_logger

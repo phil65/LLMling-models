@@ -58,23 +58,17 @@ class TokenOptimizedMultiModel[TModel: Model](MultiModel[TModel]):
 
         for model in self.available_models:
             model_name = model.model_name
-            # Check token limits
             limits = await get_model_limits(model_name)
             if not limits:
                 logger.debug("No token limits for %s, skipping", model_name)
                 continue
 
             if token_estimate <= limits.input_tokens:
-                capability = model_capabilities.get(model_name, 0)
-                model_estimates = (model, capability, limits.input_tokens)
+                cap = model_capabilities.get(model_name, 0)
+                model_estimates = (model, cap, limits.input_tokens)
                 model_options.append(model_estimates)
-                logger.debug(
-                    "Model %s (capability %d) can handle %d tokens (limit: %d)",
-                    model_name,
-                    capability,
-                    token_estimate,
-                    limits.input_tokens,
-                )
+                msg = "Model %s (capability %d) can handle %d tokens (limit: %d)"
+                logger.debug(msg, model_name, cap, token_estimate, limits.input_tokens)
 
         if not model_options:
             msg = f"No suitable model found for {token_estimate} tokens"
@@ -82,11 +76,11 @@ class TokenOptimizedMultiModel[TModel: Model](MultiModel[TModel]):
 
         model_options.sort(key=lambda x: (x[1], x[2]))
         if self.strategy == "efficient":
-            selected, capability, limit = model_options[0]
+            selected, cap, limit = model_options[0]
         else:  # maximum_context
-            selected, capability, limit = model_options[-1]
+            selected, cap, limit = model_options[-1]
         msg = "Selected %s (capability %d) with %d token limit"
-        logger.info(msg, selected.model_name, capability, limit)
+        logger.info(msg, selected.model_name, cap, limit)
         return selected
 
     async def request(
@@ -96,12 +90,8 @@ class TokenOptimizedMultiModel[TModel: Model](MultiModel[TModel]):
         model_request_parameters: ModelRequestParameters,
     ) -> ModelResponse:
         """Process request using token-optimized model selection."""
-        selected_model = await self._select_model(messages)
-        return await selected_model.request(
-            messages,
-            model_settings,
-            model_request_parameters,
-        )
+        selected = await self._select_model(messages)
+        return await selected.request(messages, model_settings, model_request_parameters)
 
     @asynccontextmanager
     async def request_stream(
@@ -112,8 +102,8 @@ class TokenOptimizedMultiModel[TModel: Model](MultiModel[TModel]):
         run_context: RunContext[Any] | None = None,
     ) -> AsyncIterator[StreamedResponse]:
         """Stream response using token-optimized model selection."""
-        selected_model = await self._select_model(messages)
-        async with selected_model.request_stream(
+        selected = await self._select_model(messages)
+        async with selected.request_stream(
             messages,
             model_settings,
             model_request_parameters,

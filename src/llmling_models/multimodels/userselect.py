@@ -111,12 +111,8 @@ class UserSelectModel(MultiModel[Model]):
     ) -> ModelResponse:
         """Process request using user-selected model."""
         handler = self.handler() if isinstance(self.handler, type) else self.handler
-        selected_model = await self._get_user_selection(messages, handler)
-        return await selected_model.request(
-            messages,
-            model_settings,
-            model_request_parameters,
-        )
+        selected = await self._get_user_selection(messages, handler)
+        return await selected.request(messages, model_settings, model_request_parameters)
 
     @asynccontextmanager
     async def request_stream(
