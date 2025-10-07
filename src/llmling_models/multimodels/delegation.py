@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, model_validator
 from pydantic_ai.messages import (
@@ -26,10 +26,9 @@ if TYPE_CHECKING:
     from pydantic_ai.settings import ModelSettings
 
 logger = get_logger(__name__)
-TModel = TypeVar("TModel", bound=Model)
 
 
-class DelegationMultiModel(MultiModel[TModel]):
+class DelegationMultiModel(MultiModel[Model]):
     """Meta-model that dynamically selects models based on a user prompt."""
 
     selector_model: str | Model
@@ -192,7 +191,7 @@ if __name__ == "__main__":
 
     async def test():
         # Create delegation model
-        delegation_model: DelegationMultiModel[Any] = DelegationMultiModel(
+        delegation_model = DelegationMultiModel(
             selector_model="openai:gpt-4o-mini",
             models=["openai:gpt-4o-mini", "openai:gpt-3.5-turbo"],
             selection_prompt=PROMPT,

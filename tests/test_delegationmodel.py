@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from pydantic_ai import Agent
 from pydantic_ai.models.test import TestModel
 import pytest
@@ -34,7 +32,7 @@ async def test_delegation_with_list():
         TestModel(custom_output_text="Model 2 response"),
     ]
 
-    delegation_model = DelegationMultiModel[Any](
+    delegation_model = DelegationMultiModel(
         selector_model=TestModel(custom_output_text=test_models[0].model_name),
         models=test_models,  # type: ignore
         selection_prompt="Pick first model for complex, second for simple tasks.",
@@ -59,7 +57,7 @@ async def test_delegation_with_descriptions():
     # Selector that will pick the complex model
     selector = TestModel(custom_output_text="complex-test-model")
 
-    delegation_model = DelegationMultiModel[Any](
+    delegation_model = DelegationMultiModel(
         selector_model=selector,
         models=[complex_model, simple_model],
         model_descriptions=test_models,  # type: ignore
@@ -81,7 +79,7 @@ async def test_delegation_invalid_selection():
     # Create selector that returns invalid model name
     selector = TestModel(custom_output_text="invalid_model")
 
-    delegation_model = DelegationMultiModel[Any](
+    delegation_model = DelegationMultiModel(
         selector_model=selector,
         models=test_models,  # type: ignore
         selection_prompt="Pick a model.",

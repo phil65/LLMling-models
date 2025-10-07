@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING, Literal, TypeVar
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import Field
 from pydantic_ai.models import Model
@@ -23,7 +23,6 @@ if TYPE_CHECKING:
     from pydantic_ai.settings import ModelSettings
 
 logger = get_logger(__name__)
-TModel = TypeVar("TModel", bound=Model)
 
 
 class TokenOptimizedMultiModel[TModel: Model](MultiModel[TModel]):
