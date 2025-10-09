@@ -34,10 +34,6 @@ def infer_provider(provider: str) -> Provider[Any]:  # noqa: PLR0911
         from llmling_models.providers.lm_studio_provider import LMStudioProvider
 
         return LMStudioProvider()
-    if provider == "together":
-        from pydantic_ai.providers.together import TogetherProvider
-
-        return TogetherProvider()
     if provider == "ovhcloud":
         from llmling_models.providers.ovhcloud_provider import OVHCloudProvider
 
