@@ -3,29 +3,29 @@
 from __future__ import annotations
 
 from decimal import Decimal
+import functools
 import importlib.util
+import inspect
 import logging
 import os
 from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ImportString
-from pydantic_ai.messages import (
-    SystemPromptPart,
-    TextPart,
-    ToolReturnPart,
-    UserPromptPart,
-)
+from pydantic_ai import ModelResponse, ToolCallPart, UserPromptPart
+from pydantic_ai.messages import SystemPromptPart, TextPart, ToolReturnPart
 from pydantic_ai.models import infer_model as infer_model_
+from pydantic_ai.models.function import FunctionModel
 from pydantic_ai.models.openai import OpenAIChatModel
 
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from pydantic_ai.messages import (
-        ModelMessage,
-    )
+    from collections.abc import Callable
+
+    from pydantic_ai import ModelMessage, ModelResponsePart
     from pydantic_ai.models import Model
+    from pydantic_ai.models.function import AgentInfo
     from tokonomics import ModelCosts, TokenLimits
 
 
@@ -231,3 +231,49 @@ def estimate_request_cost(costs: ModelCosts, token_count: int) -> Decimal:
     msg = "Estimated cost: %s * %d tokens = %s"
     logger.debug(msg, input_cost, token_count, estimated_cost)
     return estimated_cost
+
+
+def function_to_model(callback: Callable) -> FunctionModel:
+    """Factory to get a text model for Callables with "simpler" signatures.
+
+    Pydantic-AIs FunctionModel requires a very "specific" callable. This function serves
+    as  helper to allow creating FunctionModels which take either no arguments or a
+    single argument in form of a prompt.
+    """
+    sig = inspect.signature(callback)
+    # Count required parameters (those without defaults)
+    required_params = sum(
+        1 for param in sig.parameters.values() if param.default is inspect.Parameter.empty
+    )
+    takes_prompt = required_params > 0
+
+    @functools.wraps(callback)
+    async def callback_wrapper(
+        messages: list[ModelMessage], agent_info: AgentInfo
+    ) -> ModelResponse:
+        try:
+            if takes_prompt:
+                text_part = messages[-1].parts[0]
+                assert isinstance(text_part, UserPromptPart)
+                prompt = str(text_part.content[0])
+                if inspect.iscoroutinefunction(callback):
+                    result = await callback(prompt)
+                else:
+                    result = callback(prompt)
+            elif inspect.iscoroutinefunction(callback):
+                result = await callback()
+            else:
+                result = callback()
+
+            if isinstance(result, str):
+                part: ModelResponsePart = TextPart(result)
+            else:
+                part = ToolCallPart(tool_name="final_result", args=result.model_dump())
+            return ModelResponse(parts=[part])
+        except Exception as e:
+            logger.exception("Processor callback failed")
+            name = getattr(callback, "__name__", str(callback))
+            msg = f"Processor error in {name!r}: {e}"
+            raise RuntimeError(msg) from e
+
+    return FunctionModel(callback_wrapper)

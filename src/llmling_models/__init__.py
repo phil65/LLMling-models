@@ -26,7 +26,7 @@ from llmling_models.multimodels import (
     DelegationMultiModel,
     UserSelectModel,
 )
-from llmling_models.utils import infer_model
+from llmling_models.utils import infer_model, function_to_model
 from llmling_models.model_types import AllModels, ModelInput
 
 __version__ = version("llmling-models")
@@ -42,5 +42,6 @@ __all__ = [
     "PydanticModel",
     "TokenOptimizedMultiModel",
     "UserSelectModel",
+    "function_to_model",
     "infer_model",
 ]
