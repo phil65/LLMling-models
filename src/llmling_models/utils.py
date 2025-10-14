@@ -10,9 +10,11 @@ import logging
 import os
 from typing import TYPE_CHECKING, Literal
 
-from pydantic import BaseModel, ImportString
+from pydantic import BaseModel, ConfigDict, ImportString, TypeAdapter
 from pydantic_ai import (
+    ModelRequest,
     ModelResponse,
+    RetryPromptPart,
     SystemPromptPart,
     TextPart,
     ToolCallPart,
@@ -22,6 +24,8 @@ from pydantic_ai import (
 from pydantic_ai.models import infer_model as infer_model_
 from pydantic_ai.models.function import FunctionModel
 from pydantic_ai.models.openai import OpenAIChatModel
+
+from llmling_models.formatting import format_part
 
 
 logger = logging.getLogger(__name__)
@@ -259,9 +263,7 @@ def function_to_model(callback: Callable) -> FunctionModel:
     ) -> ModelResponse:
         try:
             if takes_prompt:
-                text_part = messages[-1].parts[0]
-                assert isinstance(text_part, UserPromptPart)
-                prompt = str(text_part.content[0])
+                prompt = format_part(messages[-1].parts[0])
                 if inspect.iscoroutinefunction(callback):
                     result = await callback(prompt)
                 else:
@@ -319,3 +321,25 @@ def without_unprocessed_tool_calls(messages: list[ModelMessage]) -> list[ModelMe
                 cleaned_messages[-1] = cleaned_response
 
     return cleaned_messages
+
+
+PydanticAIMessage = ModelRequest | ModelResponse
+message_adapter: TypeAdapter[PydanticAIMessage] = TypeAdapter(
+    PydanticAIMessage,
+    config=ConfigDict(ser_json_bytes="base64", val_json_bytes="base64"),
+)
+
+
+def serialize_message(message: PydanticAIMessage) -> str:
+    """Serialize pydantic-ai message.
+
+    The `ctx` field in the `RetryPromptPart` is optionally dict[str, Any],
+    which is not always serializable.
+    """
+    for part in message.parts:
+        if isinstance(part, RetryPromptPart) and isinstance(part.content, list):
+            for content in part.content:
+                content["ctx"] = {
+                    k: str(v) for k, v in (content.get("ctx", None) or {}).items()
+                }
+    return message_adapter.dump_python(message, mode="json")

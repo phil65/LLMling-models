@@ -4,7 +4,15 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from pydantic_ai import messages
+from pydantic_ai import (
+    AudioUrl,
+    BinaryContent,
+    DocumentUrl,
+    FileUrl,
+    ImageUrl,
+    VideoUrl,
+    messages,
+)
 
 
 def format_part(  # noqa: PLR0911
@@ -30,7 +38,16 @@ def format_part(  # noqa: PLR0911
         case messages.RetryPromptPart(content=content):
             return f"Validation errors:\n{content}"
         case messages.UserPromptPart(content=content) if isinstance(content, Sequence):
-            return str(content)  # TODO: show URLs perhaps or something?
+            text = ""
+            for item in content:
+                match item:
+                    case str():
+                        text += f"{item}\n"
+                    case DocumentUrl() | ImageUrl() | AudioUrl() | VideoUrl() | FileUrl():
+                        text += f"{item.url}\n"
+                    case BinaryContent():
+                        text += f"Binary content: <{item.identifier}>\n"
+            return text
         case (
             messages.SystemPromptPart(content=content)
             | messages.UserPromptPart(content=content)
