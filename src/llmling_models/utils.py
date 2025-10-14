@@ -123,19 +123,6 @@ def _infer_single_model(  # noqa: PLR0911
     if not isinstance(model, str):
         return model
 
-    if provider == "litellm" or model.startswith("litellm:"):
-        from llmling_models.adapters import LiteLLMAdapter
-
-        return LiteLLMAdapter(model=model.removeprefix("litellm:"))
-    if provider == "llm" or model.startswith("llm:"):
-        from llmling_models.adapters import LLMAdapter
-
-        return LLMAdapter(model=model.removeprefix("llm:"))
-    if provider == "aisuite" or model.startswith("aisuite:"):
-        from llmling_models.adapters import AISuiteAdapter
-
-        return AISuiteAdapter(model=model.removeprefix("aisuite:"))
-
     if model.startswith("openrouter:"):
         key = os.getenv("OPENROUTER_API_KEY")
         return get_model(model, base_url="https://openrouter.ai/api/v1", api_key=key)
