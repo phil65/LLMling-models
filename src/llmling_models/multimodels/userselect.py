@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 import inspect
 from typing import TYPE_CHECKING, Any
 
-from pydantic import Field
+from pydantic import Field, ImportString  # noqa: TC002
 from pydantic_ai.models import Model
 
 from llmling_models.log import get_logger
@@ -17,7 +17,6 @@ from llmling_models.multi import MultiModel
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-    from pydantic import ImportString
     from pydantic_ai import RunContext
     from pydantic_ai.messages import ModelMessage, ModelResponse
     from pydantic_ai.models import ModelRequestParameters, StreamedResponse
