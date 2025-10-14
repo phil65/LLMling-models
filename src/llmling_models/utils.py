@@ -11,8 +11,14 @@ import os
 from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ImportString
-from pydantic_ai import ModelResponse, ToolCallPart, UserPromptPart
-from pydantic_ai.messages import SystemPromptPart, TextPart, ToolReturnPart
+from pydantic_ai import (
+    ModelResponse,
+    SystemPromptPart,
+    TextPart,
+    ToolCallPart,
+    ToolReturnPart,
+    UserPromptPart,
+)
 from pydantic_ai.models import infer_model as infer_model_
 from pydantic_ai.models.function import FunctionModel
 from pydantic_ai.models.openai import OpenAIChatModel
@@ -277,3 +283,39 @@ def function_to_model(callback: Callable) -> FunctionModel:
             raise RuntimeError(msg) from e
 
     return FunctionModel(callback_wrapper)
+
+
+def without_unprocessed_tool_calls(messages: list[ModelMessage]) -> list[ModelMessage]:
+    """Clean message history by removing unprocessed tool calls.
+
+    This removes ToolCallPart from the last ModelResponse if it has unprocessed
+    tool calls, but preserves all text content and reasoning.
+    """
+    cleaned_messages = list(messages)  # Make a copy to avoid modifying the original
+    # Check if the last message is a ModelResponse with unprocessed tool calls
+    if cleaned_messages:
+        # Import at runtime to avoid circular imports
+
+        last_message = cleaned_messages[-1]
+        if isinstance(last_message, ModelResponse) and last_message.tool_calls:
+            # Create a new ModelResponse with the same content but without tool calls
+            filtered_parts = [
+                part for part in last_message.parts if not isinstance(part, ToolCallPart)
+            ]
+
+            # Only replace if we actually removed some tool calls
+            if len(filtered_parts) != len(last_message.parts):
+                # Create a new ModelResponse with filtered parts
+                cleaned_response = ModelResponse(
+                    parts=filtered_parts,
+                    usage=last_message.usage,
+                    model_name=last_message.model_name,
+                    timestamp=last_message.timestamp,
+                    provider_name=last_message.provider_name,
+                    provider_details=last_message.provider_details,
+                    provider_response_id=last_message.provider_response_id,
+                    finish_reason=last_message.finish_reason,
+                )
+                cleaned_messages[-1] = cleaned_response
+
+    return cleaned_messages
