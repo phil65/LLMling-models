@@ -39,7 +39,6 @@ class InputStreamedResponse(StreamedResponse):
 
     stream: AsyncIterator[str]
     _timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
-    _model_name: str = "input"
 
     def __post_init__(self):
         """Initialize usage tracking."""
@@ -78,13 +77,12 @@ class InputStreamedResponse(StreamedResponse):
     @property
     def model_name(self) -> str:
         """Get response model_name."""
-        return self._model_name
+        return "input"
 
 
 class InputModel(PydanticModel):
     """Model that delegates responses to human input."""
 
-    _model_name: str = "input"
     prompt_template: str = Field(default="👤 Please respond to: {prompt}")
     """Template for showing the prompt to the human."""
 
@@ -139,11 +137,8 @@ class InputModel(PydanticModel):
                 response = response_or_awaitable
 
         parts: list[ModelResponsePart] = [TextPart(response)]
-        return ModelResponse(
-            parts=parts,
-            timestamp=datetime.now(UTC),
-            usage=RequestUsage(),
-        )
+        ts = datetime.now(UTC)
+        return ModelResponse(parts=parts, timestamp=ts, usage=RequestUsage())
 
     @asynccontextmanager
     async def request_stream(

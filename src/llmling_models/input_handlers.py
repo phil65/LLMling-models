@@ -6,19 +6,13 @@ import sys
 from typing import TYPE_CHECKING, Annotated, Protocol, runtime_checkable
 
 from pydantic import ImportString
-from pydantic_ai.messages import (
-    SystemPromptPart,
-    TextPart,
-    UserPromptPart,
-)
+from pydantic_ai.messages import SystemPromptPart, TextPart, UserPromptPart
 
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Awaitable
 
-    from pydantic_ai.messages import (
-        ModelMessage,
-    )
+    from pydantic_ai.messages import ModelMessage
 
 
 @runtime_checkable
@@ -79,12 +73,12 @@ class DefaultInputHandler:
         for message in messages:
             for part in message.parts:
                 match part:
-                    case SystemPromptPart() if show_system:
-                        formatted.append(f"🔧 System: {part.content}")
-                    case UserPromptPart():
-                        formatted.append(prompt_template.format(prompt=part.content))
-                    case TextPart():
-                        formatted.append(f"Assistant: {part.content}")
+                    case SystemPromptPart(content=content) if show_system:
+                        formatted.append(f"🔧 System: {content}")
+                    case UserPromptPart(content=content):
+                        formatted.append(prompt_template.format(prompt=content))
+                    case TextPart(content=content):
+                        formatted.append(f"Assistant: {content}")
                     case _:
                         continue
 
