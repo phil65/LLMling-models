@@ -275,7 +275,19 @@ def function_to_model(callback: Callable) -> FunctionModel:
 
             if isinstance(result, str):
                 part: ModelResponsePart = TextPart(result)
+            # For structured responses, check if agent expects structured output
+            elif agent_info.allow_text_output:
+                # Agent expects text - serialize the structured result
+                import json
+
+                serialized = (
+                    json.dumps(result.model_dump())
+                    if hasattr(result, "model_dump")
+                    else str(result)
+                )
+                part = TextPart(serialized)
             else:
+                # Agent expects structured output - return as ToolCallPart
                 part = ToolCallPart(tool_name="final_result", args=result.model_dump())
             return ModelResponse(parts=[part])
         except Exception as e:
