@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-
 from pydantic_ai import (
     AudioUrl,
     BinaryContent,
@@ -37,17 +35,23 @@ def format_part(  # noqa: PLR0911
             return f"Retry needed: {content}"
         case messages.RetryPromptPart(content=content):
             return f"Validation errors:\n{content}"
-        case messages.UserPromptPart(content=content) if isinstance(content, Sequence):
-            text = ""
+        case messages.UserPromptPart(content=content) if not isinstance(content, str):
+            texts = []
             for item in content:
                 match item:
                     case str():
-                        text += f"{item}\n"
-                    case DocumentUrl() | ImageUrl() | AudioUrl() | VideoUrl() | FileUrl():
-                        text += f"{item.url}\n"
-                    case BinaryContent():
-                        text += f"Binary content: <{item.identifier}>\n"
-            return text
+                        texts.append(f"{item}")
+                    case (
+                        DocumentUrl(url=url)
+                        | ImageUrl(url=url)
+                        | AudioUrl(url=url)
+                        | VideoUrl(url=url)
+                        | FileUrl(url=url)
+                    ):
+                        texts.append(f"{url}")
+                    case BinaryContent(identifier=identifier):
+                        texts.append(f"Binary content: <{identifier}>")
+            return "\n".join(texts)
         case (
             messages.SystemPromptPart(content=content)
             | messages.UserPromptPart(content=content)

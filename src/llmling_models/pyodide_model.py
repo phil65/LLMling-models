@@ -62,38 +62,36 @@ def convert_messages(messages: list[ModelMessage]) -> list[dict[str, Any]]:
     result = []
     for message in messages:
         if isinstance(message, ModelResponse):
-            content = ""
+            text = ""
             tool_calls = []
             for part in message.parts:
                 match part:
-                    case TextPart():
-                        content += str(part.content)
-                    case ToolCallPart():
+                    case TextPart(content=content):
+                        text += str(content)
+                    case ToolCallPart(tool_call_id=tool_call_id, tool_name=tool_name):
+                        fn_dct = {"name": tool_name, "arguments": part.args_as_json_str()}
                         tool_calls.append({
-                            "id": part.tool_call_id,
+                            "id": tool_call_id,
                             "type": "function",
-                            "function": {
-                                "name": part.tool_name,
-                                "arguments": part.args_as_json_str(),
-                            },
+                            "function": fn_dct,
                         })
             msg: dict[str, Any] = {"role": "assistant"}
-            if content:
-                msg["content"] = content
+            if text:
+                msg["content"] = text
             if tool_calls:
                 msg["tool_calls"] = tool_calls
             result.append(msg)
         else:
             for request_part in message.parts:
                 match request_part:
-                    case SystemPromptPart():
-                        result.append({"role": "system", "content": request_part.content})
-                    case UserPromptPart():
-                        result.append({"role": "user", "content": request_part.content})
-                    case ToolReturnPart():
+                    case SystemPromptPart(content=content):
+                        result.append({"role": "system", "content": content})
+                    case UserPromptPart(content=content):
+                        result.append({"role": "user", "content": content})
+                    case ToolReturnPart(tool_call_id=tool_call_id):
                         result.append({
                             "role": "tool",
-                            "tool_call_id": request_part.tool_call_id,
+                            "tool_call_id": tool_call_id,
                             "content": request_part.model_response_str(),
                         })
 
