@@ -8,7 +8,7 @@ import importlib.util
 import inspect
 import logging
 import os
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, ImportString, TypeAdapter
 from pydantic_ai import (
@@ -94,10 +94,7 @@ def get_model(
     return OpenAIResponsesModel(model_name=model_name, provider=provider)
 
 
-def infer_model(
-    model,
-    provider: Literal["pydantic-ai", "litellm", "llm", "aisuite"] = "pydantic-ai",
-) -> Model:
+def infer_model(model) -> Model:
     """Extended infer_model from pydantic-ai with fallback support.
 
     For fallback models, use comma-separated model names.
@@ -114,20 +111,19 @@ def infer_model(
         model_names = [name.strip() for name in model.split(",")]
         if len(model_names) <= 1:
             # Shouldn't happen with the comma check, but just to be safe
-            return _infer_single_model(model, provider)
+            return _infer_single_model(model)
 
         # Create fallback model chain
-        default_model = _infer_single_model(model_names[0], provider)
-        fallback_models = [_infer_single_model(m, provider) for m in model_names[1:]]
+        default_model = _infer_single_model(model_names[0])
+        fallback_models = [_infer_single_model(m) for m in model_names[1:]]
         return FallbackModel(default_model, *fallback_models)
 
     # Regular single model case
-    return _infer_single_model(model, provider)
+    return _infer_single_model(model)
 
 
 def _infer_single_model(  # noqa: PLR0911
     model,
-    provider: Literal["pydantic-ai", "litellm", "llm", "aisuite"] = "pydantic-ai",
 ) -> Model:
     """Extended infer_model from pydantic-ai."""
     if not isinstance(model, str):
@@ -149,6 +145,11 @@ def _infer_single_model(  # noqa: PLR0911
         return get_model(model, base_url="http://localhost:1234/v1/", api_key="lm-studio")
     if model.startswith("openai:"):
         return get_model(model)
+    if model.startswith("zen:"):
+        from llmling_models.providers.zen_provider import _create_zen_model
+
+        return _create_zen_model(model_name=model.removeprefix("zen:"))
+
     if model.startswith("copilot:"):
         key = os.getenv("GITHUB_COPILOT_API_KEY")
         return get_model(model, base_url="https://api.githubcopilot.com", api_key=key)
