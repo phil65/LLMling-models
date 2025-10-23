@@ -1,5 +1,6 @@
 r"""OpenCode Zen provider implementation for Pydantic AI."""
 
+import os
 from typing import ClassVar
 
 from pydantic_ai.providers.openai import OpenAIProvider
@@ -99,19 +100,17 @@ class ZenProvider:
         return cls.MODEL_ENDPOINTS.copy()
 
 
-def _create_zen_model(api_key, model_name):
+def _create_zen_model(model_name: str):
     """Create OpenCode Zen model."""
     from pydantic_ai.models.openai import OpenAIChatModel
-
-    if not api_key:
-        msg = "ZEN_API_KEY is required when using OpenCode Zen provider"
-        raise ValueError(msg)
 
     if not model_name:
         msg = "ZEN_MODEL is required when using OpenCode Zen provider"
         raise ValueError(msg)
 
     # Create provider instance using the factory method
+    api_key = os.getenv("ZEN_API_KEY")
+    assert api_key, "ZEN_API_KEY is required when using OpenCode Zen provider"
     provider_instance = ZenProvider.create_provider(
         api_key=api_key, model_name=model_name
     )
