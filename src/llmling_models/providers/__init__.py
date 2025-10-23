@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from pydantic_ai.providers import Provider
 
 
-def infer_provider(provider: str) -> Provider[Any]:  # noqa: PLR0911
+def infer_provider(provider: str) -> Provider[Any]:
     """Infer the provider from the provider name."""
     if provider == "copilot":
         from llmling_models.providers.copilot_provider import CopilotProvider
@@ -34,9 +34,5 @@ def infer_provider(provider: str) -> Provider[Any]:  # noqa: PLR0911
         from llmling_models.providers.lm_studio_provider import LMStudioProvider
 
         return LMStudioProvider()
-    if provider == "ovhcloud":
-        from llmling_models.providers.ovhcloud_provider import OVHCloudProvider
-
-        return OVHCloudProvider()
 
     return _infer_provider(provider)
