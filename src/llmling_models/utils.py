@@ -207,11 +207,14 @@ def _infer_single_model(  # noqa: PLR0911
 
 
 def estimate_tokens(messages: list[ModelMessage]) -> int:
-    """Estimate token count for messages using available tokenizers.
+    """Estimate total content tokens for a list of messages.
 
-    Will try to use tiktoken if available (best for OpenAI models),
-    falling back to Mistral's tokenizer (good modern default),
-    and finally using a simple character-based estimation.
+    This function estimates the token count for message content that would be
+    sent to a model. It's primarily used for pre-request estimation to help
+    with model selection based on token limits and input costs.
+
+    Note: This estimates content tokens, not usage tokens. For actual token
+    usage from completed requests, use ModelResponse.usage directly.
     """
     import tokonomics
 
