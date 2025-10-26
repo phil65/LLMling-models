@@ -10,6 +10,7 @@ import logging
 import os
 from typing import TYPE_CHECKING
 
+import anyenv
 from pydantic import BaseModel, ConfigDict, ImportString, TypeAdapter
 from pydantic_ai import (
     ModelRequest,
@@ -250,9 +251,8 @@ def estimate_request_cost(costs: ModelCosts, token_count: int) -> Decimal:
 def function_to_model(callback: Callable) -> FunctionModel:
     """Factory to get a text model for Callables with "simpler" signatures.
 
-    Pydantic-AIs FunctionModel requires a very "specific" callable. This function serves
-    as  helper to allow creating FunctionModels which take either no arguments or a
-    single argument in form of a prompt.
+    This function serves as a helper to allow creating FunctionModels which take either
+    no arguments or a single argument in form of a prompt.
     """
     sig = inspect.signature(callback)
     # Count required parameters (those without defaults)
@@ -282,10 +282,9 @@ def function_to_model(callback: Callable) -> FunctionModel:
             # For structured responses, check if agent expects structured output
             elif agent_info.allow_text_output:
                 # Agent expects text - serialize the structured result
-                import json
 
                 serialized = (
-                    json.dumps(result.model_dump())
+                    anyenv.dump_json(result.model_dump())
                     if isinstance(result, BaseModel)
                     else str(result)
                 )
