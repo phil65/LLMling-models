@@ -286,7 +286,7 @@ def function_to_model(callback: Callable) -> FunctionModel:
 
                 serialized = (
                     json.dumps(result.model_dump())
-                    if hasattr(result, "model_dump")
+                    if isinstance(result, BaseModel)
                     else str(result)
                 )
                 part = TextPart(serialized)
