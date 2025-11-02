@@ -27,7 +27,7 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [
-  "anyenv",
+  "anyenv[httpx]",
   "pydantic",
   # Only add below (Copier)
   "pydantic-ai-slim>=1.0.0",
