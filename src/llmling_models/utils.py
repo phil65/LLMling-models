@@ -272,7 +272,7 @@ def function_to_model(callback: Callable, streamable: bool = True) -> FunctionMo
     ) -> ModelResponse:
         try:
             if takes_prompt:
-                prompt = format_part(messages[-1].parts[0])
+                prompt = format_part(messages[-1].parts[-1])
                 if inspect.iscoroutinefunction(callback):
                     result = await callback(prompt)
                 else:
