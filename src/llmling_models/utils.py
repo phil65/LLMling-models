@@ -315,7 +315,11 @@ def function_to_model(callback: Callable, streamable: bool = True) -> FunctionMo
             case TextPart():
                 yield part.content
             case ToolCallPart():
-                yield {0: DeltaToolCall(name=part.tool_name, json_args=str(part.args))}
+                args_json = anyenv.dump_json(part.args) if part.args else "{}"
+                yield {0: DeltaToolCall(name=part.tool_name, json_args=args_json)}
+            case _:
+                msg = f"Unexpected part type: {type(part)}"
+                raise ValueError(msg)
 
     kwargs: dict[str, Any] = {"stream_function": stream_function} if streamable else {}
     return FunctionModel(function=callback_wrapper, **kwargs)
@@ -379,13 +383,18 @@ if __name__ == "__main__":
 
     from pydantic_ai import Agent
 
-    def callback(test: str):
-        return test.upper()
+    class Response(BaseModel):
+        text: str
 
-    agent = Agent(model=function_to_model(callback))
+    def structured_response(text: str) -> Response:
+        return Response(text=text)
+
+    agent = Agent(model=function_to_model(structured_response))
 
     async def main():
-        async for event in agent.run_stream_events("test"):
+        async for event in agent.run_stream_events(
+            str(dict(a="test")), output_type=Response
+        ):
             print(event)
 
     asyncio.run(main())
