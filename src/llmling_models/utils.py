@@ -8,7 +8,7 @@ import importlib.util
 import inspect
 import logging
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import anyenv
 from pydantic import BaseModel, ConfigDict, ImportString, TypeAdapter
@@ -23,7 +23,7 @@ from pydantic_ai import (
     UserPromptPart,
 )
 from pydantic_ai.models import infer_model as infer_model_
-from pydantic_ai.models.function import FunctionModel
+from pydantic_ai.models.function import DeltaToolCall, FunctionModel
 from pydantic_ai.models.openai import OpenAIChatModel
 
 from llmling_models.formatting import format_part
@@ -32,11 +32,16 @@ from llmling_models.formatting import format_part
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import AsyncIterator, Callable
 
     from pydantic_ai import ModelMessage, ModelResponsePart
     from pydantic_ai.models import Model
-    from pydantic_ai.models.function import AgentInfo
+    from pydantic_ai.models.function import (
+        AgentInfo,
+        BuiltinToolCallsReturns,
+        DeltaThinkingCalls,
+        DeltaToolCalls,
+    )
     from tokonomics import ModelCosts, TokenLimits
 
 
@@ -248,7 +253,7 @@ def estimate_request_cost(costs: ModelCosts, token_count: int) -> Decimal:
     return estimated_cost
 
 
-def function_to_model(callback: Callable) -> FunctionModel:
+def function_to_model(callback: Callable, streamable: bool = True) -> FunctionModel:
     """Factory to get a text model for Callables with "simpler" signatures.
 
     This function serves as a helper to allow creating FunctionModels which take either
@@ -299,7 +304,21 @@ def function_to_model(callback: Callable) -> FunctionModel:
             msg = f"Processor error in {name!r}: {e}"
             raise RuntimeError(msg) from e
 
-    return FunctionModel(callback_wrapper)
+    async def stream_function(
+        messages: list[ModelMessage], agent_info: AgentInfo
+    ) -> AsyncIterator[
+        str | DeltaToolCalls | DeltaThinkingCalls | BuiltinToolCallsReturns
+    ]:
+        result = await callback_wrapper(messages, agent_info)
+        part = result.parts[0]
+        match part:
+            case TextPart():
+                yield part.content
+            case ToolCallPart():
+                yield {0: DeltaToolCall(name=part.tool_name, json_args=str(part.args))}
+
+    kwargs: dict[str, Any] = {"stream_function": stream_function} if streamable else {}
+    return FunctionModel(function=callback_wrapper, **kwargs)
 
 
 def without_unprocessed_tool_calls(messages: list[ModelMessage]) -> list[ModelMessage]:
@@ -358,3 +377,20 @@ def serialize_message(message: PydanticAIMessage) -> str:
                     k: str(v) for k, v in (content.get("ctx", None) or {}).items()
                 }
     return message_adapter.dump_python(message, mode="json")
+
+
+if __name__ == "__main__":
+    import asyncio
+
+    from pydantic_ai import Agent
+
+    def callback(test: str):
+        return test.upper()
+
+    agent = Agent(model=function_to_model(callback))
+
+    async def main():
+        async for event in agent.run_stream_events("test"):
+            print(event)
+
+    asyncio.run(main())
