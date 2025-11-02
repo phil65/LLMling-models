@@ -327,32 +327,27 @@ def without_unprocessed_tool_calls(messages: list[ModelMessage]) -> list[ModelMe
     This removes ToolCallPart from the last ModelResponse if it has unprocessed
     tool calls, but preserves all text content and reasoning.
     """
+    if not messages:
+        return []
     cleaned_messages = list(messages)  # Make a copy to avoid modifying the original
-    # Check if the last message is a ModelResponse with unprocessed tool calls
-    if cleaned_messages:
-        # Import at runtime to avoid circular imports
-
-        last_message = cleaned_messages[-1]
-        if isinstance(last_message, ModelResponse) and last_message.tool_calls:
-            # Create a new ModelResponse with the same content but without tool calls
-            filtered_parts = [
-                part for part in last_message.parts if not isinstance(part, ToolCallPart)
-            ]
-
-            # Only replace if we actually removed some tool calls
-            if len(filtered_parts) != len(last_message.parts):
-                # Create a new ModelResponse with filtered parts
-                cleaned_response = ModelResponse(
-                    parts=filtered_parts,
-                    usage=last_message.usage,
-                    model_name=last_message.model_name,
-                    timestamp=last_message.timestamp,
-                    provider_name=last_message.provider_name,
-                    provider_details=last_message.provider_details,
-                    provider_response_id=last_message.provider_response_id,
-                    finish_reason=last_message.finish_reason,
-                )
-                cleaned_messages[-1] = cleaned_response
+    last_message = cleaned_messages[-1]
+    if isinstance(last_message, ModelResponse) and last_message.tool_calls:
+        # Create a new ModelResponse with the same content but without tool calls
+        filtered = [p for p in last_message.parts if not isinstance(p, ToolCallPart)]
+        # Only replace if we actually removed some tool calls
+        if len(filtered) != len(last_message.parts):
+            # Create a new ModelResponse with filtered parts
+            cleaned_response = ModelResponse(
+                parts=filtered,
+                usage=last_message.usage,
+                model_name=last_message.model_name,
+                timestamp=last_message.timestamp,
+                provider_name=last_message.provider_name,
+                provider_details=last_message.provider_details,
+                provider_response_id=last_message.provider_response_id,
+                finish_reason=last_message.finish_reason,
+            )
+            cleaned_messages[-1] = cleaned_response
 
     return cleaned_messages
 
