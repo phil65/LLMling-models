@@ -6,13 +6,13 @@ import sys
 from typing import TYPE_CHECKING, Annotated, Protocol, runtime_checkable
 
 from pydantic import ImportString
-from pydantic_ai.messages import SystemPromptPart, TextPart, UserPromptPart
+from pydantic_ai import SystemPromptPart, TextPart, UserPromptPart
 
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Awaitable
 
-    from pydantic_ai.messages import ModelMessage
+    from pydantic_ai import ModelMessage
 
 
 @runtime_checkable

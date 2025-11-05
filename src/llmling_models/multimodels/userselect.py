@@ -17,10 +17,8 @@ from llmling_models.multi import MultiModel
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-    from pydantic_ai import RunContext
-    from pydantic_ai.messages import ModelMessage, ModelResponse
+    from pydantic_ai import ModelMessage, ModelResponse, ModelSettings, RunContext
     from pydantic_ai.models import ModelRequestParameters, StreamedResponse
-    from pydantic_ai.settings import ModelSettings
 
     from llmling_models.input_handlers import InputHandler
 

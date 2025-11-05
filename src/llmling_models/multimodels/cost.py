@@ -22,10 +22,8 @@ from llmling_models.utils import (
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-    from pydantic_ai import RunContext
-    from pydantic_ai.messages import ModelMessage, ModelResponse
+    from pydantic_ai import ModelMessage, ModelResponse, ModelSettings, RunContext
     from pydantic_ai.models import ModelRequestParameters, StreamedResponse
-    from pydantic_ai.settings import ModelSettings
 
 logger = get_logger(__name__)
 

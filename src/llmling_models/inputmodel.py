@@ -10,8 +10,7 @@ import inspect
 from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, ImportString  # noqa: TC002
-from pydantic_ai import RequestUsage
-from pydantic_ai.messages import ModelResponse, TextPart
+from pydantic_ai import ModelResponse, RequestUsage, TextPart
 from pydantic_ai.models import ModelRequestParameters, StreamedResponse
 
 from llmling_models.base import PydanticModel
@@ -21,11 +20,10 @@ from llmling_models.log import get_logger
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-    from pydantic_ai import RunContext
-    from pydantic_ai.messages import (
+    from pydantic_ai import (
         ModelMessage,
-        ModelResponsePart,
         ModelResponseStreamEvent,
+        RunContext,
     )
     from pydantic_ai.settings import ModelSettings
 
@@ -136,9 +134,7 @@ class InputModel(PydanticModel):
             else:
                 response = response_or_awaitable
 
-        parts: list[ModelResponsePart] = [TextPart(response)]
-        ts = datetime.now(UTC)
-        return ModelResponse(parts=parts, timestamp=ts, usage=RequestUsage())
+        return ModelResponse(parts=[TextPart(response)], timestamp=datetime.now(UTC))
 
     @asynccontextmanager
     async def request_stream(

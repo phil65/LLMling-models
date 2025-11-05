@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 import uuid
 
 import anyenv
-from pydantic_ai.messages import (
+from pydantic_ai import (
     ModelRequest,
     ModelResponse,
     SystemPromptPart,
@@ -31,7 +31,7 @@ from llmling_models.openai_server.models import (
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
-    from pydantic_ai.messages import ModelMessage, ModelResponsePart
+    from pydantic_ai import ModelMessage, ModelResponsePart
 
     from llmling_models.openai_server.models import (
         ToolDefinitionSchema,

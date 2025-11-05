@@ -12,7 +12,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import create_model
-from pydantic_ai.messages import (
+from pydantic_ai import (
     PartDeltaEvent,
     PartStartEvent,
     TextPart,
@@ -36,7 +36,7 @@ if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
     from fastapi import WebSocket
-    from pydantic_ai.messages import (
+    from pydantic_ai import (
         ModelMessage,
     )
     from pydantic_ai.models import Model

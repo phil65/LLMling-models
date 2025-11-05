@@ -6,11 +6,7 @@ from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any
 
 from pydantic import ConfigDict
-from pydantic_ai import RequestUsage
-from pydantic_ai.messages import (
-    ModelRequest,
-    UserPromptPart,
-)
+from pydantic_ai import ModelRequest, RequestUsage, UserPromptPart
 from pydantic_ai.models import Model
 from schemez import Schema
 
@@ -23,14 +19,12 @@ logger = get_logger(__name__)
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-    from pydantic_ai import RunContext
-    from pydantic_ai.messages import ModelMessage, ModelResponse
+    from pydantic_ai import ModelMessage, ModelResponse, ModelSettings, RunContext
     from pydantic_ai.models import (
         KnownModelName,
         ModelRequestParameters,
         StreamedResponse,
     )
-    from pydantic_ai.settings import ModelSettings
 
 
 class PrePostPromptConfig(Schema):
