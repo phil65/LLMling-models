@@ -42,21 +42,7 @@ if TYPE_CHECKING:
         DeltaThinkingCalls,
         DeltaToolCalls,
     )
-    from tokonomics import ModelCosts, TokenLimits
-
-
-async def get_model_costs(model_name: str) -> ModelCosts | None:
-    """Get costs for model using tokonomics."""
-    from tokonomics import get_model_costs
-
-    return await get_model_costs(model_name)
-
-
-async def get_model_limits(model_name: str) -> TokenLimits | None:
-    """Get token limits for model using tokonomics."""
-    from tokonomics import get_model_limits
-
-    return await get_model_limits(model_name)
+    from tokonomics import ModelCosts
 
 
 def get_model(
