@@ -28,11 +28,13 @@ from llmling_models.multimodels import (
 )
 from llmling_models.utils import infer_model, function_to_model
 from llmling_models.model_types import AllModels, ModelInput
+from llmling_models.codemode_toolset import CodeModeToolset
 
 __version__ = version("llmling-models")
 
 __all__ = [
     "AllModels",
+    "CodeModeToolset",
     "CostOptimizedMultiModel",
     "DefaultInputHandler",
     "DelegationMultiModel",
