@@ -206,7 +206,7 @@ if __name__ == "__main__":
 
     # Create server with a model
     server = ModelServer(
-        model="openai:gpt-4o-mini",
+        model="openai:gpt-5-nano",
         api_key="test-key",  # Enable authentication
         title="Test Model Server",
         description="Test server serving GPT-4-mini",
