@@ -72,10 +72,6 @@ class ModelServer:
     def __init__(self, title: str = "Input Server", description: str | None = None):
         """Initialize server with configuration."""
         self.app = FastAPI(title=title, description=description or "No description")
-        self._setup_routes()
-
-    def _setup_routes(self):
-        """Configure API routes."""
 
         @self.app.post("/v1/chat/completions", response_model=CompletionResponse)
         async def create_completion(

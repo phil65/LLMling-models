@@ -414,7 +414,7 @@ if __name__ == "__main__":
 
     async def test():
         # Create model instance
-        model = SimpleOpenAIModel(model="gpt-4o-mini")
+        model = SimpleOpenAIModel(model="gpt-5-nano")
         agent: Agent[None, str] = Agent(model=model)
         result = await agent.run("Hello!")
         print(f"\nResponse: {result.output}")

@@ -240,7 +240,7 @@ if __name__ == "__main__":
             ),
             model="openai:gpt-4o-mini",
         )
-        augmented = AugmentedModel("openai:gpt-4o-mini", pre_prompt=pre)
+        augmented = AugmentedModel("openai:gpt-5-nano", pre_prompt=pre)
         agent: Agent[None, str] = Agent(model=augmented)
         print("\nTesting Pre-Prompt Expansion Pipeline")
         print("=" * 60)

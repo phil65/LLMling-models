@@ -79,7 +79,7 @@ if __name__ == "__main__":
 
     async def main():
         provider = CopilotProvider()
-        model = OpenAIResponsesModel("gpt-4o-mini", provider=provider)
+        model = OpenAIResponsesModel("gpt-5-nano", provider=provider)
         agent = Agent(model=model)
         result = await agent.run("Hello, world!")
         print(result)

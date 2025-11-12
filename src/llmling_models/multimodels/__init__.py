@@ -1,4 +1,4 @@
-"""Configuration management for LLMling."""
+"""Multi-models."""
 
 from __future__ import annotations
 
