@@ -21,7 +21,6 @@ Usage notes:
 - Write your code inside an 'async def main():' function
 - All tool functions are async, use 'await'
 - Use 'return' statements to return values from main()
-- Generated model classes are available for type checking
 - DO NOT call asyncio.run() or try to run the main function yourself
 - DO NOT import asyncio or other modules - tools are already available
 - Example:
@@ -35,10 +34,6 @@ class CodeExecutionParams(BaseModel):
     """Parameters for Python code execution."""
 
     python_code: str = Field(description="Python code to execute with tools available")
-    context_vars: dict[str, Any] | None = Field(
-        default=None,
-        description="Additional variables to make available in execution context",
-    )
 
 
 def _fix_code(python_code: str) -> str:
@@ -183,10 +178,6 @@ class CodeModeToolset(AbstractToolset[Any]):
         # Build execution namespace with all tools
         toolset_generator = await self._get_code_generator(ctx)
         namespace = toolset_generator.generate_execution_namespace()
-
-        # Add any additional context variables
-        if params.context_vars:
-            namespace.update(params.context_vars)
 
         # Fix the Python code
         python_code = _fix_code(params.python_code)

@@ -33,6 +33,32 @@ This is just a prototype for now and will likely change in the future.
 Also, pydantic-ais APIs dont seem stable yet, so things might not work across all pydantic-ai versions.
 I will try to keep this up to date as fast as possible.
 
+## CodeModeToolset
+
+The `CodeModeToolset` wraps other pydantic-ai toolsets and provides Python code execution with all their tools available as async functions. This approach is more effective than traditional tool calling because LLMs have extensive training on real-world code but limited exposure to synthetic tool-calling examples. When tools are presented as a programming API, LLMs can handle more complex scenarios, chain multiple operations efficiently without token overhead between calls, and leverage their code-writing strengths. (more info: [https://blog.cloudflare.com/code-mode/](https://blog.cloudflare.com/code-mode/))
+
+```python
+import webbrowser
+from pydantic_ai import Agent
+from pydantic_ai.toolsets.function import FunctionToolset
+from llmling_models import CodeModeToolset
+
+# Create toolsets with tools
+browser_toolset = FunctionToolset(tools=[webbrowser.open])
+
+# Wrap in CodeModeToolset  
+code_toolset = CodeModeToolset([browser_toolset])
+
+# Use with agent
+agent = Agent(model="openai:gpt-4", toolsets=[code_toolset])
+
+async with agent:
+    result = await agent.run("Open google.com in a new tab using Python code")
+    # The LLM can now write: await open("https://google.com", new=2)
+```
+
+The toolset generates documentation for all available tools and handles the execution environment automatically.
+
 ## Available Models
 
 
