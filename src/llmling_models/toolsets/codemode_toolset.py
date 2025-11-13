@@ -15,18 +15,15 @@ if TYPE_CHECKING:
     from schemez import ToolsetCodeGenerator
 
 
-USAGE_NOTES = """
-Usage notes:
+USAGE_NOTES = """Usage notes:
 - Write your code inside an 'async def main():' function
 - All tool functions are async, use 'await'
 - Use 'return' statements to return values from main()
 - DO NOT call asyncio.run() or try to run the main function yourself
-- DO NOT import asyncio or other modules - tools are already available
 - Example:
     async def main():
-        result = await some_tool_function('parameter')
-        return f'Completed with result: {result}'
-"""
+        result = await open_website(url='https://example.com')
+        return result"""
 
 
 class CodeExecutionParams(BaseModel):
@@ -35,42 +32,39 @@ class CodeExecutionParams(BaseModel):
     python_code: str = Field(description="Python code to execute with tools available")
 
 
-def _fix_code(python_code: str) -> str:
-    """Fix code to be executable by wrapping in main() if needed."""
-    if "async def main(" not in python_code:
-        # Auto-wrap code in main function, ensuring last expression is returned
-        lines = python_code.strip().splitlines()
-        if lines:
-            # Check if last line is an expression (not a statement)
-            last_line = lines[-1].strip()
-            if last_line and not any(
-                last_line.startswith(kw)
-                for kw in [
-                    "import ",
-                    "from ",
-                    "def ",
-                    "class ",
-                    "if ",
-                    "for ",
-                    "while ",
-                    "try ",
-                    "with ",
-                    "async def ",
-                ]
-            ):
-                # Last line looks like an expression, add return
-                lines[-1] = f"    return {last_line}"
-                indented_lines = [f"    {line}" for line in lines[:-1]] + [lines[-1]]
-            else:
-                indented_lines = [f"    {line}" for line in lines]
-            python_code = "async def main():\n" + "\n".join(indented_lines)
-        else:
-            python_code = "async def main():\n    pass"
-    return python_code
+def _validate_code(python_code: str) -> None:
+    """Validate code structure and raise ModelRetry for fixable issues."""
+    from pydantic_ai import ModelRetry
+
+    code = python_code.strip()
+    if not code:
+        msg = (
+            "Empty code provided. Please write code inside 'async def main():' function."
+        )
+        raise ModelRetry(msg)
+
+    if "async def main(" not in code:
+        msg = (
+            "Code must be wrapped in 'async def main():' function. "
+            "Please rewrite your code like:\n"
+            "async def main():\n"
+            "    # your code here\n"
+            "    return result"
+        )
+        raise ModelRetry(msg)
+
+    # Check if last line has return statement
+    lines = code.strip().splitlines()
+    if lines and not lines[-1].strip().startswith("return"):
+        msg = (
+            "The main() function should return a value. "
+            "Add 'return result' or 'return \"completed\"' at the end of your function."
+        )
+        raise ModelRetry(msg)
 
 
 class CodeModeToolset(AbstractToolset[Any]):
-    """A toolset that wraps other toolsets and provides Python code execution of these."""
+    """A toolset that wraps other toolsets and provides Python code execution."""
 
     def __init__(
         self,
@@ -93,7 +87,6 @@ class CodeModeToolset(AbstractToolset[Any]):
         self.include_docstrings = include_docstrings
         self.usage_notes = usage_notes
         self._toolset_generator: ToolsetCodeGenerator | None = None
-        self._cached_tools: dict[str, ToolsetTool[Any]] | None = None
 
     @property
     def id(self) -> str | None:
@@ -115,14 +108,12 @@ class CodeModeToolset(AbstractToolset[Any]):
 
     async def __aenter__(self):
         """Enter async context."""
-        # Enter context for all wrapped toolsets
         for toolset in self.toolsets:
             await toolset.__aenter__()
         return self
 
     async def __aexit__(self, *args):
         """Exit async context."""
-        # Exit context for all wrapped toolsets
         for toolset in self.toolsets:
             await toolset.__aexit__(*args)
 
@@ -131,26 +122,22 @@ class CodeModeToolset(AbstractToolset[Any]):
         from pydantic_ai.tools import ToolDefinition
         from pydantic_ai.toolsets.abstract import ToolsetTool
 
-        # Generate tool description with all available tools documented
         toolset_generator = await self._get_code_generator(ctx)
         description = toolset_generator.generate_tool_description()
         description += "\n\n" + self.usage_notes
 
-        # Create tool definition
         tool_def = ToolDefinition(
             name="execute_python",
             description=description,
             parameters_json_schema=CodeExecutionParams.model_json_schema(),
         )
 
-        # Create validator for parameters
         validator = SchemaValidator(CodeExecutionParams.__pydantic_core_schema__)
 
-        # Create toolset tool
         toolset_tool = ToolsetTool(
             toolset=self,
             tool_def=tool_def,
-            max_retries=1,
+            max_retries=3,
             args_validator=validator,
         )
 
@@ -168,24 +155,18 @@ class CodeModeToolset(AbstractToolset[Any]):
             msg = f"Unknown tool: {name}"
             raise ValueError(msg)
 
-        # Validate and extract parameters
         params = CodeExecutionParams.model_validate(tool_args)
-        # Build execution namespace with all tools
+        _validate_code(params.python_code)
         toolset_generator = await self._get_code_generator(ctx)
         namespace = toolset_generator.generate_execution_namespace()
-        # Fix the Python code if neccessary
-        python_code = _fix_code(params.python_code)
 
         try:
-            # Execute the code generated by the agent
-            exec(python_code, namespace)
+            exec(params.python_code, namespace)
             result = await namespace["main"]()
-            if result is None:
-                return "Code executed successfully"
         except Exception as e:  # noqa: BLE001
             return f"Error executing code: {e!s}"
         else:
-            return result
+            return result if result is not None else "Code executed successfully"
 
     def apply(self, visitor) -> None:
         """Apply visitor to all wrapped toolsets."""
@@ -205,11 +186,9 @@ class CodeModeToolset(AbstractToolset[Any]):
         from schemez.functionschema import FunctionSchema
 
         if self._toolset_generator is None:
-            # Collect all tools from wrapped toolsets
             all_tools = {}
             for toolset in self.toolsets:
                 tools = await toolset.get_tools(ctx)
-                # Check for name conflicts
                 for tool_name, tool_def in tools.items():
                     if tool_name in all_tools:
                         msg = (
@@ -219,13 +198,11 @@ class CodeModeToolset(AbstractToolset[Any]):
                         raise ValueError(msg)
                     all_tools[tool_name] = tool_def
 
-            # Create tool code generators
             generators = []
             for tool_name, toolset_tool in all_tools.items():
-                # Create a closure to capture the current tool and name
+
                 def create_wrapper(ts_tool: ToolsetTool[Any], ts_name: str):
                     async def tool_wrapper(**kwargs):
-                        # Call the original toolset with proper arguments
                         return await ts_tool.toolset.call_tool(
                             ts_name, kwargs, ctx, ts_tool
                         )
@@ -234,8 +211,6 @@ class CodeModeToolset(AbstractToolset[Any]):
 
                 wrapper_func = create_wrapper(toolset_tool, tool_name)
 
-                # Create FunctionSchema from pydantic-ai tool definition
-                # Convert the JSON schema format
                 schema_dict = {
                     "name": tool_name,
                     "description": toolset_tool.tool_def.description or "",
@@ -260,22 +235,21 @@ class CodeModeToolset(AbstractToolset[Any]):
 
 if __name__ == "__main__":
     import asyncio
-    import logging
-    import sys
     import webbrowser
 
     from pydantic_ai import Agent
     from pydantic_ai.toolsets.function import FunctionToolset
 
-    async def open_website(url: str):
+    async def open_website(url: str) -> dict[str, Any]:
+        """Open a website in the default browser."""
         webbrowser.open(url)
-
-    logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
-    function_toolset = FunctionToolset(tools=[open_website])
-    toolsets = CodeModeToolset([function_toolset])
+        return {"success": True, "url": url}
 
     async def main():
-        agent = Agent(model="openai:gpt-5-nano", toolsets=[toolsets])
+        function_toolset = FunctionToolset(tools=[open_website])
+        toolset = CodeModeToolset([function_toolset])
+
+        agent = Agent(model="openai:gpt-4o-mini", toolsets=[toolset])
         async with agent:
             result = await agent.run("Open google.com in a new tab.")
             print(f"Result: {result}")
