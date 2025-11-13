@@ -23,7 +23,7 @@ from llmling_models.input_handlers import DefaultInputHandler
 from llmling_models.multimodels import DelegationMultiModel, UserSelectModel
 from llmling_models.utils import infer_model, function_to_model
 from llmling_models.model_types import AllModels, ModelInput
-from llmling_models.codemode_toolset import CodeModeToolset
+from llmling_models.toolsets.codemode_toolset import CodeModeToolset
 
 __version__ = version("llmling-models")
 
