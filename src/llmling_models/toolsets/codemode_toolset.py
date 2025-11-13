@@ -10,11 +10,23 @@ from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.toolsets import AbstractToolset, ToolsetTool
 from pydantic_core import SchemaValidator
 from schemez import ToolsetCodeGenerator
-from schemez.code_generation.namespace_callable import NamespaceCallable
-from schemez.code_generation.tool_code_generator import ToolCodeGenerator
-from schemez.functionschema import FunctionSchema
 
 from llmling_models.toolsets.helpers import validate_code
+
+
+def get_return_type(toolset_tool: ToolsetTool[Any]) -> type[Any] | None:
+    """Extract return type from ToolsetTool if possible, otherwise return None."""
+    try:
+        if hasattr(toolset_tool, "call_func") and hasattr(
+            toolset_tool.call_func,  # pyright: ignore[reportAttributeAccessIssue]
+            "__self__",
+        ):
+            func_schema = toolset_tool.call_func.__self__  # pyright: ignore[reportAttributeAccessIssue]
+            if hasattr(func_schema, "function"):
+                return func_schema.function.__annotations__.get("return")
+    except Exception:  # noqa: BLE001
+        pass
+    return None
 
 
 if TYPE_CHECKING:
@@ -26,8 +38,7 @@ A tool to execute python code.
 You can (and should) use the provided stubs as async function calls
 if you need to.
 Write an async main function that returns the result.
-DONT write placeholders.
-
+DONT write placeholders. DONT run the function yourself. just write the function.
 Example tool call:
 <code>
 async def main():
@@ -151,44 +162,30 @@ class CodeModeToolset(AbstractToolset[Any]):
     async def _get_code_generator(self, ctx: RunContext[Any]) -> ToolsetCodeGenerator:
         """Get cached toolset generator, creating it if needed."""
         if self._toolset_generator is None:
-            all_tools: dict[str, ToolsetTool] = {}
+            callables = []
+
             for toolset in self.toolsets:
                 tools = await toolset.get_tools(ctx)
-                for tool_name, tool_def in tools.items():
-                    if tool_name in all_tools:
-                        msg = (
-                            f"Tool name conflict: {tool_name!r} is defined "
-                            "in multiple toolsets"
-                        )
-                        raise ValueError(msg)
-                    all_tools[tool_name] = tool_def
+                for tool_name, toolset_tool in tools.items():
+                    return_type = get_return_type(toolset_tool)
 
-            generators = []
-            for tool_name, toolset_tool in all_tools.items():
+                    def create_wrapper(ts_tool, ts_name, context, ret_type):
+                        async def tool_wrapper(**kwargs):
+                            return await ts_tool.toolset.call_tool(
+                                ts_name, kwargs, context, ts_tool
+                            )
 
-                def create_wrapper(ts_tool: ToolsetTool[Any], ts_name: str):
-                    async def tool_wrapper(**kwargs):
-                        return await ts_tool.toolset.call_tool(
-                            ts_name, kwargs, ctx, ts_tool
-                        )
+                        tool_wrapper.__name__ = ts_name
+                        tool_wrapper.__doc__ = ts_tool.tool_def.description
+                        if ret_type:
+                            tool_wrapper.__annotations__ = {"return": ret_type}
+                        return tool_wrapper
 
-                    return tool_wrapper
+                    wrapper = create_wrapper(toolset_tool, tool_name, ctx, return_type)
+                    callables.append(wrapper)
 
-                wrapper_func = create_wrapper(toolset_tool, tool_name)
-                function_schema = FunctionSchema(
-                    name=tool_name,
-                    parameters=toolset_tool.tool_def.parameters_json_schema,
-                    description=toolset_tool.tool_def.description,
-                )
-                generator = ToolCodeGenerator(
-                    schema=function_schema,
-                    callable=NamespaceCallable(wrapper_func),
-                    name_override=tool_name,
-                )
-                generators.append(generator)
-
-            self._toolset_generator = ToolsetCodeGenerator(
-                generators, self.include_docstrings
+            self._toolset_generator = ToolsetCodeGenerator.from_callables(
+                callables, self.include_docstrings
             )
 
         return self._toolset_generator
@@ -198,7 +195,7 @@ if __name__ == "__main__":
     import asyncio
     import logging
 
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
     from pydantic_ai import Agent
     from pydantic_ai.toolsets.function import FunctionToolset
 
@@ -214,9 +211,11 @@ if __name__ == "__main__":
         function_toolset = FunctionToolset(tools=[get_todays_date, what_happened_on_date])
         toolset = CodeModeToolset([function_toolset])
 
-        agent = Agent(model="openai:gpt-4o-mini", toolsets=[toolset])
+        agent = Agent(model="anthropic:claude-haiku-4-5", toolsets=[toolset])
         async with agent:
-            result = await agent.run("What happened today?")
-            print(f"Result: {result}")
+            result = await agent.run(
+                "what happened today? Get the date and pass it to what_happened_on_date"
+            )
+            print(result)
 
     asyncio.run(main())

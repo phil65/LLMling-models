@@ -24,9 +24,8 @@ def validate_code(python_code: str) -> None:
         )
         raise ModelRetry(msg)
 
-    # Check if last line has return statement
-    lines = code.strip().splitlines()
-    if lines and not lines[-1].strip().startswith("return"):
+    # Check if code contains a return statement
+    if "return " not in code:
         msg = (
             "The main() function should return a value. "
             "Add 'return result' or 'return \"completed\"' at the end of your function."
