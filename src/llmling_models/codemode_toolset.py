@@ -78,7 +78,6 @@ class CodeModeToolset(AbstractToolset[Any]):
         toolsets: list[AbstractToolset[Any]],
         *,
         toolset_id: str | None = None,
-        include_signatures: bool = True,
         include_docstrings: bool = True,
         usage_notes: str = USAGE_NOTES,
     ):
@@ -87,13 +86,11 @@ class CodeModeToolset(AbstractToolset[Any]):
         Args:
             toolsets: List of toolsets whose tools should be available in code execution
             toolset_id: Optional unique ID for this toolset
-            include_signatures: Include function signatures in tool documentation
             include_docstrings: Include function docstrings in tool documentation
             usage_notes: Usage notes to include in the tool description
         """
         self.toolsets = toolsets
         self._id = toolset_id
-        self.include_signatures = include_signatures
         self.include_docstrings = include_docstrings
         self.usage_notes = usage_notes
         self._toolset_generator: ToolsetCodeGenerator | None = None
@@ -270,7 +267,7 @@ class CodeModeToolset(AbstractToolset[Any]):
                 generators.append(generator)
 
             self._toolset_generator = ToolsetCodeGenerator(
-                generators, self.include_signatures, self.include_docstrings
+                generators, self.include_docstrings
             )
 
         return self._toolset_generator
