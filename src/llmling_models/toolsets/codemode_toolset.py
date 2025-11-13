@@ -2,28 +2,40 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
-from pydantic_ai.toolsets import AbstractToolset
+from pydantic_ai.tools import ToolDefinition
+from pydantic_ai.toolsets import AbstractToolset, ToolsetTool
 from pydantic_core import SchemaValidator
+from schemez import ToolsetCodeGenerator
+from schemez.code_generation.namespace_callable import NamespaceCallable
+from schemez.code_generation.tool_code_generator import ToolCodeGenerator
+from schemez.functionschema import FunctionSchema
+
+from llmling_models.toolsets.helpers import validate_code
 
 
 if TYPE_CHECKING:
     from pydantic_ai import RunContext
-    from pydantic_ai.toolsets import ToolsetTool
-    from schemez import ToolsetCodeGenerator
 
 
-USAGE_NOTES = """Usage notes:
-- Write your code inside an 'async def main():' function
-- All tool functions are async, use 'await'
-- Use 'return' statements to return values from main()
-- DO NOT call asyncio.run() or try to run the main function yourself
-- Example:
-    async def main():
-        result = await open_website(url='https://example.com')
-        return result"""
+USAGE_NOTES = """
+A tool to execute python code.
+You can (and should) use the provided stubs as async function calls
+if you need to.
+Write an async main function that returns the result.
+DONT write placeholders.
+
+Example tool call:
+<code>
+async def main():
+    result_1 = await provided_function()
+    result_2 = await provided_function_2("some_arg")
+    return result_1 + result_2
+</code>
+"""
 
 
 class CodeExecutionParams(BaseModel):
@@ -32,66 +44,29 @@ class CodeExecutionParams(BaseModel):
     python_code: str = Field(description="Python code to execute with tools available")
 
 
-def _validate_code(python_code: str) -> None:
-    """Validate code structure and raise ModelRetry for fixable issues."""
-    from pydantic_ai import ModelRetry
-
-    code = python_code.strip()
-    if not code:
-        msg = (
-            "Empty code provided. Please write code inside 'async def main():' function."
-        )
-        raise ModelRetry(msg)
-
-    if "async def main(" not in code:
-        msg = (
-            "Code must be wrapped in 'async def main():' function. "
-            "Please rewrite your code like:\n"
-            "async def main():\n"
-            "    # your code here\n"
-            "    return result"
-        )
-        raise ModelRetry(msg)
-
-    # Check if last line has return statement
-    lines = code.strip().splitlines()
-    if lines and not lines[-1].strip().startswith("return"):
-        msg = (
-            "The main() function should return a value. "
-            "Add 'return result' or 'return \"completed\"' at the end of your function."
-        )
-        raise ModelRetry(msg)
-
-
+@dataclass
 class CodeModeToolset(AbstractToolset[Any]):
     """A toolset that wraps other toolsets and provides Python code execution."""
 
-    def __init__(
-        self,
-        toolsets: list[AbstractToolset[Any]],
-        *,
-        toolset_id: str | None = None,
-        include_docstrings: bool = True,
-        usage_notes: str = USAGE_NOTES,
-    ):
-        """Initialize CodeModeToolset.
+    toolsets: list[AbstractToolset[Any]]
+    """List of toolsets whose tools should be available in code execution"""
 
-        Args:
-            toolsets: List of toolsets whose tools should be available in code execution
-            toolset_id: Optional unique ID for this toolset
-            include_docstrings: Include function docstrings in tool documentation
-            usage_notes: Usage notes to include in the tool description
-        """
-        self.toolsets = toolsets
-        self._id = toolset_id
-        self.include_docstrings = include_docstrings
-        self.usage_notes = usage_notes
-        self._toolset_generator: ToolsetCodeGenerator | None = None
+    toolset_id: str | None = None
+    """Optional unique ID for this toolset"""
+
+    include_docstrings: bool = True
+    """Include function docstrings in tool documentation"""
+
+    usage_notes: str = USAGE_NOTES
+    """Usage notes to include in the tool description"""
+
+    _toolset_generator: ToolsetCodeGenerator | None = None
+    """Toolset code generator"""
 
     @property
     def id(self) -> str | None:
         """Return the toolset ID."""
-        return self._id
+        return self.toolset_id
 
     @property
     def label(self) -> str:
@@ -119,13 +94,9 @@ class CodeModeToolset(AbstractToolset[Any]):
 
     async def get_tools(self, ctx: RunContext[Any]) -> dict[str, ToolsetTool[Any]]:
         """Return the single code execution tool."""
-        from pydantic_ai.tools import ToolDefinition
-        from pydantic_ai.toolsets.abstract import ToolsetTool
-
         toolset_generator = await self._get_code_generator(ctx)
         description = toolset_generator.generate_tool_description()
         description += "\n\n" + self.usage_notes
-
         tool_def = ToolDefinition(
             name="execute_python",
             description=description,
@@ -140,7 +111,6 @@ class CodeModeToolset(AbstractToolset[Any]):
             max_retries=3,
             args_validator=validator,
         )
-
         return {"execute_python": toolset_tool}
 
     async def call_tool(
@@ -156,7 +126,7 @@ class CodeModeToolset(AbstractToolset[Any]):
             raise ValueError(msg)
 
         params = CodeExecutionParams.model_validate(tool_args)
-        _validate_code(params.python_code)
+        validate_code(params.python_code)
         toolset_generator = await self._get_code_generator(ctx)
         namespace = toolset_generator.generate_execution_namespace()
 
@@ -180,13 +150,8 @@ class CodeModeToolset(AbstractToolset[Any]):
 
     async def _get_code_generator(self, ctx: RunContext[Any]) -> ToolsetCodeGenerator:
         """Get cached toolset generator, creating it if needed."""
-        from schemez import ToolsetCodeGenerator
-        from schemez.code_generation.namespace_callable import NamespaceCallable
-        from schemez.code_generation.tool_code_generator import ToolCodeGenerator
-        from schemez.functionschema import FunctionSchema
-
         if self._toolset_generator is None:
-            all_tools = {}
+            all_tools: dict[str, ToolsetTool] = {}
             for toolset in self.toolsets:
                 tools = await toolset.get_tools(ctx)
                 for tool_name, tool_def in tools.items():
@@ -210,15 +175,11 @@ class CodeModeToolset(AbstractToolset[Any]):
                     return tool_wrapper
 
                 wrapper_func = create_wrapper(toolset_tool, tool_name)
-
-                schema_dict = {
-                    "name": tool_name,
-                    "description": toolset_tool.tool_def.description or "",
-                    "parameters": toolset_tool.tool_def.parameters_json_schema,
-                }
-
-                function_schema = FunctionSchema.from_dict(schema_dict)
-
+                function_schema = FunctionSchema(
+                    name=tool_name,
+                    parameters=toolset_tool.tool_def.parameters_json_schema,
+                    description=toolset_tool.tool_def.description,
+                )
                 generator = ToolCodeGenerator(
                     schema=function_schema,
                     callable=NamespaceCallable(wrapper_func),
@@ -235,23 +196,27 @@ class CodeModeToolset(AbstractToolset[Any]):
 
 if __name__ == "__main__":
     import asyncio
-    import webbrowser
+    import logging
 
+    logging.basicConfig(level=logging.DEBUG)
     from pydantic_ai import Agent
     from pydantic_ai.toolsets.function import FunctionToolset
 
-    async def open_website(url: str) -> dict[str, Any]:
-        """Open a website in the default browser."""
-        webbrowser.open(url)
-        return {"success": True, "url": url}
+    async def get_todays_date() -> str:
+        """Get today's date."""
+        return "2024-12-13"
+
+    async def what_happened_on_date(date: str) -> str:
+        """Get what happened on a date."""
+        return f"On {date}, the great coding session happened!"
 
     async def main():
-        function_toolset = FunctionToolset(tools=[open_website])
+        function_toolset = FunctionToolset(tools=[get_todays_date, what_happened_on_date])
         toolset = CodeModeToolset([function_toolset])
 
         agent = Agent(model="openai:gpt-4o-mini", toolsets=[toolset])
         async with agent:
-            result = await agent.run("Open google.com in a new tab.")
+            result = await agent.run("What happened today?")
             print(f"Result: {result}")
 
     asyncio.run(main())
