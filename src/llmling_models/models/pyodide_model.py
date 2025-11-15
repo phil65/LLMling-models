@@ -6,9 +6,9 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 import os
-from typing import TYPE_CHECKING, Any, Literal, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict
 
-from pydantic import Field, TypeAdapter
+from pydantic import TypeAdapter
 from pydantic_ai import (
     ModelResponse,
     RequestUsage,
@@ -18,9 +18,8 @@ from pydantic_ai import (
     ToolReturnPart,
     UserPromptPart,
 )
-from pydantic_ai.models import ModelRequestParameters, StreamedResponse
+from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
 
-from llmling_models.base import PydanticModel
 from llmling_models.log import get_logger
 
 
@@ -237,10 +236,10 @@ class OpenAIStreamedResponse(StreamedResponse):
         return self._model_name
 
 
-class SimpleOpenAIModel(PydanticModel):
+@dataclass
+class SimpleOpenAIModel(Model):
     """OpenAI-compatible model using HTTPX."""
 
-    type: Literal["openai-simple"] = Field(default="openai-simple", init=False)
     model: str
     """OpenAI model identifier."""
 

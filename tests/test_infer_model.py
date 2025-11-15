@@ -5,11 +5,11 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from llmling_models.models.helpers import infer_model
+from llmling_models.models.pyodide_model import SimpleOpenAIModel
 from llmling_models.providers import infer_provider
 from llmling_models.providers.copilot_provider import CopilotProvider
 from llmling_models.providers.lm_studio_provider import LMStudioProvider
-from llmling_models.pyodide_model import SimpleOpenAIModel
-from llmling_models.utils import infer_model
 
 
 if TYPE_CHECKING:

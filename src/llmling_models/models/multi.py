@@ -5,11 +5,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from pydantic import Field, model_validator
+from pydantic.config import ConfigDict
 from pydantic_ai.models import Model
+from schemez import Schema
 
-from llmling_models.base import PydanticModel
 from llmling_models.log import get_logger
-from llmling_models.utils import infer_model
+from llmling_models.models.helpers import infer_model
 
 
 if TYPE_CHECKING:
@@ -19,7 +20,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-class MultiModel[TModel: Model](PydanticModel):
+class MultiModel(Schema, Model):
     """Base for model configurations that combine multiple language models.
 
     This provides the base interface for YAML-configurable multi-model setups,
@@ -29,12 +30,14 @@ class MultiModel[TModel: Model](PydanticModel):
     models: list[str | Model] = Field(min_length=1)
     """List of models to use."""
 
-    _initialized_models: list[TModel] | None = None
+    _initialized_models: list[Model] | None = None
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @model_validator(mode="after")
-    def initialize_models(self) -> MultiModel[TModel]:
+    def initialize_models(self) -> MultiModel:
         """Convert string model names to Model instances."""
-        models: list[TModel] = []
+        models: list[Model] = []
         for model in self.models:
             if isinstance(model, str):
                 models.append(infer_model(model))  # type: ignore[arg-type]
@@ -44,7 +47,7 @@ class MultiModel[TModel: Model](PydanticModel):
         return self
 
     @property
-    def available_models(self) -> Sequence[TModel]:
+    def available_models(self) -> Sequence[Model]:
         """Get initialized model instances."""
         if self._initialized_models is None:
             msg = "Models not initialized"

@@ -6,7 +6,7 @@ from typing import ClassVar
 from pydantic_ai.providers.openai import OpenAIProvider
 
 
-class ZenProvider:
+class ZenProviderFactory:
     """Factory for creating OpenCode Zen providers with model-specific endpoints."""
 
     # Model-to-endpoint mapping based on OpenCode Zen documentation
@@ -111,7 +111,7 @@ def _create_zen_model(model_name: str):
     # Create provider instance using the factory method
     api_key = os.getenv("ZEN_API_KEY")
     assert api_key, "ZEN_API_KEY is required when using OpenCode Zen provider"
-    provider_instance = ZenProvider.create_provider(
+    provider_instance = ZenProviderFactory.create_provider(
         api_key=api_key, model_name=model_name
     )
 

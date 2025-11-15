@@ -9,22 +9,18 @@ from datetime import UTC, datetime
 import inspect
 from typing import TYPE_CHECKING, Any
 
-from pydantic import Field, ImportString  # noqa: TC002
+from pydantic import Field, ImportString
 from pydantic_ai import ModelResponse, RequestUsage, TextPart
-from pydantic_ai.models import ModelRequestParameters, StreamedResponse
+from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
+from schemez import Schema
 
-from llmling_models.base import PydanticModel
 from llmling_models.log import get_logger
 
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-    from pydantic_ai import (
-        ModelMessage,
-        ModelResponseStreamEvent,
-        RunContext,
-    )
+    from pydantic_ai import ModelMessage, ModelResponseStreamEvent, RunContext
     from pydantic_ai.settings import ModelSettings
 
 
@@ -78,7 +74,7 @@ class InputStreamedResponse(StreamedResponse):
         return "input"
 
 
-class InputModel(PydanticModel):
+class InputModel(Model, Schema):
     """Model that delegates responses to human input."""
 
     prompt_template: str = Field(default="👤 Please respond to: {prompt}")

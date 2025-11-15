@@ -6,7 +6,7 @@ from pydantic_ai import Agent
 from pydantic_ai.models.test import TestModel
 import pytest
 
-from llmling_models.multimodels import DelegationMultiModel
+from llmling_models.models import DelegationMultiModel
 
 
 class ComplexTestModel(TestModel):

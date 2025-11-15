@@ -7,11 +7,11 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, model_validator
 from pydantic_ai import ModelRequest, UserPromptPart
-from pydantic_ai.models import Model
+from pydantic_ai.models import Model  # noqa: TC002
 
 from llmling_models.log import get_logger
-from llmling_models.multi import MultiModel
-from llmling_models.utils import infer_model
+from llmling_models.models.helpers import infer_model
+from llmling_models.models.multi import MultiModel
 
 
 if TYPE_CHECKING:
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-class DelegationMultiModel(MultiModel[Model]):
+class DelegationMultiModel(MultiModel):
     """Meta-model that dynamically selects models based on a user prompt."""
 
     selector_model: str | Model

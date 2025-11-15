@@ -11,7 +11,7 @@ from pydantic_ai.models import Model
 from schemez import Schema
 
 from llmling_models.log import get_logger
-from llmling_models.utils import infer_model
+from llmling_models.models.helpers import infer_model
 
 
 logger = get_logger(__name__)

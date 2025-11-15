@@ -11,7 +11,7 @@ from pydantic_ai import ModelMessagesTypeAdapter, ModelResponse
 from pydantic_ai.models import ModelRequestParameters
 
 from llmling_models.log import get_logger
-from llmling_models.utils import infer_model
+from llmling_models.models.helpers import infer_model
 
 
 if TYPE_CHECKING:

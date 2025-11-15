@@ -8,24 +8,23 @@ import inspect
 from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, ImportString  # noqa: TC002
-from pydantic_ai.models import Model
 
 from llmling_models.log import get_logger
-from llmling_models.multi import MultiModel
+from llmling_models.models.multi import MultiModel
 
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     from pydantic_ai import ModelMessage, ModelResponse, ModelSettings, RunContext
-    from pydantic_ai.models import ModelRequestParameters, StreamedResponse
+    from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
 
-    from llmling_models.input_handlers import InputHandler
+    from llmling_models.models.input_handlers import InputHandler
 
 logger = get_logger(__name__)
 
 
-class UserSelectModel(MultiModel[Model]):
+class UserSelectModel(MultiModel):
     """Model that lets users interactively select from multiple models."""
 
     prompt_template: str = Field(default="🤖 Choose a model for: {prompt}")

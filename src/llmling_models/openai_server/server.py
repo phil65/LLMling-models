@@ -23,13 +23,13 @@ from pydantic_ai.settings import ModelSettings
 import tokonomics
 
 from llmling_models.log import get_logger
+from llmling_models.models.helpers import infer_model
 from llmling_models.openai_server.helpers import (
     convert_tools,
     openai_to_pydantic_messages,
     pydantic_response_to_openai,
 )
 from llmling_models.openai_server.models import ChatCompletionRequest, OpenAIModelInfo
-from llmling_models.utils import infer_model
 
 
 if TYPE_CHECKING:
