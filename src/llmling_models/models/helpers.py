@@ -148,11 +148,11 @@ def _infer_single_model(  # noqa: PLR0911
 
         return InputModel()
     if model.startswith("remote_model"):
-        from llmling_models.remote_model.client import RemoteProxyModel
+        from llmling_models.models.remote_model import RemoteProxyModel
 
         return RemoteProxyModel(url=model.removeprefix("remote_model:"))
     if model.startswith("remote_input"):
-        from llmling_models.remote_input.client import RemoteInputModel
+        from llmling_models.models.remote_input import RemoteInputModel
 
         return RemoteInputModel(url=model.removeprefix("remote_input:"))
     if model.startswith("import:"):

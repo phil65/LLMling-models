@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Literal
 
-from fastapi import FastAPI, Header, HTTPException, WebSocketDisconnect, status
-from fastapi.security import HTTPBearer
 from pydantic import BaseModel
 
 from llmling_models.log import get_logger
@@ -16,7 +14,6 @@ if TYPE_CHECKING:
 
 
 logger = get_logger(__name__)
-security = HTTPBearer()
 
 
 class Message(BaseModel):
@@ -71,6 +68,8 @@ class ModelServer:
 
     def __init__(self, title: str = "Input Server", description: str | None = None):
         """Initialize server with configuration."""
+        from fastapi import FastAPI, Header, HTTPException, WebSocketDisconnect, status
+
         self.app = FastAPI(title=title, description=description or "No description")
 
         @self.app.post("/v1/chat/completions", response_model=CompletionResponse)
