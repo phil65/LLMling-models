@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from pydantic_ai import ModelMessage, ModelResponse, ModelSettings, RunContext
     from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
 
-    from llmling_models.models.input_handlers import InputHandler
+    from llmling_models.models.input_model import InputHandler
 
 logger = get_logger(__name__)
 

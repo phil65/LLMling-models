@@ -17,8 +17,7 @@ __license__ = "MIT"
 __url__ = "https://github.com/phil65/llmling-models"
 
 from llmling_models.models.multi import MultiModel
-from llmling_models.models.inputmodel import InputModel
-from llmling_models.models.input_handlers import DefaultInputHandler
+from llmling_models.models.input_model import InputModel, DefaultInputHandler
 from llmling_models.models import DelegationMultiModel, UserSelectModel
 from llmling_models.models.function_to_model import function_to_model
 from llmling_models.models.helpers import infer_model

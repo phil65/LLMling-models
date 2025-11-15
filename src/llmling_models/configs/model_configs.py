@@ -159,7 +159,7 @@ class InputModelConfig(BaseModelConfig):
     """Handler for processing user input."""
 
     def get_model(self) -> InputModel:
-        from llmling_models.models.inputmodel import InputModel
+        from llmling_models.models.input_model import InputModel
 
         return InputModel(
             prompt_template=self.prompt_template,

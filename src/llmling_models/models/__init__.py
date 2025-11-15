@@ -6,7 +6,7 @@ from __future__ import annotations
 from llmling_models.models.delegation import DelegationMultiModel
 from llmling_models.models.augmented import AugmentedModel
 from llmling_models.models.userselect import UserSelectModel
-from llmling_models.models.inputmodel import InputModel
+from llmling_models.models.input_model import InputModel
 from llmling_models.models.pyodide_model import SimpleOpenAIModel
 from llmling_models.models.stringmodel import StringModel
 from llmling_models.models.remote_input import RemoteInputModel
