@@ -6,7 +6,6 @@ import contextlib
 from dataclasses import asdict
 from typing import TYPE_CHECKING, Any
 
-from fastapi import FastAPI, Header, HTTPException, WebSocketDisconnect, status
 from pydantic_ai import ModelMessagesTypeAdapter, ModelResponse
 from pydantic_ai.models import ModelRequestParameters
 
@@ -41,6 +40,8 @@ class ModelServer:
             description: Server description
             api_key: Optional API key for authentication
         """
+        from fastapi import FastAPI
+
         self.app = FastAPI(title=title, description=description or "")
         self.model = infer_model(model)
         self.api_key = api_key
@@ -48,6 +49,8 @@ class ModelServer:
 
     def _verify_auth(self, auth: str | None) -> None:
         """Verify authentication header if API key is set."""
+        from fastapi import HTTPException, status
+
         if not self.api_key:
             return
         if not auth or not auth.startswith("Bearer "):
@@ -64,6 +67,7 @@ class ModelServer:
 
     def _setup_routes(self):
         """Configure API routes."""
+        from fastapi import Header, HTTPException, WebSocketDisconnect, status
 
         @self.app.post("/v1/completion")
         async def create_completion(
