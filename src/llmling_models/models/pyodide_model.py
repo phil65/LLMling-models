@@ -83,10 +83,10 @@ def convert_messages(messages: list[ModelMessage]) -> list[dict[str, Any]]:
         else:
             for request_part in message.parts:
                 match request_part:
-                    case SystemPromptPart(content=content):
-                        result.append({"role": "system", "content": content})
-                    case UserPromptPart(content=content):
-                        result.append({"role": "user", "content": content})
+                    case SystemPromptPart(content=sys_content):
+                        result.append({"role": "system", "content": sys_content})
+                    case UserPromptPart(content=user_content):
+                        result.append({"role": "user", "content": user_content})
                     case ToolReturnPart(tool_call_id=tool_call_id):
                         result.append({
                             "role": "tool",

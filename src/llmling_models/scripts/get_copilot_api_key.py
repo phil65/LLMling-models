@@ -2,10 +2,10 @@ from __future__ import annotations  # noqa: INP001
 
 import time
 
-import requests
+import httpx
 
 
-resp = requests.post(
+resp = httpx.post(
     "https://github.com/login/device/code",
     headers={
         "accept": "application/json",
@@ -15,7 +15,7 @@ resp = requests.post(
         "user-agent": "GithubCopilot/1.155.0",
         "accept-encoding": "gzip,deflate,br",
     },
-    data='{"client_id":"Iv1.b507a08c87ecfe98","scope":"read:user"}',
+    json={"client_id": "Iv1.b507a08c87ecfe98", "scope": "read:user"},
 )
 
 # Parse the response json, isolating the device_code, user_code, and verification_uri
@@ -30,7 +30,7 @@ print(f"Please visit {verification_uri} and enter code {user_code} to authentica
 while True:
     time.sleep(5)
 
-    resp = requests.post(
+    resp = httpx.post(
         "https://github.com/login/oauth/access_token",
         headers={
             "accept": "application/json",
@@ -40,7 +40,11 @@ while True:
             "user-agent": "GithubCopilot/1.155.0",
             "accept-encoding": "gzip,deflate,br",
         },
-        data=f'{{"client_id":"Iv1.b507a08c87ecfe98","device_code":"{device_code}","grant_type":"urn:ietf:params:oauth:grant-type:device_code"}}',
+        json={
+            "client_id": "Iv1.b507a08c87ecfe98",
+            "device_code": device_code,
+            "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+        },
     )
 
     # Parse the response json, isolating the access_token

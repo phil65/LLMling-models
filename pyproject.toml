@@ -78,6 +78,7 @@ lint = [
   "mypy; python_version >= '3.14'",
   "mypy[faster-cache]; python_version < '3.14'",
   "ruff",
+  "types-PyYAML",
   # Only add below (Copier)
 ]
 
@@ -108,10 +109,9 @@ docstring-style = "google"
 
 [tool.mypy]
 python_version = "3.13"
-disable_error_code = ["misc", "import"]
 pretty = true
 check_untyped_defs = true
-exclude = ["venv/", ".venv/", "tests/"]
+exclude = ["venv/", ".venv/"]
 plugins = ["pydantic.mypy"]
 
 [tool.pyright]

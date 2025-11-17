@@ -2,15 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic_ai import (
-    AudioUrl,
-    BinaryContent,
-    DocumentUrl,
-    FileUrl,
-    ImageUrl,
-    VideoUrl,
-    messages,
-)
+from pydantic_ai import BinaryContent, FileUrl, messages
 
 
 def format_part(  # noqa: PLR0911
@@ -41,13 +33,7 @@ def format_part(  # noqa: PLR0911
                 match item:
                     case str():
                         texts.append(f"{item}")
-                    case (
-                        DocumentUrl(url=url)
-                        | ImageUrl(url=url)
-                        | AudioUrl(url=url)
-                        | VideoUrl(url=url)
-                        | FileUrl(url=url)
-                    ):
+                    case FileUrl(url=url):
                         texts.append(f"{url}")
                     case BinaryContent(identifier=identifier):
                         texts.append(f"Binary content: <{identifier}>")
