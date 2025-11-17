@@ -117,4 +117,4 @@ def serialize_message(message: PydanticAIMessage) -> str:
                 content["ctx"] = {
                     k: str(v) for k, v in (content.get("ctx", None) or {}).items()
                 }
-    return message_adapter.dump_python(message, mode="json")
+    return message_adapter.dump_python(message, mode="json")  # type: ignore[no-any-return]

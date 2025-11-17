@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib.util
 import logging
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ImportString
 from pydantic_ai.models import infer_model as infer_model_
@@ -158,10 +158,10 @@ def _infer_single_model(  # noqa: PLR0911
     if model.startswith("import:"):
 
         class Importer(BaseModel):
-            model: ImportString
+            model: ImportString[Any]
 
         imported = Importer(model=model.removeprefix("import:")).model
-        return imported() if isinstance(imported, type) else imported
+        return imported() if isinstance(imported, type) else imported  # type: ignore[no-any-return]
     if model.startswith("test:"):
         from pydantic_ai.models.test import TestModel
 

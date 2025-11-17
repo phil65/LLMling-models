@@ -86,7 +86,7 @@ class InputModel(Model, Schema):
     input_prompt: str = Field(default="Your response: ")
     """Prompt to show when requesting input."""
 
-    handler: ImportString = Field(
+    handler: ImportString[Any] = Field(
         default="llmling_models:DefaultInputHandler", validate_default=True
     )
     """Input handler class to use."""

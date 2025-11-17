@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 from pydantic import ConfigDict, Field, ImportString, SecretStr
@@ -127,7 +128,7 @@ class ImportModelConfig(BaseModelConfig):
     type: Literal["import"] = Field(default="import", init=False)
     """Type identifier for import model."""
 
-    model: ImportString
+    model: ImportString[Any]
     """Import path to the model class or function."""
 
     kw_args: dict[str, str] = Field(default_factory=dict)
@@ -152,7 +153,7 @@ class InputModelConfig(BaseModelConfig):
     input_prompt: str = Field(default="Your response: ")
     """Text displayed when requesting input."""
 
-    handler: ImportString = Field(
+    handler: ImportString[Any] = Field(
         default="llmling_models:DefaultInputHandler",
         validate_default=True,
     )
@@ -225,7 +226,7 @@ class UserSelectModelConfig(BaseModelConfig):
     input_prompt: str = Field(default="Enter model number (0-{max}): ")
     """Text displayed when requesting model selection."""
 
-    handler: ImportString = Field(
+    handler: ImportString[Any] = Field(
         default="llmling_models:DefaultInputHandler",
         validate_default=True,
     )
@@ -267,7 +268,7 @@ class FunctionModelConfig(BaseModelConfig):
     type: Literal["function"] = Field(default="function", init=False)
     """Type identifier for function model."""
 
-    function: ImportString
+    function: ImportString[Callable[..., Any]]
     """Function identifier for the model."""
 
     def get_model(self) -> FunctionModel:

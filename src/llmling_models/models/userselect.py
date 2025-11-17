@@ -36,7 +36,7 @@ class UserSelectModel(MultiModel):
     input_prompt: str = Field(default="Enter model number (0-{max}): ")
     """Prompt shown when requesting model selection."""
 
-    handler: ImportString = Field(
+    handler: ImportString[Any] = Field(
         default="llmling_models:DefaultInputHandler", validate_default=True
     )
     """Input handler class to use."""

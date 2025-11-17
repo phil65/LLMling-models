@@ -110,6 +110,7 @@ docstring-style = "google"
 [tool.mypy]
 python_version = "3.13"
 pretty = true
+strict = true
 check_untyped_defs = true
 exclude = ["venv/", ".venv/"]
 plugins = ["pydantic.mypy"]
