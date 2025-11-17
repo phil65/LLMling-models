@@ -10,7 +10,7 @@ import webbrowser
 from pydantic_ai import Agent
 from pydantic_ai.toolsets.function import FunctionToolset
 
-from llmling_models.codemode_toolset import CodeModeToolset
+from llmling_models.toolsets.codemode_toolset import CodeModeToolset
 
 
 async def main():
