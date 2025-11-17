@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Self
 
 from pydantic import BaseModel, Field
 from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.toolsets import AbstractToolset, ToolsetTool
+from pydantic_ai.toolsets.function import FunctionToolsetTool
 from pydantic_core import SchemaValidator
 from schemez import ToolsetCodeGenerator
 
@@ -22,14 +23,16 @@ def get_return_type(toolset_tool: ToolsetTool[Any]) -> type[Any] | None:
             "__self__",
         ):
             func_schema = toolset_tool.call_func.__self__  # pyright: ignore[reportAttributeAccessIssue]
-            if hasattr(func_schema, "function"):
-                return func_schema.function.__annotations__.get("return")
+            if isinstance(func_schema, FunctionToolsetTool):
+                return func_schema.call_func.__annotations__.get("return")
     except Exception:  # noqa: BLE001
         pass
     return None
 
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
     from pydantic_ai import RunContext
 
 
@@ -56,7 +59,7 @@ class CodeExecutionParams(BaseModel):
 
 
 @dataclass
-class CodeModeToolset(AbstractToolset[Any]):
+class CodeModeToolset[AgentDepsT = None](AbstractToolset[AgentDepsT]):
     """A toolset that wraps other toolsets and provides Python code execution."""
 
     toolsets: list[AbstractToolset[Any]]
@@ -92,13 +95,13 @@ class CodeModeToolset(AbstractToolset[Any]):
         """Return hint for resolving name conflicts."""
         return "Rename the toolset ID or use a different CodeModeToolset instance."
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> Self:
         """Enter async context."""
         for toolset in self.toolsets:
             await toolset.__aenter__()
         return self
 
-    async def __aexit__(self, *args):
+    async def __aexit__(self, *args: object) -> None:
         """Exit async context."""
         for toolset in self.toolsets:
             await toolset.__aexit__(*args)
@@ -149,12 +152,15 @@ class CodeModeToolset(AbstractToolset[Any]):
         else:
             return result if result is not None else "Code executed successfully"
 
-    def apply(self, visitor) -> None:
+    def apply(self, visitor: Callable[[AbstractToolset[AgentDepsT]], None]) -> None:
         """Apply visitor to all wrapped toolsets."""
         for toolset in self.toolsets:
             toolset.apply(visitor)
 
-    def visit_and_replace(self, visitor):
+    def visit_and_replace(
+        self,
+        visitor: Callable[[AbstractToolset[AgentDepsT]], AbstractToolset[AgentDepsT]],
+    ) -> AbstractToolset[AgentDepsT]:
         """Visit and replace all wrapped toolsets."""
         self.toolsets = [toolset.visit_and_replace(visitor) for toolset in self.toolsets]
         return self
@@ -169,8 +175,13 @@ class CodeModeToolset(AbstractToolset[Any]):
                 for tool_name, toolset_tool in tools.items():
                     return_type = get_return_type(toolset_tool)
 
-                    def create_wrapper(ts_tool, ts_name, context, ret_type):
-                        async def tool_wrapper(**kwargs):
+                    def create_wrapper(
+                        ts_tool: ToolsetTool,
+                        ts_name: str,
+                        context: RunContext[Any],
+                        ret_type: Any,
+                    ) -> Callable[..., Awaitable[Any]]:
+                        async def tool_wrapper(**kwargs: Any) -> Any:
                             return await ts_tool.toolset.call_tool(
                                 ts_name, kwargs, context, ts_tool
                             )
@@ -207,7 +218,7 @@ if __name__ == "__main__":
         """Get what happened on a date."""
         return f"On {date}, the great coding session happened!"
 
-    async def main():
+    async def main() -> None:
         function_toolset = FunctionToolset(tools=[get_todays_date, what_happened_on_date])
         toolset = CodeModeToolset([function_toolset])
 

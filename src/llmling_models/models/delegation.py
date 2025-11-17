@@ -184,7 +184,7 @@ if __name__ == "__main__":
         "Pick 'openai:gpt-3.5-turbo' for simple queries and chat."
     )
 
-    async def test():
+    async def test() -> None:
         # Create delegation model
         delegation_model = DelegationMultiModel(
             selector_model="openai:gpt-4o-mini",

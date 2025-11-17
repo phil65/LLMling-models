@@ -231,7 +231,7 @@ if __name__ == "__main__":
 
     logging.basicConfig(level=logging.DEBUG)
 
-    async def test():
+    async def test() -> None:
         pre = PrePostPromptConfig(
             text=(
                 "Your task is to rewrite '{input}' as a more detailed "

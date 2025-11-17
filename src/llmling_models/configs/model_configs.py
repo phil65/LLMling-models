@@ -118,7 +118,7 @@ class FallbackModelConfig(BaseModelConfig):
             model.get_model() if isinstance(model, BaseModelConfig) else model
             for model in self.models
         ]
-        return FallbackModel(*converted_models)  # type: ignore
+        return FallbackModel(*converted_models)
 
 
 class ImportModelConfig(BaseModelConfig):

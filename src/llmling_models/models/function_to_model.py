@@ -29,7 +29,10 @@ if TYPE_CHECKING:
     )
 
 
-def function_to_model(callback: Callable, streamable: bool = True) -> FunctionModel:
+def function_to_model(
+    callback: Callable[..., Any],
+    streamable: bool = True,
+) -> FunctionModel:
     """Factory to get a text model for Callables with "simpler" signatures.
 
     This function serves as a helper to allow creating FunctionModels which take either
@@ -114,7 +117,7 @@ if __name__ == "__main__":
 
     agent = Agent(model=function_to_model(structured_response))
 
-    async def main():
+    async def main() -> None:
         async for event in agent.run_stream_events(
             str(dict(a="test")), output_type=Response
         ):

@@ -1,9 +1,15 @@
 r"""OpenCode Zen provider implementation for Pydantic AI."""
 
+from __future__ import annotations
+
 import os
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from pydantic_ai.providers.openai import OpenAIProvider
+
+
+if TYPE_CHECKING:
+    from pydantic_ai.models.openai import OpenAIChatModel
 
 
 class ZenProviderFactory:
@@ -100,7 +106,7 @@ class ZenProviderFactory:
         return cls.MODEL_ENDPOINTS.copy()
 
 
-def _create_zen_model(model_name: str):
+def _create_zen_model(model_name: str) -> OpenAIChatModel:
     """Create OpenCode Zen model."""
     from pydantic_ai.models.openai import OpenAIChatModel
 

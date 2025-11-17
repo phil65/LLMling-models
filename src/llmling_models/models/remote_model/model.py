@@ -100,8 +100,8 @@ class RemoteProxyModel(Model):
                     usage=RequestUsage(**data.get("usage", {})),
                 )
             except httpx.HTTPError as e:
-                if hasattr(e, "response") and e.response is not None:  # type: ignore
-                    logger.exception("Error response: %s", e.response.text)  # type: ignore
+                if hasattr(e, "response") and e.response is not None:  # pyright: ignore[reportAttributeAccessIssue]
+                    logger.exception("Error response: %s", e.response.text)  # pyright: ignore[reportAttributeAccessIssue]
                 msg = f"HTTP error: {e}"
                 raise RuntimeError(msg) from e
             else:
@@ -195,7 +195,7 @@ class RemoteProxyStreamedResponse(StreamedResponse):
     websocket: ClientConnection
     _timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Initialize usage tracking."""
         self._usage = RequestUsage()
 
@@ -262,7 +262,7 @@ if __name__ == "__main__":
 
     logging.basicConfig(level=logging.DEBUG)
 
-    async def test():
+    async def test() -> None:
         model = RemoteProxyModel(url="ws://localhost:8000/v1/completion/stream")
         agent: Agent[None, str] = Agent(model=model)
 

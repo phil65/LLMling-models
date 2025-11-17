@@ -31,7 +31,7 @@ class ModelServer:
         title: str = "Model Server",
         description: str | None = None,
         api_key: str | None = None,
-    ):
+    ) -> None:
         """Initialize server with a pydantic-ai model.
 
         Args:
@@ -65,7 +65,7 @@ class ModelServer:
                 detail="Invalid API key",
             )
 
-    def _setup_routes(self):
+    def _setup_routes(self) -> None:
         """Configure API routes."""
         from fastapi import Header, HTTPException, WebSocketDisconnect, status
 
@@ -92,7 +92,7 @@ class ModelServer:
                     model_request_parameters=model_params,
                 )
                 content = (
-                    str(response.parts[0].content)  # type: ignore
+                    str(response.parts[0].content)
                     if hasattr(response.parts[0], "content")
                     else ""
                 )
@@ -106,7 +106,7 @@ class ModelServer:
                 ) from e
 
         @self.app.websocket("/v1/completion/stream")
-        async def websocket_endpoint(websocket: WebSocket):
+        async def websocket_endpoint(websocket: WebSocket) -> None:
             """Handle streaming conversation via WebSocket."""
             try:
                 # Check auth
@@ -161,7 +161,7 @@ class ModelServer:
                                         chunks.parts[0], "content"
                                     ):
                                         await websocket.send_json({
-                                            "chunk": str(chunks.parts[0].content),  # type: ignore
+                                            "chunk": str(chunks.parts[0].content),  # pyright: ignore[reportAttributeAccessIssue]
                                             "done": False,
                                         })
                                 else:
@@ -192,7 +192,7 @@ class ModelServer:
                         "done": True,
                     })
 
-    def run(self, host: str = "0.0.0.0", port: int = 8000, **kwargs: Any):
+    def run(self, host: str = "0.0.0.0", port: int = 8000, **kwargs: Any) -> None:
         """Start the server."""
         import uvicorn
 

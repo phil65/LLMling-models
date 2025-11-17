@@ -34,7 +34,7 @@ class InputStreamedResponse(StreamedResponse):
     stream: AsyncIterator[str]
     _timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Initialize usage tracking."""
         self._usage = RequestUsage()
 
@@ -177,7 +177,7 @@ if __name__ == "__main__":
     # Set up logging
     logging.basicConfig(level=logging.DEBUG)
 
-    async def test():
+    async def test() -> None:
         # Test basic input
         model = InputModel(
             prompt_template="🤖 Question: {prompt}",

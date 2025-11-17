@@ -48,7 +48,7 @@ logger = get_logger(__name__)
 class ModelRegistry:
     """Registry of available models."""
 
-    def __init__(self, models: dict[str, str | Model] | None = None):
+    def __init__(self, models: dict[str, str | Model] | None = None) -> None:
         """Initialize model registry.
 
         Args:
@@ -118,7 +118,7 @@ class OpenAIServer:
         api_key: str | None = None,
         title: str = "LLMling OpenAI-Compatible API",
         description: str | None = None,
-    ):
+    ) -> None:
         """Initialize the server.
 
         Args:
@@ -632,7 +632,7 @@ if __name__ == "__main__":
     fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     logging.basicConfig(level=logging.INFO, format=fmt)
 
-    async def run_with_auto_discovery():
+    async def run_with_auto_discovery() -> None:
         """Run the server with auto-discovered models from tokonomics."""
         registry = await ModelRegistry.create()
         server = OpenAIServer(

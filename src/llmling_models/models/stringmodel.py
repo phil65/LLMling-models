@@ -42,7 +42,7 @@ class StringModel(Model):
         model_request_parameters: ModelRequestParameters,
     ) -> ModelResponse:
         """Create and delegate to inferred model."""
-        model = infer_model(self.identifier)  # type: ignore
+        model = infer_model(self.identifier)
         return await model.request(messages, model_settings, model_request_parameters)
 
     @asynccontextmanager
@@ -54,7 +54,7 @@ class StringModel(Model):
         run_context: RunContext[Any] | None = None,
     ) -> AsyncIterator[StreamedResponse]:
         """Stream from inferred model."""
-        model = infer_model(self.identifier)  # type: ignore
+        model = infer_model(self.identifier)
         async with model.request_stream(
             messages,
             model_settings,

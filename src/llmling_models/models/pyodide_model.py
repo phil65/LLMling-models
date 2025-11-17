@@ -120,7 +120,7 @@ class OpenAIStreamedResponse(StreamedResponse):
     _timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     _model_name: str
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Initialize usage tracking and parts manager."""
         self._usage = RequestUsage()
         self._has_yielded_start = False
@@ -411,7 +411,7 @@ if __name__ == "__main__":
 
     from pydantic_ai import Agent
 
-    async def test():
+    async def test() -> None:
         # Create model instance
         model = SimpleOpenAIModel(model="gpt-5-nano")
         agent: Agent[None, str] = Agent(model=model)

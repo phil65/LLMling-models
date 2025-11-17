@@ -40,7 +40,7 @@ class InputHandler(Protocol):
         ...
 
 
-class DefaultInputHandler:
+class DefaultInputHandler(InputHandler):
     """Default input handler using standard input."""
 
     def get_input(self, prompt: str) -> str:
@@ -51,7 +51,7 @@ class DefaultInputHandler:
         """Simulate streaming input using standard input."""
         print(prompt, end="", flush=True)
 
-        async def char_iterator():
+        async def char_iterator() -> AsyncIterator[str]:
             while True:
                 char = sys.stdin.read(1)
                 if char == "\n":

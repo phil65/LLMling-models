@@ -102,7 +102,7 @@ if __name__ == "__main__":
     from pydantic_ai import Agent, BinaryContent
     from pydantic_ai.models.openai import OpenAIChatModel
 
-    async def main():
+    async def main() -> None:
         provider = MoondreamProvider()
         model = OpenAIChatModel("moondream3-preview", provider=provider)
         agent = Agent(model=model)

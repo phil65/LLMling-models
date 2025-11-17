@@ -59,7 +59,7 @@ def get_model(
     return OpenAIResponsesModel(model_name=model_name, provider=provider)
 
 
-def infer_model(model) -> Model:
+def infer_model(model: str | Model) -> Model:
     """Extended infer_model from pydantic-ai with fallback support.
 
     For fallback models, use comma-separated model names.
@@ -88,7 +88,7 @@ def infer_model(model) -> Model:
 
 
 def _infer_single_model(  # noqa: PLR0911
-    model,
+    model: str | Model,
 ) -> Model:
     """Extended infer_model from pydantic-ai."""
     if not isinstance(model, str):
@@ -168,4 +168,4 @@ def _infer_single_model(  # noqa: PLR0911
         return TestModel(custom_output_text=model.removeprefix("test:"))
     if model.startswith("gemini:"):
         model = model.replace("gemini:", "google-gla:")
-    return infer_model_(model)  # type: ignore
+    return infer_model_(model)

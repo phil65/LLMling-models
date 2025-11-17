@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from httpx import AsyncClient as AsyncHTTPClient
 from openai import AsyncOpenAI
@@ -22,11 +22,11 @@ logger = get_logger(__name__)
 class CopilotHTTPClient(AsyncHTTPClient):
     """Custom client that adds fresh token headers before each request."""
 
-    def __init__(self, token_manager: CopilotTokenManager, **kwargs):
+    def __init__(self, token_manager: CopilotTokenManager, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.token_manager = token_manager
 
-    async def send(self, request: Request, *args, **kwargs) -> Response:
+    async def send(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         header = await self.token_manager.generate_headers()
         request.headers.update(header)
         return await super().send(request, *args, **kwargs)
@@ -77,7 +77,7 @@ if __name__ == "__main__":
     from pydantic_ai import Agent
     from pydantic_ai.models.openai import OpenAIResponsesModel
 
-    async def main():
+    async def main() -> None:
         provider = CopilotProvider()
         model = OpenAIResponsesModel("gpt-5-mini", provider=provider)
         agent = Agent(model=model)

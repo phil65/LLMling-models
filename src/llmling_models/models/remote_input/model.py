@@ -121,8 +121,8 @@ class RemoteInputModel(Model):
                 )
 
             except httpx.HTTPError as e:
-                if hasattr(e, "response") and e.response is not None:  # type: ignore
-                    logger.exception("Error response: %s", e.response.text)  # type: ignore
+                if hasattr(e, "response") and e.response is not None:  # pyright: ignore[reportAttributeAccessIssue]
+                    logger.exception("Error response: %s", e.response.text)  # pyright: ignore[reportAttributeAccessIssue]
                 msg = f"HTTP error: {e}"
                 raise RuntimeError(msg) from e
 
@@ -224,7 +224,7 @@ class RemoteInputStreamedResponse(StreamedResponse):
     websocket: ClientConnection
     _timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Initialize usage tracking."""
         self._usage = RequestUsage()
 
@@ -288,7 +288,7 @@ if __name__ == "__main__":
         level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
 
-    async def test():
+    async def test() -> None:
         model = RemoteInputModel(url="http://localhost:8000", api_key="test-key")
         agent: Agent[None, str] = Agent(model=model)
         response = await agent.run("Hello! How are you?")

@@ -40,9 +40,9 @@ class MultiModel(Schema, Model):
         models: list[Model] = []
         for model in self.models:
             if isinstance(model, str):
-                models.append(infer_model(model))  # type: ignore[arg-type]
+                models.append(infer_model(model))
             else:
-                models.append(model)  # type: ignore
+                models.append(model)
         self._initialized_models = models
         return self
 

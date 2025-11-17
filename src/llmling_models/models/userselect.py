@@ -135,7 +135,7 @@ if __name__ == "__main__":
 
     from pydantic_ai import Agent
 
-    async def test():
+    async def test() -> None:
         model = UserSelectModel(
             models=["openai:gpt-4o-mini", "openai:gpt-3.5-turbo"],
             prompt_template="🤖 Choose a model for: {prompt}",

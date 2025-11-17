@@ -92,7 +92,7 @@ if __name__ == "__main__":
     from pydantic_ai import Agent
     from pydantic_ai.models.openai import OpenAIResponsesModel
 
-    async def main():
+    async def main() -> None:
         provider = LMStudioProvider(base_url="http://100.69.216.7:11434/v1")
         model = OpenAIResponsesModel(
             "lmstudio-community/Qwen2.5-7B-Instruct-1M-GGUF/Qwen2.5-7B-Instruct-1M-Q4_K_M",

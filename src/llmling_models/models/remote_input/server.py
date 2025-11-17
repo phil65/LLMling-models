@@ -66,7 +66,11 @@ def format_conversation(
 class ModelServer:
     """Server that delegates to human operator."""
 
-    def __init__(self, title: str = "Input Server", description: str | None = None):
+    def __init__(
+        self,
+        title: str = "Input Server",
+        description: str | None = None,
+    ) -> None:
         """Initialize server with configuration."""
         from fastapi import FastAPI, Header, HTTPException, WebSocketDisconnect, status
 
@@ -111,7 +115,7 @@ class ModelServer:
                 ) from e
 
         @self.app.websocket("/v1/chat/stream")
-        async def websocket_endpoint(websocket: WebSocket):
+        async def websocket_endpoint(websocket: WebSocket) -> None:
             """Handle streaming conversation via WebSocket."""
             await websocket.accept()
 
@@ -144,7 +148,7 @@ class ModelServer:
             except WebSocketDisconnect:
                 logger.info("WebSocket disconnected")
 
-    def run(self, host: str = "0.0.0.0", port: int = 8000, **kwargs: Any):
+    def run(self, host: str = "0.0.0.0", port: int = 8000, **kwargs: Any) -> None:
         """Start the server."""
         import uvicorn
 
