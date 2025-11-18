@@ -46,7 +46,7 @@ class CodeExecutionParams(BaseModel):
     python_code: str = Field(description="Python code to execute with tools available")
 
 
-@dataclass
+@dataclass(kw_only=True)
 class CodeModeToolset[AgentDepsT = None](AbstractToolset[AgentDepsT]):
     """A toolset that wraps other toolsets and provides Python code execution."""
 
@@ -187,7 +187,7 @@ if __name__ == "__main__":
         function_toolset = FunctionToolset(
             tools=[get_todays_date, what_happened_on_date, complex_return_type]
         )
-        toolset = CodeModeToolset([function_toolset])
+        toolset = CodeModeToolset(toolsets=[function_toolset])
         print("✅ Testing unified approach with dynamic signature generation...")
         ctx = RunContext(deps=None, model=TestModel(), usage=RunUsage())
         async with toolset:
@@ -226,7 +226,7 @@ if __name__ == "__main__":
         # from pydantic_ai.toolsets.fastmcp import FastMCPToolset
 
         mcp_toolset = MCPServerStdio(command="uvx", args=["mcp-server-git"])
-        combined_toolset = CodeModeToolset([function_toolset, mcp_toolset])
+        combined_toolset = CodeModeToolset(toolsets=[function_toolset, mcp_toolset])
         async with combined_toolset:
             generator = await combined_toolset._get_code_generator(ctx)
             namespace = generator.generate_execution_namespace()
