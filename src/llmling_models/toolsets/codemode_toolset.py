@@ -122,12 +122,11 @@ class CodeModeToolset[AgentDepsT = None](AbstractToolset[AgentDepsT]):
         if name != TOOL_NAME:
             msg = f"Unknown tool: {name}"
             raise ValueError(msg)
-        logger.debug("Executing Python code: %r", tool_args)
         params = CodeExecutionParams.model_validate(tool_args)
+        logger.info("Executing Python code: %r", params.python_code)
         validate_code(params.python_code)
         toolset_generator = await self._get_code_generator(ctx)
         namespace = toolset_generator.generate_execution_namespace()
-
         try:
             exec(params.python_code, namespace)
             result = await namespace["main"]()
@@ -164,12 +163,14 @@ if __name__ == "__main__":
     import asyncio
 
     from pydantic_ai import Agent
+    from pydantic_ai.mcp import MCPServerStdio
     from pydantic_ai.models.test import TestModel
     from pydantic_ai.toolsets.function import FunctionToolset
     from pydantic_ai.usage import RunUsage
 
     logging.basicConfig(level=logging.INFO)
 
+    # Example tools which require chaining to show CodeMode advantage.
     async def get_todays_date() -> str:
         """Get today's date."""
         return "2024-12-13"
@@ -220,32 +221,13 @@ if __name__ == "__main__":
             result = await agent.run("what happened today? ")
             print(f"Function toolset result: {result}")
 
-        # Test with actual MCP toolset
         print("\n🔧 Testing with MCP toolset...")
-        from pydantic_ai.mcp import MCPServerStdio
-        # from pydantic_ai.toolsets.fastmcp import FastMCPToolset
-
         mcp_toolset = MCPServerStdio(command="uvx", args=["mcp-server-git"])
-        combined_toolset = CodeModeToolset(toolsets=[function_toolset, mcp_toolset])
-        async with combined_toolset:
-            generator = await combined_toolset._get_code_generator(ctx)
-            namespace = generator.generate_execution_namespace()
-            print("Combined toolset functions:")
-            for name, func_wrapper in namespace.items():
-                if not name.startswith("_"):
-                    if name.startswith(("get_", "what_", "complex_")):
-                        print(f"  Function tool: {name}")
-                    else:
-                        print(f"  MCP tool: {name}")
-                        print(f"  Signature: {inspect.signature(func_wrapper.callable)}")
-                        annotations = func_wrapper.callable.__annotations__
-                        return_type = annotations.get("return", "None")
-                        if isinstance(return_type, str):
-                            print(f"    Return type (stringified): {return_type}")
-                        else:
-                            print(f"    Return type: {return_type}")
-
-            print("\n✅ Combined toolset created successfully!")
-            print("✅ All tools have proper signatures for code execution!")
+        toolset = CodeModeToolset(toolsets=[mcp_toolset])
+        async with Agent(model="anthropic:claude-haiku-4-5", toolsets=[toolset]) as agent:
+            result = await agent.run(
+                "Show diff of latest commit in cwd. Use the provdided stub functions."
+            )
+            print(f"Result: {result}")
 
     asyncio.run(main())
