@@ -61,9 +61,6 @@ class CodeModeToolset[AgentDepsT = None](AbstractToolset[AgentDepsT]):
     usage_notes: str = USAGE_NOTES
     """Usage notes to include in the tool description"""
 
-    _toolset_generator: ToolsetCodeGenerator | None = None
-    """Toolset code generator"""
-
     @property
     def id(self) -> str | None:
         """Return the toolset ID."""
@@ -153,21 +150,13 @@ class CodeModeToolset[AgentDepsT = None](AbstractToolset[AgentDepsT]):
 
     async def _get_code_generator(self, ctx: RunContext[Any]) -> ToolsetCodeGenerator:
         """Get cached toolset generator, creating it if needed."""
-        if self._toolset_generator is None:
-            callables = []
-
-            for toolset in self.toolsets:
-                tools = await toolset.get_tools(ctx)
-                for tool_name, toolset_tool in tools.items():
-                    # Create proper callable with correct signature from JSON schema
-                    callable_func = create_tool_callable(toolset_tool, tool_name, ctx)
-                    callables.append(callable_func)
-
-            self._toolset_generator = ToolsetCodeGenerator.from_callables(
-                callables, self.include_docstrings
-            )
-
-        return self._toolset_generator
+        callables = []
+        for toolset in self.toolsets:
+            tools = await toolset.get_tools(ctx)
+            for tool_name, toolset_tool in tools.items():
+                callable_func = create_tool_callable(toolset_tool, tool_name, ctx)
+                callables.append(callable_func)
+        return ToolsetCodeGenerator.from_callables(callables, self.include_docstrings)
 
 
 if __name__ == "__main__":
