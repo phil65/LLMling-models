@@ -4,48 +4,24 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import inspect
+import logging
 from typing import TYPE_CHECKING, Any, Self
 
 from pydantic import BaseModel, Field
+from pydantic_ai import RunContext
 from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.toolsets import AbstractToolset, ToolsetTool
-from pydantic_ai.toolsets.function import FunctionToolsetTool
+from pydantic_ai.toolsets.function import FunctionToolset
 from pydantic_core import SchemaValidator
 from schemez import ToolsetCodeGenerator
-from schemez.functionschema import FunctionSchema
 
-from llmling_models.toolsets.helpers import validate_code
-
-
-def get_return_type(toolset_tool: ToolsetTool[Any]) -> type[Any] | None:
-    """Extract return type from ToolsetTool if possible, otherwise return None.
-
-    This only works for FunctionToolsets since they have access to the original
-    Python function annotations. Other toolsets (MCP, External) only have JSON
-    schema which doesn't preserve Python type information.
-    """
-    try:
-        # Check if this is a FunctionToolsetTool with access to original function
-        if isinstance(toolset_tool, FunctionToolsetTool):
-            # Access the original function through the toolset's tools
-            from pydantic_ai.toolsets.function import FunctionToolset
-
-            if isinstance(toolset_tool.toolset, FunctionToolset):
-                # Find the tool in the toolset's tools dict
-                for tool_name, tool in toolset_tool.toolset.tools.items():
-                    if tool_name == toolset_tool.tool_def.name:
-                        # Get return annotation from the original function
-                        return tool.function_schema.function.__annotations__.get("return")
-    except Exception:  # noqa: BLE001
-        pass
-    return None
+from llmling_models.toolsets.helpers import create_tool_callable, validate_code
 
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+    from collections.abc import Callable
 
-from pydantic_ai import RunContext
-
+logger = logging.getLogger(__name__)
 
 USAGE_NOTES = """
 A tool to execute python code.
@@ -129,7 +105,6 @@ class CodeModeToolset[AgentDepsT = None](AbstractToolset[AgentDepsT]):
         )
 
         validator = SchemaValidator(CodeExecutionParams.__pydantic_core_schema__)
-
         toolset_tool = ToolsetTool(
             toolset=self,
             tool_def=tool_def,
@@ -149,7 +124,7 @@ class CodeModeToolset[AgentDepsT = None](AbstractToolset[AgentDepsT]):
         if name != "execute_python":
             msg = f"Unknown tool: {name}"
             raise ValueError(msg)
-
+        logger.debug("Executing Python code: %r", tool_args)
         params = CodeExecutionParams.model_validate(tool_args)
         validate_code(params.python_code)
         toolset_generator = await self._get_code_generator(ctx)
@@ -185,9 +160,7 @@ class CodeModeToolset[AgentDepsT = None](AbstractToolset[AgentDepsT]):
                 tools = await toolset.get_tools(ctx)
                 for tool_name, toolset_tool in tools.items():
                     # Create proper callable with correct signature from JSON schema
-                    callable_func = self._create_callable_with_signature(
-                        toolset_tool, tool_name, ctx
-                    )
+                    callable_func = create_tool_callable(toolset_tool, tool_name, ctx)
                     callables.append(callable_func)
 
             self._toolset_generator = ToolsetCodeGenerator.from_callables(
@@ -196,89 +169,16 @@ class CodeModeToolset[AgentDepsT = None](AbstractToolset[AgentDepsT]):
 
         return self._toolset_generator
 
-    def _create_callable_with_signature(
-        self,
-        toolset_tool: ToolsetTool,
-        tool_name: str,
-        ctx: RunContext[Any],
-    ) -> Callable[..., Awaitable[Any]]:
-        """Create a callable with proper signature from tool's JSON schema."""
-        # Create FunctionSchema from tool definition
-        schema_dict = {
-            "name": tool_name,
-            "description": toolset_tool.tool_def.description or "",
-            "parameters": toolset_tool.tool_def.parameters_json_schema,
-        }
-
-        # Extract return schema from metadata if available (for MCP tools)
-        if (
-            toolset_tool.tool_def.metadata
-            and "output_schema" in toolset_tool.tool_def.metadata
-        ):
-            output_schema = toolset_tool.tool_def.metadata["output_schema"]
-            if output_schema:
-                schema_dict["returns"] = output_schema
-
-        function_schema = FunctionSchema.from_dict(schema_dict)
-
-        # Get the proper signature
-        signature = function_schema.to_python_signature()
-
-        # Create the wrapper function
-        async def tool_wrapper(*args: Any, **kwargs: Any) -> Any:
-            # Bind arguments to parameter names
-            bound = signature.bind(*args, **kwargs)
-            bound.apply_defaults()
-            result = await toolset_tool.toolset.call_tool(
-                tool_name, bound.arguments, ctx, toolset_tool
-            )
-
-            # For non-function toolsets, stringify the result to ensure consistency
-            if not isinstance(toolset_tool, FunctionToolsetTool):
-                return str(result) if result is not None else "None"
-            return result
-
-        # Set proper function metadata
-        tool_wrapper.__name__ = tool_name
-        tool_wrapper.__doc__ = toolset_tool.tool_def.description
-
-        # Set annotations first
-        tool_wrapper.__annotations__ = {
-            param.name: param.annotation for param in signature.parameters.values()
-        }
-
-        # Set return type based on toolset type
-        if isinstance(toolset_tool, FunctionToolsetTool):
-            # For FunctionToolsets, get actual return type from original function
-            return_type = get_return_type(toolset_tool)
-            if return_type:
-                tool_wrapper.__annotations__["return"] = return_type
-                final_return_annotation = return_type
-            else:
-                # Fallback for function tools without return type
-                final_return_annotation = signature.return_annotation
-        else:
-            # For non-function toolsets (MCP, External, etc.), always return str
-            # since we stringify the results for consistency
-            tool_wrapper.__annotations__["return"] = str
-            final_return_annotation = str
-
-        # Create new signature with correct return annotation
-        if final_return_annotation is not None:
-            signature = signature.replace(return_annotation=final_return_annotation)
-
-        tool_wrapper.__signature__ = signature  # type: ignore
-
-        return tool_wrapper
-
 
 if __name__ == "__main__":
     import asyncio
-    import logging
+
+    from pydantic_ai import Agent
+    from pydantic_ai.models.test import TestModel
+    from pydantic_ai.toolsets.function import FunctionToolset
+    from pydantic_ai.usage import RunUsage
 
     logging.basicConfig(level=logging.INFO)
-    from pydantic_ai import Agent
-    from pydantic_ai.toolsets.function import FunctionToolset
 
     async def get_todays_date() -> str:
         """Get today's date."""
@@ -298,34 +198,17 @@ if __name__ == "__main__":
             tools=[get_todays_date, what_happened_on_date, complex_return_type]
         )
         toolset = CodeModeToolset([function_toolset])
-
         print("✅ Testing unified approach with dynamic signature generation...")
-
-        # Test signature extraction properly
+        ctx = RunContext(deps=None, model=TestModel(), usage=RunUsage())
         async with toolset:
-            from pydantic_ai.models.test import TestModel
-            from pydantic_ai.usage import RunUsage
-
-            # Create a proper RunContext
-            test_model = TestModel()
-            test_usage = RunUsage()
-            ctx = RunContext(deps=None, model=test_model, usage=test_usage)
-
-            # Get the generator and check signatures
             generator = await toolset._get_code_generator(ctx)
             namespace = generator.generate_execution_namespace()
-
             print("Generated tool signatures:")
             for name, func_wrapper in namespace.items():
-                if (
-                    name.startswith("get_")
-                    or name.startswith("what_")
-                    or name.startswith("complex_")
-                ):
+                if name.startswith(("get_", "what_", "complex_")):
                     print(f"Function: {name}")
                     print(f"Generated: {inspect.signature(func_wrapper.callable)}")
                     print(f"Annotations: {func_wrapper.callable.__annotations__}")
-
                     # Compare with original function signature
                     original_func = (
                         get_todays_date
@@ -335,80 +218,44 @@ if __name__ == "__main__":
                         else complex_return_type
                     )
                     print(f"Original:  {inspect.signature(original_func)}")
-
                     # Check if return types match for FunctionToolsets
                     generated_return = func_wrapper.callable.__annotations__.get("return")
                     original_return = original_func.__annotations__.get("return")
-
-                    if generated_return == original_return:
-                        print("✅ Return types match perfectly!")
-                    else:
-                        print(
-                            f"Return type difference: {generated_return} vs {original_return}"
-                        )
+                    print(f"Return types: {generated_return=} vs {original_return=}")
                     print()
 
             print("✅ Works with any toolset type (Function, MCP, External, etc.)")
 
-        agent = Agent(model="anthropic:claude-haiku-4-5", toolsets=[toolset])
-        async with agent:
-            result = await agent.run(
-                "what happened today? Get the date and pass it to what_happened_on_date"
-            )
+        async with Agent(model="anthropic:claude-haiku-4-5", toolsets=[toolset]) as agent:
+            result = await agent.run("what happened today? ")
             print(f"Function toolset result: {result}")
 
         # Test with actual MCP toolset
         print("\n🔧 Testing with MCP toolset...")
-        try:
-            from pydantic_ai.toolsets.fastmcp import FastMCPToolset
+        from pydantic_ai.mcp import MCPServerStdio
+        # from pydantic_ai.toolsets.fastmcp import FastMCPToolset
 
-            # Create MCP toolset with git server
-            mcp_toolset = FastMCPToolset({
-                "command": "uvx",
-                "args": ["mcp-server-git"],
-            })
-
-            # Combine function and MCP toolsets
-            combined_toolset = CodeModeToolset([function_toolset, mcp_toolset])
-
-            # Test the combined toolset
-            async with combined_toolset:
-                test_usage = RunUsage()
-                ctx = RunContext(deps=None, model=test_model, usage=test_usage)
-
-                generator = await combined_toolset._get_code_generator(ctx)
-                namespace = generator.generate_execution_namespace()
-
-                print("Combined toolset functions:")
-                mcp_count = 0
-                function_count = 0
-                for name, func_wrapper in namespace.items():
-                    if not name.startswith("_"):
-                        if name.startswith(("get_", "what_", "complex_")):
-                            function_count += 1
-                            print(f"  Function tool: {name}")
+        mcp_toolset = MCPServerStdio(command="uvx", args=["mcp-server-git"])
+        combined_toolset = CodeModeToolset([function_toolset, mcp_toolset])
+        async with combined_toolset:
+            generator = await combined_toolset._get_code_generator(ctx)
+            namespace = generator.generate_execution_namespace()
+            print("Combined toolset functions:")
+            for name, func_wrapper in namespace.items():
+                if not name.startswith("_"):
+                    if name.startswith(("get_", "what_", "complex_")):
+                        print(f"  Function tool: {name}")
+                    else:
+                        print(f"  MCP tool: {name}")
+                        print(f"  Signature: {inspect.signature(func_wrapper.callable)}")
+                        annotations = func_wrapper.callable.__annotations__
+                        return_type = annotations.get("return", "None")
+                        if isinstance(return_type, str):
+                            print(f"    Return type (stringified): {return_type}")
                         else:
-                            mcp_count += 1
-                            print(f"  MCP tool: {name}")
-                            print(
-                                f"    Signature: {inspect.signature(func_wrapper.callable)}"
-                            )
-                            annotations = func_wrapper.callable.__annotations__
-                            return_type = annotations.get("return", "None")
-                            if isinstance(return_type, str):
-                                print(f"    Return type (stringified): {return_type}")
-                            else:
-                                print(f"    Return type: {return_type}")
+                            print(f"    Return type: {return_type}")
 
-                print("\n✅ Combined toolset created successfully!")
-                print(f"   - Function tools: {function_count}")
-                print(f"   - MCP tools: {mcp_count}")
-                print(f"   - Total: {function_count + mcp_count}")
-                print("✅ All tools have proper signatures for code execution!")
-
-        except ImportError:
-            print("⚠️  FastMCP not available, skipping MCP test")
-        except Exception as e:
-            print(f"⚠️  MCP test failed: {e}")
+            print("\n✅ Combined toolset created successfully!")
+            print("✅ All tools have proper signatures for code execution!")
 
     asyncio.run(main())
