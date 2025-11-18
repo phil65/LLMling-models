@@ -50,7 +50,11 @@ def create_tool_callable(
     tool_name: str,
     ctx: RunContext[Any],
 ) -> Callable[..., Awaitable[Any]]:
-    """Create a callable with proper signature from tool's JSON schema."""
+    """Create a callable with proper signature.
+
+    Uses either the available callable or the output schema
+    to genererate the signature.
+    """
     # Create FunctionSchema from tool definition
     schema_dict = {
         "name": tool_name,
@@ -60,12 +64,12 @@ def create_tool_callable(
     out_schema = (toolset_tool.tool_def.metadata or {}).get("output_schema")
     inner = out_schema.get("properties", {}).get("result")
     function_schema = FunctionSchema.from_dict(schema_dict, output_schema=inner)
-    signature = function_schema.to_python_signature()
+    sig = function_schema.to_python_signature()
 
     # Create the wrapper function
     async def tool_wrapper(*args: Any, **kwargs: Any) -> Any:
         # Bind arguments to parameter names
-        bound = signature.bind(*args, **kwargs)
+        bound = sig.bind(*args, **kwargs)
         bound.apply_defaults()
         result = await toolset_tool.toolset.call_tool(
             tool_name, bound.arguments, ctx, toolset_tool
@@ -79,29 +83,24 @@ def create_tool_callable(
     # Set proper function metadata
     tool_wrapper.__name__ = tool_name
     tool_wrapper.__doc__ = toolset_tool.tool_def.description
-
-    # Set annotations first
-    tool_wrapper.__annotations__ = {
-        param.name: param.annotation for param in signature.parameters.values()
-    }
+    tool_wrapper.__annotations__ = {p.name: p.annotation for p in sig.parameters.values()}
     final_return_annotation = None
 
     if out_schema:  # First: Try to get return type from output_schema -> signature.
-        final_return_annotation = signature.return_annotation
+        final_return_annotation = sig.return_annotation
     elif isinstance(toolset_tool, FunctionToolsetTool):
         # For FunctionToolsets, get actual return type from original function
         return_type = _get_return_type(toolset_tool)
         final_return_annotation = return_type or str
     else:
-        # For rest, always return str
-        # since we stringify the results for consistency
+        # For rest, always return str since we stringify the results for consistency
         final_return_annotation = str
 
     if final_return_annotation is not None:
-        signature = signature.replace(return_annotation=final_return_annotation)
+        sig = sig.replace(return_annotation=final_return_annotation)
         tool_wrapper.__annotations__["return"] = final_return_annotation
 
-    tool_wrapper.__signature__ = signature  # type: ignore
+    tool_wrapper.__signature__ = sig  # type: ignore
 
     return tool_wrapper
 
@@ -110,8 +109,7 @@ def _get_return_type(toolset_tool: ToolsetTool[Any]) -> type[Any] | None:
     """Extract return type from ToolsetTool if possible, otherwise return None.
 
     This only works for FunctionToolsets since they have access to the original
-    Python function annotations. Other toolsets (MCP, External) only have JSON
-    schema which doesn't seem to preserve return type information.
+    Python function annotations.
     """
     if isinstance(toolset_tool, FunctionToolsetTool) and isinstance(
         toolset_tool.toolset, FunctionToolset
