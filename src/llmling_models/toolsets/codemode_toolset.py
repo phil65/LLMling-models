@@ -62,6 +62,9 @@ class CodeModeToolset[AgentDepsT = None](AbstractToolset[AgentDepsT]):
     usage_notes: str = USAGE_NOTES
     """Usage notes to include in the tool description"""
 
+    max_retries: int = 3
+    """Maximum number of tool retries."""
+
     @property
     def id(self) -> str | None:
         """Return the toolset ID."""
@@ -95,21 +98,18 @@ class CodeModeToolset[AgentDepsT = None](AbstractToolset[AgentDepsT]):
         """Return the single code execution tool."""
         toolset_generator = await self._get_code_generator(ctx)
         description = toolset_generator.generate_tool_description()
-        description += "\n\n" + self.usage_notes
         tool_def = ToolDefinition(
             name=TOOL_NAME,
-            description=description,
+            description=description + "\n\n" + self.usage_notes,
             parameters_json_schema=CodeExecutionParams.model_json_schema(),
         )
-
-        validator = SchemaValidator(CodeExecutionParams.__pydantic_core_schema__)
-        toolset_tool = ToolsetTool(
+        tool = ToolsetTool(
             toolset=self,
             tool_def=tool_def,
-            max_retries=3,
-            args_validator=validator,
+            max_retries=self.max_retries,
+            args_validator=SchemaValidator(CodeExecutionParams.__pydantic_core_schema__),
         )
-        return {TOOL_NAME: toolset_tool}
+        return {TOOL_NAME: tool}
 
     async def call_tool(
         self,
