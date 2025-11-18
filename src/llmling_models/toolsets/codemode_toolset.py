@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+TOOL_NAME = "execute_python"
 USAGE_NOTES = """
 A tool to execute python code.
 You can (and should) use the provided stubs as async function calls
@@ -96,7 +97,7 @@ class CodeModeToolset[AgentDepsT = None](AbstractToolset[AgentDepsT]):
         description = toolset_generator.generate_tool_description()
         description += "\n\n" + self.usage_notes
         tool_def = ToolDefinition(
-            name="execute_python",
+            name=TOOL_NAME,
             description=description,
             parameters_json_schema=CodeExecutionParams.model_json_schema(),
         )
@@ -108,7 +109,7 @@ class CodeModeToolset[AgentDepsT = None](AbstractToolset[AgentDepsT]):
             max_retries=3,
             args_validator=validator,
         )
-        return {"execute_python": toolset_tool}
+        return {TOOL_NAME: toolset_tool}
 
     async def call_tool(
         self,
@@ -118,7 +119,7 @@ class CodeModeToolset[AgentDepsT = None](AbstractToolset[AgentDepsT]):
         tool: ToolsetTool[Any],
     ) -> Any:
         """Execute the Python code with all wrapped tools available."""
-        if name != "execute_python":
+        if name != TOOL_NAME:
             msg = f"Unknown tool: {name}"
             raise ValueError(msg)
         logger.debug("Executing Python code: %r", tool_args)
