@@ -30,10 +30,16 @@ class BaseModelConfig(Schema):
 class PrePostPromptConfig(Schema):
     """Configuration for pre/post prompts."""
 
-    text: str
+    text: str = Field(
+        examples=["You are a helpful assistant", "Process this carefully"],
+        title="Prompt text",
+    )
     """The prompt text to be applied."""
 
-    model: str
+    model: str = Field(
+        examples=[["openai:gpt-5-nano", "anthropic:claude-sonnet-4-5"]],
+        title="Model identifier",
+    )
     """The model to use for processing the prompt."""
 
 
@@ -43,13 +49,22 @@ class AugmentedModelConfig(BaseModelConfig):
     type: Literal["augmented"] = Field(default="augmented", init=False)
     """Type identifier for augmented model."""
 
-    main_model: str
+    main_model: str = Field(
+        examples=["openai:gpt-5-nano", "anthropic:claude-sonnet-4-5"],
+        title="Primary model",
+    )
     """The primary model identifier."""
 
-    pre_prompt: PrePostPromptConfig | None = None
+    pre_prompt: PrePostPromptConfig | None = Field(
+        default=None,
+        title="Pre-processing prompt",
+    )
     """Optional configuration for prompt preprocessing."""
 
-    post_prompt: PrePostPromptConfig | None = None
+    post_prompt: PrePostPromptConfig | None = Field(
+        default=None,
+        title="Post-processing prompt",
+    )
     """Optional configuration for prompt postprocessing."""
 
     def get_model(self) -> AugmentedModel:
@@ -68,16 +83,35 @@ class DelegationModelConfig(BaseModelConfig):
     type: Literal["delegation"] = Field(default="delegation", init=False)
     """Type identifier for delegation model."""
 
-    selector_model: str | BaseModelConfig
+    selector_model: str | BaseModelConfig = Field(
+        examples=["openai:gpt-5-nano"],
+        title="Selector model",
+    )
     """Model responsible for selecting which model to use."""
 
-    models: list[str | BaseModelConfig] = Field(min_length=1)
+    models: list[str | BaseModelConfig] = Field(
+        min_length=1,
+        title="Available models",
+        examples=[["openai:gpt-5-nano", "anthropic:claude-sonnet-4-5"]],
+    )
     """List of available models to choose from."""
 
-    selection_prompt: str
+    selection_prompt: str = Field(
+        examples=["Choose the best model for this task", "Select appropriate model"],
+        title="Selection prompt",
+    )
     """Prompt used to guide the selector model's decision."""
 
-    model_descriptions: dict[str, str] | None = None
+    model_descriptions: dict[str, str] | None = Field(
+        default=None,
+        title="Model descriptions",
+        examples=[
+            {
+                "openai:gpt-5-nano": "A small, fast model",
+                "anthropic:claude-sonnet-4-5": "A large, powerful model",
+            }
+        ],
+    )
     """Optional descriptions of each model for selection purposes."""
 
     def get_model(self) -> DelegationMultiModel:
@@ -108,7 +142,11 @@ class FallbackModelConfig(BaseModelConfig):
     type: Literal["fallback"] = Field(default="fallback", init=False)
     """Type identifier for fallback model."""
 
-    models: list[str | BaseModelConfig] = Field(min_length=1)
+    models: list[str | BaseModelConfig] = Field(
+        min_length=1,
+        title="Fallback models",
+        examples=[["openai:gpt-5-nano", "anthropic:claude-sonnet-4-5"]],
+    )
     """Ordered list of models to try in sequence."""
 
     def get_model(self) -> FallbackModel:
@@ -128,10 +166,13 @@ class ImportModelConfig(BaseModelConfig):
     type: Literal["import"] = Field(default="import", init=False)
     """Type identifier for import model."""
 
-    model: ImportString[Any]
+    model: ImportString[Any] = Field(
+        examples=["my_models.CustomModel"],
+        title="Model import path",
+    )
     """Import path to the model class or function."""
 
-    kw_args: dict[str, str] = Field(default_factory=dict)
+    kw_args: dict[str, str] = Field(default_factory=dict, title="Model arguments")
     """Keyword arguments to pass to the imported model."""
 
     def get_model(self) -> Any:
@@ -144,18 +185,27 @@ class InputModelConfig(BaseModelConfig):
     type: Literal["input"] = Field(default="input", init=False)
     """Type identifier for input model."""
 
-    prompt_template: str = Field(default="👤 Please respond to: {prompt}")
+    prompt_template: str = Field(
+        default="👤 Please respond to: {prompt}",
+        examples=["👤 Please respond to: {prompt}", "User input required: {prompt}"],
+        title="Prompt display template",
+    )
     """Template for displaying the prompt to the user."""
 
-    show_system: bool = Field(default=True)
+    show_system: bool = Field(default=True, title="Show system messages")
     """Whether to show system messages."""
 
-    input_prompt: str = Field(default="Your response: ")
+    input_prompt: str = Field(
+        default="Your response: ",
+        examples=["Your response: ", "Enter reply: "],
+        title="Input request text",
+    )
     """Text displayed when requesting input."""
 
     handler: ImportString[Any] = Field(
         default="llmling_models:DefaultInputHandler",
         validate_default=True,
+        title="Input handler",
     )
     """Handler for processing user input."""
 
@@ -176,10 +226,14 @@ class RemoteInputConfig(BaseModelConfig):
     type: Literal["remote-input"] = Field(default="remote-input", init=False)
     """Type identifier for remote input model."""
 
-    url: str = "ws://localhost:8000/v1/chat/stream"
+    url: str = Field(
+        default="ws://localhost:8000/v1/chat/stream",
+        examples=["ws://localhost:8000/v1/chat/stream", "wss://api.example.com/chat"],
+        title="WebSocket URL",
+    )
     """WebSocket URL for connecting to the remote input service."""
 
-    api_key: SecretStr | None = None
+    api_key: SecretStr | None = Field(default=None, title="API key", examples=["abc123"])
     """Optional API key for authentication."""
 
     def get_model(self) -> Any:
@@ -195,10 +249,17 @@ class RemoteProxyConfig(BaseModelConfig):
     type: Literal["remote-proxy"] = Field(default="remote-proxy", init=False)
     """Type identifier for remote proxy model."""
 
-    url: str = "ws://localhost:8000/v1/completion/stream"
+    url: str = Field(
+        default="ws://localhost:8000/v1/completion/stream",
+        examples=[
+            "ws://localhost:8000/v1/completion/stream",
+            "wss://api.example.com/completion",
+        ],
+        title="WebSocket URL",
+    )
     """WebSocket URL for connecting to the remote model service."""
 
-    api_key: SecretStr | None = None
+    api_key: SecretStr | None = Field(default=None, title="API key", examples=["abc123"])
     """Optional API key for authentication."""
 
     def get_model(self) -> Any:
@@ -214,21 +275,34 @@ class UserSelectModelConfig(BaseModelConfig):
     type: Literal["user-select"] = Field(default="user-select", init=False)
     """Type identifier for user-select model."""
 
-    models: list[str | BaseModelConfig] = Field(min_length=1)
+    models: list[str | BaseModelConfig] = Field(
+        min_length=1,
+        title="Selectable models",
+        examples=[["openai:gpt-5-nano", "anthropic:claude-sonnet-4-5"]],
+    )
     """List of models the user can choose from."""
 
-    prompt_template: str = Field(default="🤖 Choose a model for: {prompt}")
+    prompt_template: str = Field(
+        default="🤖 Choose a model for: {prompt}",
+        examples=["🤖 Choose a model for: {prompt}", "Select model for: {prompt}"],
+        title="Selection prompt template",
+    )
     """Template for displaying the choice prompt to the user."""
 
-    show_system: bool = Field(default=True)
+    show_system: bool = Field(default=True, title="Show system messages")
     """Whether to show system messages during selection."""
 
-    input_prompt: str = Field(default="Enter model number (0-{max}): ")
+    input_prompt: str = Field(
+        default="Enter model number (0-{max}): ",
+        examples=["Enter model number (0-{max}): ", "Choose (0-{max}): "],
+        title="Selection input prompt",
+    )
     """Text displayed when requesting model selection."""
 
     handler: ImportString[Any] = Field(
         default="llmling_models:DefaultInputHandler",
         validate_default=True,
+        title="Selection handler",
     )
     """Handler for processing user selection input."""
 
@@ -253,7 +327,10 @@ class StringModelConfig(BaseModelConfig):
     type: Literal["string"] = Field(default="string", init=False)
     """Type identifier for string model."""
 
-    identifier: str
+    identifier: str = Field(
+        examples=["openai:gpt-5-nano", "anthropic:claude-sonnet-4-5"],
+        title="Model identifier",
+    )
     """String identifier for the model."""
 
     def get_model(self) -> Any:
@@ -268,7 +345,7 @@ class FunctionModelConfig(BaseModelConfig):
     type: Literal["function"] = Field(default="function", init=False)
     """Type identifier for function model."""
 
-    function: ImportString[Callable[..., Any]]
+    function: ImportString[Callable[..., Any]] = Field(title="Function import path")
     """Function identifier for the model."""
 
     def get_model(self) -> FunctionModel:
@@ -283,10 +360,18 @@ class TestModelConfig(BaseModelConfig):
     type: Literal["test"] = Field(default="test", init=False)
     """Type identifier for test model."""
 
-    custom_output_text: str | None = None
+    custom_output_text: str | None = Field(
+        default=None,
+        examples=["Test response", "Mock output for testing"],
+        title="Custom output text",
+    )
     """Optional custom text to return from the test model."""
 
-    call_tools: list[str] | Literal["all"] = "all"
+    call_tools: list[str] | Literal["all"] = Field(
+        default="all",
+        examples=["all", ["tool1", "tool2"]],
+        title="Available tools",
+    )
     """Tools that can be called by the test model."""
 
     def get_model(self) -> Any:
@@ -301,31 +386,71 @@ class TestModelConfig(BaseModelConfig):
 class ModelSettings(Schema):
     """Settings to configure an LLM."""
 
-    max_output_tokens: int | None = None
+    max_output_tokens: int | None = Field(
+        default=None,
+        examples=[1024, 2048, 4096],
+        title="Maximum output tokens",
+    )
     """The maximum number of tokens to generate."""
 
-    temperature: float | None = Field(None, ge=0.0, le=2.0)
+    temperature: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=2.0,
+        examples=[0.7, 1.0, 1.5],
+        title="Temperature",
+    )
     """Amount of randomness in the response (0.0 - 2.0)."""
 
-    top_p: float | None = Field(None, ge=0.0, le=1.0)
+    top_p: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        examples=[0.9, 0.95, 1.0],
+        title="Top-p (nucleus sampling)",
+    )
     """An alternative to sampling with temperature, called nucleus sampling."""
 
-    timeout: float | None = None
+    timeout: float | None = Field(
+        default=None,
+        ge=0.0,
+        examples=[30.0, 60.0, 120.0],
+        title="Request timeout",
+    )
     """Override the client-level default timeout for a request, in seconds."""
 
-    parallel_tool_calls: bool | None = None
+    parallel_tool_calls: bool | None = Field(
+        default=None,
+        title="Allow parallel tool calls",
+    )
     """Whether to allow parallel tool calls."""
 
-    seed: int | None = None
+    seed: int | None = Field(default=None, examples=[42, 123, 999], title="Random seed")
     """The random seed to use for the model."""
 
-    presence_penalty: float | None = Field(None, ge=-2.0, le=2.0)
+    presence_penalty: float | None = Field(
+        default=None,
+        ge=-2.0,
+        le=2.0,
+        examples=[0.0, 0.5, 1.0],
+        title="Presence penalty",
+    )
     """Penalize new tokens based on whether they have appeared in the text so far."""
 
-    frequency_penalty: float | None = Field(None, ge=-2.0, le=2.0)
+    frequency_penalty: float | None = Field(
+        default=None,
+        ge=-2.0,
+        le=2.0,
+        examples=[0.0, 0.5, 1.0],
+        title="Frequency penalty",
+    )
     """Penalize new tokens based on their existing frequency in the text so far."""
 
-    logit_bias: dict[str, int] | None = None
+    logit_bias: dict[str, int] | None = Field(
+        default=None,
+        title="Logit bias",
+        examples=[{"5678": -100}, {"1234": 100}],
+    )
     """Modify the likelihood of specified tokens appearing in the completion."""
 
     model_config = ConfigDict(frozen=True)
