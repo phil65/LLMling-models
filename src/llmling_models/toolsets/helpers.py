@@ -62,8 +62,9 @@ def create_tool_callable(
         "parameters": toolset_tool.tool_def.parameters_json_schema,
     }
     out_schema = (toolset_tool.tool_def.metadata or {}).get("output_schema")
-    inner = out_schema.get("properties", {}).get("result")
-    function_schema = FunctionSchema.from_dict(schema_dict, output_schema=inner)
+    if out_schema:
+        out_schema = out_schema.get("properties", {}).get("result")
+    function_schema = FunctionSchema.from_dict(schema_dict, output_schema=out_schema)
     sig = function_schema.to_python_signature()
 
     # Create the wrapper function
