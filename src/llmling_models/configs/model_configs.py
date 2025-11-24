@@ -334,9 +334,9 @@ class StringModelConfig(BaseModelConfig):
     """String identifier for the model."""
 
     def get_model(self) -> Any:
-        from llmling_models.models.stringmodel import StringModel
+        from llmling_models import infer_model
 
-        return StringModel(identifier=self.identifier)
+        return infer_model(self.identifier)
 
 
 class FunctionModelConfig(BaseModelConfig):
