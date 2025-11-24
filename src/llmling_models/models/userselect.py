@@ -72,9 +72,7 @@ class UserSelectModel(MultiModel):
         print("-" * 80)
 
         while True:
-            selection_prompt = self.input_prompt.format(
-                max=len(self.available_models) - 1
-            )
+            selection_prompt = self.input_prompt.format(max=len(self.available_models) - 1)
             input_method = handler.get_input
             if inspect.iscoroutinefunction(input_method):
                 selection = await input_method(selection_prompt)

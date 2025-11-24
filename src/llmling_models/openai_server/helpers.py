@@ -48,14 +48,10 @@ def openai_to_pydantic_messages(messages: list[OpenAIMessage]) -> list[ModelMess
 
     for message in messages:
         if message.role == "system":
-            result.append(
-                ModelRequest(parts=[SystemPromptPart(content=message.content or "")])
-            )
+            result.append(ModelRequest(parts=[SystemPromptPart(content=message.content or "")]))
 
         elif message.role == "user":
-            result.append(
-                ModelRequest(parts=[UserPromptPart(content=message.content or "")])
-            )
+            result.append(ModelRequest(parts=[UserPromptPart(content=message.content or "")]))
 
         elif message.role == "assistant":
             parts: list[ModelResponsePart] = []
@@ -135,9 +131,7 @@ def pydantic_response_to_openai(
             tool_call_parts.append(part)
 
     # Combine content parts
-    content = (
-        "".join(str(part.content) for part in content_parts) if content_parts else None
-    )
+    content = "".join(str(part.content) for part in content_parts) if content_parts else None
 
     # Create message
     message = OpenAIMessage(role="assistant", content=content)
@@ -236,9 +230,7 @@ async def generate_stream_chunks(
                 "object": "chat.completion.chunk",
                 "created": created,
                 "model": model_name,
-                "choices": [
-                    {"index": 0, "delta": {"content": chunk}, "finish_reason": None}
-                ],
+                "choices": [{"index": 0, "delta": {"content": chunk}, "finish_reason": None}],
             }
             yield f"data: {anyenv.dump_json(chunk_data)}\n\n"
         else:

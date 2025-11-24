@@ -67,9 +67,7 @@ class LMStudioProvider(Provider[AsyncOpenAI]):
         self._base_url = base_url or self.base_url
 
         if openai_client is not None:
-            assert http_client is None, (
-                "Cannot provide both `openai_client` and `http_client`"
-            )
+            assert http_client is None, "Cannot provide both `openai_client` and `http_client`"
             assert base_url is None, "Cannot provide both `openai_client` and `base_url`"
             self._client = openai_client
         elif http_client is not None:

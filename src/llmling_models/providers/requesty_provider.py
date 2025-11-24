@@ -75,9 +75,7 @@ class RequestyProvider(Provider[AsyncOpenAI]):
             raise ValueError(msg)
 
         if openai_client is not None:
-            assert http_client is None, (
-                "Cannot provide both `openai_client` and `http_client`"
-            )
+            assert http_client is None, "Cannot provide both `openai_client` and `http_client`"
             assert api_key is None, "Cannot provide both `openai_client` and `api_key`"
             self._client = openai_client
         else:

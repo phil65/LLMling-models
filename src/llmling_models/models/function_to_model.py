@@ -85,9 +85,7 @@ def function_to_model(
 
     async def stream_function(
         messages: list[ModelMessage], agent_info: AgentInfo
-    ) -> AsyncIterator[
-        str | DeltaToolCalls | DeltaThinkingCalls | BuiltinToolCallsReturns
-    ]:
+    ) -> AsyncIterator[str | DeltaToolCalls | DeltaThinkingCalls | BuiltinToolCallsReturns]:
         result = await callback_wrapper(messages, agent_info)
         part = result.parts[0]
         match part:
@@ -118,9 +116,7 @@ if __name__ == "__main__":
     agent = Agent(model=function_to_model(structured_response))
 
     async def main() -> None:
-        async for event in agent.run_stream_events(
-            str(dict(a="test")), output_type=Response
-        ):
+        async for event in agent.run_stream_events(str(dict(a="test")), output_type=Response):
             print(event)
 
     asyncio.run(main())

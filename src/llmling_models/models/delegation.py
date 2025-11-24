@@ -59,8 +59,7 @@ class DelegationMultiModel(MultiModel):
             return base_prompt
 
         model_hints = "\n".join(
-            f"Pick '{model}' for: {desc}"
-            for model, desc in self.model_descriptions.items()
+            f"Pick '{model}' for: {desc}" for model, desc in self.model_descriptions.items()
         )
         return f"{model_hints}\n\n{base_prompt}"
 

@@ -92,9 +92,7 @@ class ModelServer:
                     model_request_parameters=model_params,
                 )
                 content = (
-                    str(response.parts[0].content)
-                    if hasattr(response.parts[0], "content")
-                    else ""
+                    str(response.parts[0].content) if hasattr(response.parts[0], "content") else ""
                 )
                 return {"content": content, "usage": asdict(response.usage)}
 
@@ -157,9 +155,7 @@ class ModelServer:
                                 chunks = stream.get()
                                 if isinstance(chunks, ModelResponse):
                                     # Handle ModelResponse
-                                    if chunks.parts and hasattr(
-                                        chunks.parts[0], "content"
-                                    ):
+                                    if chunks.parts and hasattr(chunks.parts[0], "content"):
                                         await websocket.send_json({
                                             "chunk": str(chunks.parts[0].content),  # pyright: ignore[reportAttributeAccessIssue]
                                             "done": False,

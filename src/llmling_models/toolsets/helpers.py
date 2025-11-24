@@ -21,9 +21,7 @@ def validate_code(python_code: str) -> None:
 
     code = python_code.strip()
     if not code:
-        msg = (
-            "Empty code provided. Please write code inside 'async def main():' function."
-        )
+        msg = "Empty code provided. Please write code inside 'async def main():' function."
         raise ModelRetry(msg)
 
     if "async def main(" not in code:
@@ -72,9 +70,7 @@ def create_tool_callable(
         # Bind arguments to parameter names
         bound = sig.bind(*args, **kwargs)
         bound.apply_defaults()
-        result = await toolset_tool.toolset.call_tool(
-            tool_name, bound.arguments, ctx, toolset_tool
-        )
+        result = await toolset_tool.toolset.call_tool(tool_name, bound.arguments, ctx, toolset_tool)
 
         # If we dont know, stringify so that the model knows what to work with.
         if not isinstance(toolset_tool, FunctionToolsetTool) and not out_schema:

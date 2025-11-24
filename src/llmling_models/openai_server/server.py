@@ -166,9 +166,7 @@ class OpenAIServer:
             dependencies=[Depends(self.verify_api_key)] if self.api_key else None,
         )(self.list_models)
         deps = [Depends(self.verify_api_key)] if self.api_key else None
-        self.app.post("/v1/chat/completions", dependencies=deps)(
-            self.create_chat_completion
-        )
+        self.app.post("/v1/chat/completions", dependencies=deps)(self.create_chat_completion)
 
         # WebSocket endpoint for chat completions
         if self.api_key:
@@ -205,11 +203,7 @@ class OpenAIServer:
             if request.max_tokens is not None:
                 settings_data["max_tokens"] = request.max_tokens
 
-            settings = (
-                create_model("ModelSettings", **settings_data)()
-                if settings_data
-                else None
-            )
+            settings = create_model("ModelSettings", **settings_data)() if settings_data else None
 
             # Handle function/tool calls
             function_tools = []
@@ -231,9 +225,7 @@ class OpenAIServer:
             # Check if streaming is requested
             if request.stream:
                 return StreamingResponse(
-                    self._stream_response(
-                        model, messages, settings, request_params, request.model
-                    ),
+                    self._stream_response(model, messages, settings, request_params, request.model),
                     media_type="text/event-stream",
                 )
 
@@ -408,9 +400,7 @@ class OpenAIServer:
                 try:
                     model = self.registry.get_model(request.model)
                 except ValueError:
-                    await websocket.send_json({
-                        "error": f"Model {request.model} not found"
-                    })
+                    await websocket.send_json({"error": f"Model {request.model} not found"})
                     continue
 
                 # Convert messages
@@ -424,9 +414,7 @@ class OpenAIServer:
                     settings_data["max_tokens"] = request.max_tokens
 
                 settings = (
-                    create_model("ModelSettings", **settings_data)()
-                    if settings_data
-                    else None
+                    create_model("ModelSettings", **settings_data)() if settings_data else None
                 )
 
                 # Handle function/tool calls
@@ -524,9 +512,7 @@ class OpenAIServer:
                                 "object": "chat.completion.chunk",
                                 "created": int(time.time()),
                                 "model": request.model,
-                                "choices": [
-                                    {"index": 0, "delta": {}, "finish_reason": "stop"}
-                                ],
+                                "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
                             }
                             await websocket.send_json(final_chunk)
                             await websocket.send_json({"done": True})
@@ -641,9 +627,7 @@ if __name__ == "__main__":
             title="LLMling OpenAI-Compatible API",
             description="OpenAI-compatible API server powered by LLMling models",
         )
-        config = uvicorn.Config(
-            app=server.app, host="0.0.0.0", port=8000, log_level="info"
-        )
+        config = uvicorn.Config(app=server.app, host="0.0.0.0", port=8000, log_level="info")
         server_instance = uvicorn.Server(config)
         await server_instance.serve()
 

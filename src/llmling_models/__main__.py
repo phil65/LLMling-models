@@ -23,9 +23,7 @@ logger = get_logger(__name__)
 
 def setup_serve_parser(subparsers: Any) -> None:
     """Set up parser for 'serve' command."""
-    serve_parser = subparsers.add_parser(
-        "serve", help="Run an OpenAI-compatible API server"
-    )
+    serve_parser = subparsers.add_parser("serve", help="Run an OpenAI-compatible API server")
 
     # Server configuration
     serve_parser.add_argument(
@@ -115,9 +113,7 @@ def parse_args() -> argparse.Namespace:
     )
 
     # Subcommands
-    subparsers = parser.add_subparsers(
-        dest="command", help="Command to run", required=True
-    )
+    subparsers = parser.add_subparsers(dest="command", help="Command to run", required=True)
 
     # Set up subcommand parsers
     setup_serve_parser(subparsers)
@@ -131,9 +127,7 @@ def parse_models_arg(models_arg: list[str]) -> dict[str, str]:
     result = {}
     for mapping in models_arg or []:  # Handle None case
         if "=" not in mapping:
-            logger.warning(
-                "Ignoring invalid model mapping '%s': missing '=' separator", mapping
-            )
+            logger.warning("Ignoring invalid model mapping '%s': missing '=' separator", mapping)
             continue
 
         name, model_id = mapping.split("=", 1)
@@ -192,9 +186,7 @@ def process_config(config: dict[str, Any]) -> dict[str, str | Model]:
 
                 models[name] = model_id
             else:
-                logger.warning(
-                    "Skipping model '%s': missing 'model' in litellm_params", name
-                )
+                logger.warning("Skipping model '%s': missing 'model' in litellm_params", name)
 
     if "llmling_models" in config:
         models.update(config["llmling_models"])

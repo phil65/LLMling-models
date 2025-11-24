@@ -198,9 +198,7 @@ class OpenAIStreamedResponse(StreamedResponse):
                             if "name" in func:
                                 tool_calls[index]["function"]["name"] = func["name"]
                             if "arguments" in func:
-                                tool_calls[index]["function"]["arguments"] += func[
-                                    "arguments"
-                                ]
+                                tool_calls[index]["function"]["arguments"] += func["arguments"]
 
                         # Generate event if we have complete tool call
                         call = tool_calls[index]
@@ -329,9 +327,7 @@ class SimpleOpenAIModel(Model):
         async with httpx.AsyncClient() as client:
             try:
                 url = f"{base_url}/chat/completions"
-                response = await client.post(
-                    url, headers=headers, json=payload, timeout=30.0
-                )
+                response = await client.post(url, headers=headers, json=payload, timeout=30.0)
                 response.raise_for_status()
                 data = response.json()
 

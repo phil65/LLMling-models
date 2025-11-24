@@ -23,9 +23,7 @@ class InputHandler(Protocol):
         """Get single input response. Can be sync or async."""
         ...
 
-    def stream_input(
-        self, prompt: str
-    ) -> AsyncIterator[str] | Awaitable[AsyncIterator[str]]:
+    def stream_input(self, prompt: str) -> AsyncIterator[str] | Awaitable[AsyncIterator[str]]:
         """Stream input character by character. Can be sync or async."""
         ...
 

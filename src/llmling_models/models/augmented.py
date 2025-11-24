@@ -68,11 +68,7 @@ class AugmentedModel(Model):
     @property
     def model_name(self) -> str:
         """Return the model name."""
-        return (
-            self.main_model
-            if isinstance(self.main_model, str)
-            else self.main_model.model_name
-        )
+        return self.main_model if isinstance(self.main_model, str) else self.main_model.model_name
 
     @property
     def system(self) -> str:

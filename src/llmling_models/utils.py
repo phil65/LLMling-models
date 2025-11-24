@@ -114,7 +114,5 @@ def serialize_message(message: PydanticAIMessage) -> str:
     for part in message.parts:
         if isinstance(part, RetryPromptPart) and isinstance(part.content, list):
             for content in part.content:
-                content["ctx"] = {
-                    k: str(v) for k, v in (content.get("ctx", None) or {}).items()
-                }
+                content["ctx"] = {k: str(v) for k, v in (content.get("ctx", None) or {}).items()}
     return message_adapter.dump_python(message, mode="json")  # type: ignore[no-any-return]

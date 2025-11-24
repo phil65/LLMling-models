@@ -32,16 +32,12 @@ async def main():
     async with agent:
         # Test 1: Simple code execution
         print("\n=== Test 1: Simple code execution ===")
-        result = await agent.run(
-            "Execute this Python code: print('Hello from CodeModeToolset!')"
-        )
+        result = await agent.run("Execute this Python code: print('Hello from CodeModeToolset!')")
         print(f"Result: {result}")
 
         # Test 2: Using the wrapped tool
         print("\n=== Test 2: Using wrapped browser tool ===")
-        result = await agent.run(
-            "Open google.com in a new browser tab using the available tools"
-        )
+        result = await agent.run("Open google.com in a new browser tab using the available tools")
         print(f"Result: {result}")
 
 
