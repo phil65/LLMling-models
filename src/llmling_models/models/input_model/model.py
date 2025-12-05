@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 import inspect
+import sys
 from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, ImportString
@@ -115,9 +116,9 @@ class InputModel(Model, Schema):
             prompt_template=self.prompt_template,
             show_system=self.show_system,
         )
-        print("\n" + "=" * 80)
-        print(display_text)
-        print("-" * 80)
+        print("\n" + "=" * 80, file=sys.stderr)
+        print(display_text, file=sys.stderr)
+        print("-" * 80, file=sys.stderr)
 
         # Get input using configured handler
         input_method = handler.get_input
@@ -148,9 +149,9 @@ class InputModel(Model, Schema):
             prompt_template=self.prompt_template,
             show_system=self.show_system,
         )
-        print("\n" + "=" * 80)
-        print(display_text)
-        print("-" * 80)
+        print("\n" + "=" * 80, file=sys.stderr)
+        print(display_text, file=sys.stderr)
+        print("-" * 80, file=sys.stderr)
 
         # Get streaming input using configured handler
         stream_method = handler.stream_input
@@ -162,10 +163,8 @@ class InputModel(Model, Schema):
                 char_stream = await stream_or_awaitable
             else:
                 char_stream = stream_or_awaitable
-
-        yield InputStreamedResponse(
-            model_request_parameters=ModelRequestParameters(), stream=char_stream
-        )
+        reqs = ModelRequestParameters()
+        yield InputStreamedResponse(model_request_parameters=reqs, stream=char_stream)
 
 
 if __name__ == "__main__":

@@ -44,10 +44,7 @@ class StreamResponse(BaseModel):
     error: str | None = None
 
 
-def format_conversation(
-    prompt: str,
-    conversation: list[Message] | None = None,
-) -> str:
+def format_conversation(prompt: str, conversation: list[Message] | None = None) -> str:
     """Format conversation for display to operator."""
     lines = []
 
@@ -66,11 +63,7 @@ def format_conversation(
 class ModelServer:
     """Server that delegates to human operator."""
 
-    def __init__(
-        self,
-        title: str = "Input Server",
-        description: str | None = None,
-    ) -> None:
+    def __init__(self, title: str = "Input Server", description: str | None = None) -> None:
         """Initialize server with configuration."""
         from fastapi import FastAPI, Header, HTTPException, WebSocketDisconnect, status
 
