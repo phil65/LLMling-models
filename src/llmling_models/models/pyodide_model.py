@@ -167,19 +167,11 @@ class OpenAIStreamedResponse(StreamedResponse):
                 if content := delta.get("content"):
                     if not self._has_yielded_start:
                         self._has_yielded_start = True
-                        event = self._parts_manager.handle_text_delta(
-                            vendor_part_id=content_id,
-                            content=content,
-                        )
-                        if event is not None:
-                            yield event
-                    else:
-                        event = self._parts_manager.handle_text_delta(
-                            vendor_part_id=content_id,
-                            content=content,
-                        )
-                        if event is not None:
-                            yield event
+                    for event in self._parts_manager.handle_text_delta(
+                        vendor_part_id=content_id,
+                        content=content,
+                    ):
+                        yield event
 
                 # Handle tool calls
                 if tool_call_delta := delta.get("tool_calls", []):
