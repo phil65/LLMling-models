@@ -162,6 +162,10 @@ def _infer_single_model(  # noqa: PLR0911
 
         imported = Importer(model=model.removeprefix("import:")).model
         return imported() if isinstance(imported, type) else imported  # type: ignore[no-any-return]
+    if model == "test":
+        from pydantic_ai.models.test import TestModel
+
+        return TestModel()
     if model.startswith("test:"):
         from pydantic_ai.models.test import TestModel
 
