@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from collections.abc import Sequence
 
 from pydantic import Field, model_validator
 from pydantic.config import ConfigDict
@@ -11,10 +11,6 @@ from schemez import Schema
 
 from llmling_models.log import get_logger
 from llmling_models.models.helpers import infer_model
-
-
-if TYPE_CHECKING:
-    from collections.abc import Sequence
 
 
 logger = get_logger(__name__)
@@ -27,7 +23,7 @@ class MultiModel(Schema, Model):
     allowing configuration of multiple models through LLMling's config system.
     """
 
-    models: list[str | Model] = Field(min_length=1)
+    models: Sequence[str | Model] = Field(min_length=1)
     """List of models to use."""
 
     _initialized_models: list[Model] | None = None

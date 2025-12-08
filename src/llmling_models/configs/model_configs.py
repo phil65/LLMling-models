@@ -4,19 +4,21 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 from pydantic import ConfigDict, Field, ImportString, SecretStr
+from pydantic_ai.settings import ModelSettings as PyAIModelSettings
 from schemez import Schema
+from tokonomics import ModelName
 from tokonomics.model_names.anthropic import AnthropicModels
 from tokonomics.model_names.gemini import GeminiModels
 from tokonomics.model_names.openai import OpenaiModels
 
 
 if TYPE_CHECKING:
+    from pydantic_ai.models import Model
     from pydantic_ai.models.anthropic import AnthropicModelSettings
     from pydantic_ai.models.fallback import FallbackModel
     from pydantic_ai.models.function import FunctionModel
     from pydantic_ai.models.gemini import GeminiModelSettings
     from pydantic_ai.models.openai import OpenAIChatModelSettings
-    from pydantic_ai.settings import ModelSettings as PyAIModelSettings
 
     from llmling_models import DelegationMultiModel, InputModel
     from llmling_models.models.augmented import AugmentedModel
@@ -28,10 +30,14 @@ class BaseModelConfig(Schema):
     type: str = Field(init=False)
     """Type discriminator for model configs."""
 
-    def get_model(self) -> Any:
+    def get_model(self) -> Model:
         """Create and return actual model instance."""
         msg = f"Model creation not implemented for {self.__class__.__name__}"
         raise NotImplementedError(msg)
+
+    def get_model_settings(self) -> PyAIModelSettings:
+        """Return model settings as a dictionary."""
+        return PyAIModelSettings()
 
 
 class PrePostPromptConfig(Schema):
@@ -43,7 +49,7 @@ class PrePostPromptConfig(Schema):
     )
     """The prompt text to be applied."""
 
-    model: str = Field(
+    model: ModelName | BaseModelConfig | str = Field(
         examples=[["openai:gpt-5-nano", "anthropic:claude-sonnet-4-5"]],
         title="Model identifier",
     )
@@ -56,7 +62,7 @@ class AugmentedModelConfig(BaseModelConfig):
     type: Literal["augmented"] = Field(default="augmented", init=False)
     """Type identifier for augmented model."""
 
-    main_model: str = Field(
+    main_model: ModelName | BaseModelConfig | str = Field(
         examples=["openai:gpt-5-nano", "anthropic:claude-sonnet-4-5"],
         title="Primary model",
     )
@@ -77,8 +83,13 @@ class AugmentedModelConfig(BaseModelConfig):
     def get_model(self) -> AugmentedModel:
         from llmling_models.models.augmented import AugmentedModel
 
+        main_model = (
+            self.main_model.get_model()
+            if isinstance(self.main_model, BaseModelConfig)
+            else StringModelConfig(identifier=self.main_model).get_model()
+        )
         return AugmentedModel(
-            main_model=self.main_model,  # type: ignore
+            main_model=main_model,
             pre_prompt=self.pre_prompt,  # type: ignore
             post_prompt=self.post_prompt,  # type: ignore
         )
@@ -90,13 +101,13 @@ class DelegationModelConfig(BaseModelConfig):
     type: Literal["delegation"] = Field(default="delegation", init=False)
     """Type identifier for delegation model."""
 
-    selector_model: str | BaseModelConfig = Field(
+    selector_model: ModelName | str | BaseModelConfig = Field(
         examples=["openai:gpt-5-nano"],
         title="Selector model",
     )
     """Model responsible for selecting which model to use."""
 
-    models: list[str | BaseModelConfig] = Field(
+    models: list[ModelName | str | BaseModelConfig] = Field(
         min_length=1,
         title="Available models",
         examples=[["openai:gpt-5-nano", "anthropic:claude-sonnet-4-5"]],
@@ -128,12 +139,15 @@ class DelegationModelConfig(BaseModelConfig):
         selector = (
             self.selector_model.get_model()
             if isinstance(self.selector_model, BaseModelConfig)
-            else self.selector_model
+            else StringModelConfig(identifier=self.selector_model).get_model()
         )
 
         # Convert model list
         converted_models = [
-            m.get_model() if isinstance(m, BaseModelConfig) else m for m in self.models
+            m.get_model()
+            if isinstance(m, BaseModelConfig)
+            else StringModelConfig(identifier=m).get_model()
+            for m in self.models
         ]
 
         return DelegationMultiModel(
@@ -149,7 +163,7 @@ class FallbackModelConfig(BaseModelConfig):
     type: Literal["fallback"] = Field(default="fallback", init=False)
     """Type identifier for fallback model."""
 
-    models: list[str | BaseModelConfig] = Field(
+    models: list[ModelName | str | BaseModelConfig] = Field(
         min_length=1,
         title="Fallback models",
         examples=[["openai:gpt-5-nano", "anthropic:claude-sonnet-4-5"]],
@@ -161,8 +175,10 @@ class FallbackModelConfig(BaseModelConfig):
 
         # Convert nested configs to models
         converted_models = [
-            model.get_model() if isinstance(model, BaseModelConfig) else model
-            for model in self.models
+            m.get_model()
+            if isinstance(m, BaseModelConfig)
+            else StringModelConfig(identifier=m).get_model()
+            for m in self.models
         ]
         return FallbackModel(*converted_models)
 
@@ -282,7 +298,7 @@ class UserSelectModelConfig(BaseModelConfig):
     type: Literal["user-select"] = Field(default="user-select", init=False)
     """Type identifier for user-select model."""
 
-    models: list[str | BaseModelConfig] = Field(
+    models: list[ModelName | str | BaseModelConfig] = Field(
         min_length=1,
         title="Selectable models",
         examples=[["openai:gpt-5-nano", "anthropic:claude-sonnet-4-5"]],
@@ -317,7 +333,10 @@ class UserSelectModelConfig(BaseModelConfig):
         from llmling_models.models import UserSelectModel
 
         converted_models = [
-            m.get_model() if isinstance(m, BaseModelConfig) else m for m in self.models
+            m.get_model()
+            if isinstance(m, BaseModelConfig)
+            else StringModelConfig(identifier=m).get_model()
+            for m in self.models
         ]
         return UserSelectModel(
             models=converted_models,
@@ -334,7 +353,7 @@ class StringModelConfig(BaseModelConfig):
     type: Literal["string"] = Field(default="string", init=False)
     """Type identifier for string model."""
 
-    identifier: str = Field(
+    identifier: ModelName | str = Field(
         examples=["openai:gpt-5-nano", "anthropic:claude-sonnet-4-5"],
         title="Model identifier",
     )
@@ -451,7 +470,7 @@ class StringModelConfig(BaseModelConfig):
         }
         return ModelSettings(**{k: v for k, v in settings.items() if v is not None})  # type: ignore[typeddict-item, no-any-return]
 
-    def get_model(self) -> Any:
+    def get_model(self) -> Model:
         from llmling_models import infer_model
 
         return infer_model(self.identifier)

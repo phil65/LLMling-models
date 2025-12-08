@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import Field, model_validator
 from pydantic_ai import ModelRequest, UserPromptPart
 from pydantic_ai.models import Model  # noqa: TC002
+from tokonomics import ModelName  # noqa: TC002
 
 from llmling_models.log import get_logger
 from llmling_models.models.helpers import infer_model
@@ -26,7 +27,7 @@ logger = get_logger(__name__)
 class DelegationMultiModel(MultiModel):
     """Meta-model that dynamically selects models based on a user prompt."""
 
-    selector_model: str | Model
+    selector_model: ModelName | str | Model
     """Model to use for delegation."""
 
     selection_prompt: str
