@@ -10,16 +10,12 @@ if TYPE_CHECKING:
     from pydantic_ai.providers import Provider
 
 
-def infer_provider(provider: str) -> Provider[Any]:  # noqa: PLR0911
+def infer_provider(provider: str) -> Provider[Any]:
     """Infer the provider from the provider name."""
     if provider == "copilot":
         from llmling_models.providers.copilot_provider import CopilotProvider
 
         return CopilotProvider()
-    if provider == "openrouter":
-        from pydantic_ai.providers.openrouter import OpenRouterProvider
-
-        return OpenRouterProvider()
     if provider == "grok":
         from pydantic_ai.providers.grok import GrokProvider
 
