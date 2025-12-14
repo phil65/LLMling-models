@@ -3,6 +3,7 @@
 from .model_configs import (
     AnyModelConfig,
     AugmentedModelConfig,
+    ClaudeCodeModelConfig,
     DelegationModelConfig,
     FallbackModelConfig,
     FunctionModelConfig,
@@ -20,6 +21,7 @@ from .model_configs import (
 __all__ = [
     "AnyModelConfig",
     "AugmentedModelConfig",
+    "ClaudeCodeModelConfig",
     "DelegationModelConfig",
     "FallbackModelConfig",
     "FunctionModelConfig",

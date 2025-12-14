@@ -1036,6 +1036,119 @@ class GeminiModelConfig(BaseModelConfig):
         return infer_model(self.identifier)
 
 
+ClaudeCodePermissionMode = Literal["default", "acceptEdits", "plan", "bypassPermissions"]
+ClaudeCodeModelName = Literal["sonnet", "opus", "haiku"]
+
+# Full model names also supported by Claude Code CLI
+ClaudeCodeFullModelName = Literal[
+    "claude-sonnet-4-5-20250929",
+    "claude-opus-4-5-20251101",
+    "claude-haiku-4-5-20251001",
+]
+
+
+class ClaudeCodeModelConfig(BaseModelConfig):
+    """Configuration for Claude Code model.
+
+    This model uses the Claude Agent SDK to communicate with the Claude Code CLI,
+    providing access to Claude with filesystem access, code execution,
+    and other agentic capabilities.
+
+    Example:
+        ```yaml
+        model:
+          type: claude_code
+          model: sonnet
+          permission_mode: bypassPermissions
+          cwd: /path/to/project
+        ```
+    """
+
+    model_config = ConfigDict(json_schema_extra={"x-doc-title": "Claude Code model"})
+
+    type: Literal["claude_code"] = Field(default="claude_code", init=False)
+    """Type identifier for Claude Code model."""
+
+    model: ClaudeCodeModelName | ClaudeCodeFullModelName = Field(
+        default="sonnet",
+        examples=["sonnet", "opus", "haiku", "claude-sonnet-4-5-20250929"],
+        title="Model name",
+    )
+    """The Claude model to use. Supports aliases (sonnet, opus, haiku) or full names."""
+
+    cwd: str | None = Field(
+        default=None,
+        examples=["/path/to/project", "."],
+        title="Working directory",
+    )
+    """Working directory for Claude Code operations."""
+
+    permission_mode: ClaudeCodePermissionMode = Field(
+        default="bypassPermissions",
+        examples=["default", "acceptEdits", "bypassPermissions"],
+        title="Permission mode",
+    )
+    """Permission mode for tool execution.
+
+    - 'default': CLI prompts for dangerous tools
+    - 'acceptEdits': Auto-accept file edits
+    - 'plan': Plan mode (no execution)
+    - 'bypassPermissions': Allow all tools (use with caution)
+    """
+
+    system_prompt: str | None = Field(
+        default=None,
+        examples=["You are a helpful coding assistant."],
+        title="System prompt",
+    )
+    """Custom system prompt to use."""
+
+    max_turns: int | None = Field(
+        default=None,
+        ge=1,
+        le=100,
+        examples=[10, 50],
+        title="Maximum turns",
+    )
+    """Maximum number of conversation turns (1-100)."""
+
+    max_thinking_tokens: int | None = Field(
+        default=None,
+        ge=1,
+        examples=[1024, 4096],
+        title="Maximum thinking tokens",
+    )
+    """Maximum tokens for extended thinking."""
+
+    allowed_tools: list[str] | None = Field(
+        default=None,
+        examples=[["Read", "Write", "Bash"], ["Read", "Glob", "Grep"]],
+        title="Allowed tools",
+    )
+    """List of tools to allow (e.g., ['Read', 'Write', 'Bash'])."""
+
+    disallowed_tools: list[str] | None = Field(
+        default=None,
+        examples=[["WebSearch", "WebFetch"]],
+        title="Disallowed tools",
+    )
+    """List of tools to disallow."""
+
+    def get_model(self) -> Any:
+        from llmling_models import ClaudeCodeModel
+
+        return ClaudeCodeModel(
+            model=self.model,
+            cwd=self.cwd,
+            permission_mode=self.permission_mode,
+            system_prompt=self.system_prompt,
+            max_turns=self.max_turns,
+            max_thinking_tokens=self.max_thinking_tokens,
+            allowed_tools=self.allowed_tools,
+            disallowed_tools=self.disallowed_tools,
+        )
+
+
 class ModelSettings(Schema):
     """Settings to configure an LLM."""
 
@@ -1115,6 +1228,7 @@ class ModelSettings(Schema):
 
 AnyModelConfig = Annotated[
     AugmentedModelConfig
+    | ClaudeCodeModelConfig
     | DelegationModelConfig
     | FallbackModelConfig
     | FunctionModelConfig
