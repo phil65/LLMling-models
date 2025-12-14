@@ -9,16 +9,18 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic_ai import ModelResponse, RequestUsage, TextPart, ThinkingPart
 from pydantic_ai.messages import BuiltinToolCallPart, BuiltinToolReturnPart
-from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
+from pydantic_ai.models import Model, StreamedResponse
 
 from llmling_models.log import get_logger
 
 
 if TYPE_CHECKING:
+    import asyncio
     from collections.abc import AsyncIterator
 
     from pydantic_ai import ModelMessage, ModelResponseStreamEvent, RunContext
     from pydantic_ai.messages import ModelResponsePart
+    from pydantic_ai.models import ModelRequestParameters
     from pydantic_ai.settings import ModelSettings
 
 logger = get_logger(__name__)
@@ -35,8 +37,8 @@ class ClaudeCodeRealStreamedResponse(StreamedResponse):
     enabling true streaming without waiting for all messages to complete.
     """
 
-    _message_queue: Any  # asyncio.Queue[Any]
-    _collection_done: Any  # asyncio.Event
+    _message_queue: asyncio.Queue[Any]
+    _collection_done: asyncio.Event
     _collection_error: list[Exception]
     _usage: RequestUsage = field(default_factory=RequestUsage)
     _timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
@@ -256,7 +258,9 @@ class ClaudeCodeModel(Model):
         """Return the system/provider name."""
         return "claude-code"
 
-    def _build_options(self, model_request_parameters: ModelRequestParameters | None = None) -> Any:
+    def _build_options(
+        self, model_request_parameters: ModelRequestParameters | None = None
+    ) -> ClaudeAgentOptions:
         """Build ClaudeAgentOptions from settings and builtin tools.
 
         Tool availability follows standard pydantic-ai semantics:
