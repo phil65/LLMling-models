@@ -113,13 +113,8 @@ def _create_zen_model(model_name: str) -> OpenAIChatModel:
     if not model_name:
         msg = "ZEN_MODEL is required when using OpenCode Zen provider"
         raise ValueError(msg)
-
     # Create provider instance using the factory method
     api_key = os.getenv("ZEN_API_KEY")
     assert api_key, "ZEN_API_KEY is required when using OpenCode Zen provider"
     provider_instance = ZenProviderFactory.create_provider(api_key=api_key, model_name=model_name)
-
-    return OpenAIChatModel(
-        model_name=model_name,
-        provider=provider_instance,
-    )
+    return OpenAIChatModel(model_name=model_name, provider=provider_instance)

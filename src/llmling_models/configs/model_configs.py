@@ -27,6 +27,8 @@ if TYPE_CHECKING:
 class BaseModelConfig(Schema):
     """Base for model configurations."""
 
+    model_config = ConfigDict(json_schema_extra={"x-doc-title": "Base model"})
+
     type: str = Field(init=False)
     """Type discriminator for model configs."""
 
@@ -43,6 +45,8 @@ class BaseModelConfig(Schema):
 class PrePostPromptConfig(Schema):
     """Configuration for pre/post prompts."""
 
+    model_config = ConfigDict(json_schema_extra={"x-doc-title": "Pre/post prompt"})
+
     text: str = Field(
         examples=["You are a helpful assistant", "Process this carefully"],
         title="Prompt text",
@@ -58,6 +62,8 @@ class PrePostPromptConfig(Schema):
 
 class AugmentedModelConfig(BaseModelConfig):
     """Configuration for model with pre/post prompt processing."""
+
+    model_config = ConfigDict(json_schema_extra={"x-doc-title": "Augmented model"})
 
     type: Literal["augmented"] = Field(default="augmented", init=False)
     """Type identifier for augmented model."""
@@ -97,6 +103,8 @@ class AugmentedModelConfig(BaseModelConfig):
 
 class DelegationModelConfig(BaseModelConfig):
     """Configuration for delegation-based model selection."""
+
+    model_config = ConfigDict(json_schema_extra={"x-doc-title": "Delegation model"})
 
     type: Literal["delegation"] = Field(default="delegation", init=False)
     """Type identifier for delegation model."""
@@ -160,6 +168,8 @@ class DelegationModelConfig(BaseModelConfig):
 class FallbackModelConfig(BaseModelConfig):
     """Configuration for fallback strategy."""
 
+    model_config = ConfigDict(json_schema_extra={"x-doc-title": "Fallback model"})
+
     type: Literal["fallback"] = Field(default="fallback", init=False)
     """Type identifier for fallback model."""
 
@@ -186,6 +196,8 @@ class FallbackModelConfig(BaseModelConfig):
 class ImportModelConfig(BaseModelConfig):
     """Configuration for importing external models."""
 
+    model_config = ConfigDict(json_schema_extra={"x-doc-title": "Import model"})
+
     type: Literal["import"] = Field(default="import", init=False)
     """Type identifier for import model."""
 
@@ -204,6 +216,8 @@ class ImportModelConfig(BaseModelConfig):
 
 class InputModelConfig(BaseModelConfig):
     """Configuration for human input model."""
+
+    model_config = ConfigDict(json_schema_extra={"x-doc-title": "Input model"})
 
     type: Literal["input"] = Field(default="input", init=False)
     """Type identifier for input model."""
@@ -246,6 +260,8 @@ class InputModelConfig(BaseModelConfig):
 class RemoteInputConfig(BaseModelConfig):
     """Configuration for remote human input."""
 
+    model_config = ConfigDict(json_schema_extra={"x-doc-title": "Remote input model"})
+
     type: Literal["remote-input"] = Field(default="remote-input", init=False)
     """Type identifier for remote input model."""
 
@@ -268,6 +284,8 @@ class RemoteInputConfig(BaseModelConfig):
 
 class RemoteProxyConfig(BaseModelConfig):
     """Configuration for remote model proxy."""
+
+    model_config = ConfigDict(json_schema_extra={"x-doc-title": "Remote proxy model"})
 
     type: Literal["remote-proxy"] = Field(default="remote-proxy", init=False)
     """Type identifier for remote proxy model."""
@@ -294,6 +312,8 @@ class RemoteProxyConfig(BaseModelConfig):
 
 class UserSelectModelConfig(BaseModelConfig):
     """Configuration for interactive model selection."""
+
+    model_config = ConfigDict(json_schema_extra={"x-doc-title": "User select model"})
 
     type: Literal["user-select"] = Field(default="user-select", init=False)
     """Type identifier for user-select model."""
@@ -349,6 +369,8 @@ class UserSelectModelConfig(BaseModelConfig):
 
 class StringModelConfig(BaseModelConfig):
     """Configuration for string-based model references."""
+
+    model_config = ConfigDict(json_schema_extra={"x-doc-title": "String model"})
 
     type: Literal["string"] = Field(default="string", init=False)
     """Type identifier for string model."""
@@ -479,6 +501,8 @@ class StringModelConfig(BaseModelConfig):
 class FunctionModelConfig(BaseModelConfig):
     """Configuration for function-based model references."""
 
+    model_config = ConfigDict(json_schema_extra={"x-doc-title": "Function model"})
+
     type: Literal["function"] = Field(default="function", init=False)
     """Type identifier for function model."""
 
@@ -493,6 +517,8 @@ class FunctionModelConfig(BaseModelConfig):
 
 class TestModelConfig(BaseModelConfig):
     """Configuration for test models."""
+
+    model_config = ConfigDict(json_schema_extra={"x-doc-title": "Test model"})
 
     type: Literal["test"] = Field(default="test", init=False)
     """Type identifier for test model."""
@@ -522,6 +548,8 @@ class TestModelConfig(BaseModelConfig):
 
 class OpenAIModelConfig(BaseModelConfig):
     """Configuration for OpenAI models."""
+
+    model_config = ConfigDict(json_schema_extra={"x-doc-title": "OpenAI model"})
 
     type: Literal["openai"] = Field(default="openai", init=False)
     """Type identifier for OpenAI model."""
@@ -654,6 +682,18 @@ class OpenAIModelConfig(BaseModelConfig):
     )
     """The service tier to use for the model request."""
 
+    prompt_cache_key: str
+    """Used by OpenAI to cache responses for similar requests to optimize your cache hit rates.
+
+    See the [OpenAI Prompt Caching documentation](https://platform.openai.com/docs/guides/prompt-caching#how-it-works) for more information.
+    """  # noqa: E501
+
+    prompt_cache_retention: Literal["in-memory", "24h"]
+    """The retention policy for the prompt cache. Set to 24h to enable extended prompt caching, which keeps cached prefixes active for longer, up to a maximum of 24 hours.
+
+    See the [OpenAI Prompt Caching documentation](https://platform.openai.com/docs/guides/prompt-caching#how-it-works) for more information.
+    """  # noqa: E501
+
     def get_model_settings(self) -> OpenAIChatModelSettings:
         """Get model settings in pydantic-ai format."""
         from pydantic_ai.models.openai import OpenAIChatModelSettings
@@ -676,6 +716,8 @@ class OpenAIModelConfig(BaseModelConfig):
             "openai_top_logprobs": self.top_logprobs,
             "openai_user": self.user,
             "openai_service_tier": self.service_tier,
+            "openai_prompt_cache_key": self.prompt_cache_key,
+            "openai_prompt_cache_retention": self.prompt_cache_retention,
         }
         return OpenAIChatModelSettings(**{k: v for k, v in settings.items() if v is not None})  # type: ignore[typeddict-item, no-any-return]
 
@@ -687,6 +729,8 @@ class OpenAIModelConfig(BaseModelConfig):
 
 class AnthropicModelConfig(BaseModelConfig):
     """Configuration for Anthropic models."""
+
+    model_config = ConfigDict(json_schema_extra={"x-doc-title": "Anthropic model"})
 
     type: Literal["anthropic"] = Field(default="anthropic", init=False)
     """Type identifier for Anthropic model."""
@@ -844,6 +888,8 @@ class AnthropicModelConfig(BaseModelConfig):
 class GeminiModelConfig(BaseModelConfig):
     """Configuration for Gemini models."""
 
+    model_config = ConfigDict(json_schema_extra={"x-doc-title": "Gemini model"})
+
     type: Literal["gemini"] = Field(default="gemini", init=False)
     """Type identifier for Gemini model."""
 
@@ -993,6 +1039,8 @@ class GeminiModelConfig(BaseModelConfig):
 class ModelSettings(Schema):
     """Settings to configure an LLM."""
 
+    model_config = ConfigDict(json_schema_extra={"x-doc-title": "Model settings"})
+
     max_output_tokens: int | None = Field(
         default=None,
         examples=[1024, 2048, 4096],
@@ -1059,8 +1107,6 @@ class ModelSettings(Schema):
         examples=[{"5678": -100}, {"1234": 100}],
     )
     """Modify the likelihood of specified tokens appearing in the completion."""
-
-    model_config = ConfigDict(frozen=True)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to TypedDict format for pydantic-ai."""
