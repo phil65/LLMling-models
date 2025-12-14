@@ -49,6 +49,8 @@ def get_model(
             from llmling_models.providers import infer_provider
 
             provider = infer_provider(provider_name)
+            if provider_name.startswith("openai"):
+                return OpenAIResponsesModel(model_name=model_name, provider="openai")
             return OpenAIChatModel(model_name=model_name, provider=provider)
         except ValueError:
             # If provider not recognized, continue with direct approach
