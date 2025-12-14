@@ -21,6 +21,7 @@ from llmling_models.models.input_model import InputModel, DefaultInputHandler
 from llmling_models.models import DelegationMultiModel, UserSelectModel
 from llmling_models.models.function_to_model import function_to_model
 from llmling_models.models.helpers import infer_model
+from llmling_models.models.claude_code_model import ClaudeCodeModel
 from llmling_models.model_types import AllModels, ModelInput
 from llmling_models.toolsets.codemode_toolset import CodeModeToolset
 
@@ -28,6 +29,7 @@ __version__ = version("llmling-models")
 
 __all__ = [
     "AllModels",
+    "ClaudeCodeModel",
     "CodeModeToolset",
     "DefaultInputHandler",
     "DelegationMultiModel",

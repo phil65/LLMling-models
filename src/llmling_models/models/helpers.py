@@ -174,4 +174,12 @@ def _infer_single_model(  # noqa: PLR0911
         return TestModel(custom_output_text=model.removeprefix("test:"))
     if model.startswith("gemini:"):
         model = model.replace("gemini:", "google-gla:")
+    if model.startswith("claude-code:"):
+        from llmling_models.models.claude_code_model import ClaudeCodeModel
+
+        return ClaudeCodeModel(model=model.removeprefix("claude-code:"))
+    if model == "claude-code":
+        from llmling_models.models.claude_code_model import ClaudeCodeModel
+
+        return ClaudeCodeModel()
     return infer_model_(model)

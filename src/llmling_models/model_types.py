@@ -18,6 +18,7 @@ AllModels = Literal[
     "aisuite",
     "augmented",
     "user_select",
+    "claude_code",
 ]
 
 
