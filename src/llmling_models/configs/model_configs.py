@@ -1120,20 +1120,6 @@ class ClaudeCodeModelConfig(BaseModelConfig):
     )
     """Maximum tokens for extended thinking."""
 
-    allowed_tools: list[str] | None = Field(
-        default=None,
-        examples=[["Read", "Write", "Bash"], ["Read", "Glob", "Grep"]],
-        title="Allowed tools",
-    )
-    """List of tools to allow (e.g., ['Read', 'Write', 'Bash'])."""
-
-    disallowed_tools: list[str] | None = Field(
-        default=None,
-        examples=[["WebSearch", "WebFetch"]],
-        title="Disallowed tools",
-    )
-    """List of tools to disallow."""
-
     def get_model(self) -> Any:
         from llmling_models import ClaudeCodeModel
 
@@ -1144,8 +1130,6 @@ class ClaudeCodeModelConfig(BaseModelConfig):
             system_prompt=self.system_prompt,
             max_turns=self.max_turns,
             max_thinking_tokens=self.max_thinking_tokens,
-            allowed_tools=self.allowed_tools,
-            disallowed_tools=self.disallowed_tools,
         )
 
 

@@ -26,7 +26,6 @@ Example:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
 
 from pydantic_ai.builtin_tools import AbstractBuiltinTool
 
@@ -161,17 +160,63 @@ def get_claude_code_tool_name(tool: AbstractBuiltinTool) -> str | None:
     return BUILTIN_TOOL_NAMES.get(type(tool))
 
 
+def claude_code_all_tools() -> list[AbstractBuiltinTool]:
+    """Return all Claude Code builtin tools.
+
+    Convenience function to enable all Claude Code tools at once.
+
+    Example:
+        from pydantic_ai import Agent
+        from llmling_models import ClaudeCodeModel
+        from llmling_models.builtin_tools import claude_code_all_tools
+
+        model = ClaudeCodeModel()
+        agent = Agent(model=model, builtin_tools=claude_code_all_tools())
+    """
+    return [
+        ClaudeCodeReadTool(),
+        ClaudeCodeWriteTool(),
+        ClaudeCodeEditTool(),
+        ClaudeCodeBashTool(),
+        ClaudeCodeGlobTool(),
+        ClaudeCodeGrepTool(),
+        ClaudeCodeWebSearchTool(),
+        ClaudeCodeWebFetchTool(),
+        ClaudeCodeTaskTool(),
+        ClaudeCodeNotebookEditTool(),
+    ]
+
+
+def claude_code_read_only_tools() -> list[AbstractBuiltinTool]:
+    """Return read-only Claude Code tools (no writes, edits, or bash).
+
+    Convenience function for safe, read-only operations.
+
+    Example:
+        agent = Agent(model=model, builtin_tools=claude_code_read_only_tools())
+    """
+    return [
+        ClaudeCodeReadTool(),
+        ClaudeCodeGlobTool(),
+        ClaudeCodeGrepTool(),
+        ClaudeCodeWebSearchTool(),
+        ClaudeCodeWebFetchTool(),
+    ]
+
+
 __all__ = [
-    "ClaudeCodeReadTool",
-    "ClaudeCodeWriteTool",
-    "ClaudeCodeEditTool",
+    "BUILTIN_TOOL_NAMES",
     "ClaudeCodeBashTool",
+    "ClaudeCodeEditTool",
     "ClaudeCodeGlobTool",
     "ClaudeCodeGrepTool",
-    "ClaudeCodeWebSearchTool",
-    "ClaudeCodeWebFetchTool",
-    "ClaudeCodeTaskTool",
     "ClaudeCodeNotebookEditTool",
-    "BUILTIN_TOOL_NAMES",
+    "ClaudeCodeReadTool",
+    "ClaudeCodeTaskTool",
+    "ClaudeCodeWebFetchTool",
+    "ClaudeCodeWebSearchTool",
+    "ClaudeCodeWriteTool",
+    "claude_code_all_tools",
+    "claude_code_read_only_tools",
     "get_claude_code_tool_name",
 ]

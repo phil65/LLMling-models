@@ -220,8 +220,6 @@ class ClaudeCodeModel(Model):
         system_prompt: str | None = None,
         max_turns: int | None = None,
         max_thinking_tokens: int | None = None,
-        allowed_tools: list[str] | None = None,
-        disallowed_tools: list[str] | None = None,
         include_partial_messages: bool = True,
     ) -> None:
         """Initialize the Claude Code model.
@@ -237,8 +235,6 @@ class ClaudeCodeModel(Model):
             system_prompt: Custom system prompt to use.
             max_turns: Maximum number of conversation turns (1-100).
             max_thinking_tokens: Maximum tokens for extended thinking.
-            allowed_tools: List of tools to allow (e.g., ['Read', 'Write', 'Bash']).
-            disallowed_tools: List of tools to disallow.
             include_partial_messages: Enable real-time token streaming (default True).
         """
         super().__init__()
@@ -248,8 +244,6 @@ class ClaudeCodeModel(Model):
         self._system_prompt = system_prompt
         self._max_turns = max_turns
         self._max_thinking_tokens = max_thinking_tokens
-        self._allowed_tools = allowed_tools or []
-        self._disallowed_tools = disallowed_tools or []
         self._include_partial_messages = include_partial_messages
 
     @property
@@ -263,25 +257,24 @@ class ClaudeCodeModel(Model):
         return "claude-code"
 
     def _build_options(self, model_request_parameters: ModelRequestParameters | None = None) -> Any:
-        """Build ClaudeAgentOptions from settings and builtin tools."""
+        """Build ClaudeAgentOptions from settings and builtin tools.
+
+        Tool availability follows standard pydantic-ai semantics:
+        - If no builtin tools passed: no tools available
+        - If builtin tools passed: only those specific tools are allowed
+        """
         from claude_agent_sdk import ClaudeAgentOptions
 
         from llmling_models.builtin_tools import get_claude_code_tool_name
 
-        # Start with configured allowed/disallowed tools
-        allowed_tools = list(self._allowed_tools)
-        disallowed_tools = list(self._disallowed_tools)
-
-        # Process builtin tools from model_request_parameters
+        # Collect tools from builtin_tools parameter
+        # Empty list = no tools, consistent with standard pydantic-ai behavior
+        allowed_tools: list[str] = []
         if model_request_parameters and model_request_parameters.builtin_tools:
             for tool in model_request_parameters.builtin_tools:
                 if tool_name := get_claude_code_tool_name(tool):
-                    # Add to allowed tools if not already there
                     if tool_name not in allowed_tools:
                         allowed_tools.append(tool_name)
-                    # Remove from disallowed if present
-                    if tool_name in disallowed_tools:
-                        disallowed_tools.remove(tool_name)
 
         return ClaudeAgentOptions(
             model=self._model,
@@ -290,8 +283,7 @@ class ClaudeCodeModel(Model):
             system_prompt=self._system_prompt if self._system_prompt else "",
             max_turns=self._max_turns,
             max_thinking_tokens=self._max_thinking_tokens,
-            allowed_tools=allowed_tools if allowed_tools else None,
-            disallowed_tools=disallowed_tools if disallowed_tools else None,
+            allowed_tools=allowed_tools if allowed_tools else [],  # Empty = no tools
             include_partial_messages=self._include_partial_messages,
             # Disable loading external settings by default for predictable behavior
             setting_sources=[],

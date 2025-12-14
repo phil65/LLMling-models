@@ -35,6 +35,8 @@ from llmling_models.builtin_tools import (
     ClaudeCodeWebFetchTool,
     ClaudeCodeTaskTool,
     ClaudeCodeNotebookEditTool,
+    claude_code_all_tools,
+    claude_code_read_only_tools,
 )
 
 __version__ = version("llmling-models")
@@ -59,6 +61,8 @@ __all__ = [
     "ModelInput",
     "MultiModel",
     "UserSelectModel",
+    "claude_code_all_tools",
+    "claude_code_read_only_tools",
     "function_to_model",
     "infer_model",
 ]
