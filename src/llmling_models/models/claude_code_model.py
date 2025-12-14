@@ -262,9 +262,26 @@ class ClaudeCodeModel(Model):
         """Return the system/provider name."""
         return "claude-code"
 
-    def _build_options(self) -> Any:
-        """Build ClaudeAgentOptions from settings."""
+    def _build_options(self, model_request_parameters: ModelRequestParameters | None = None) -> Any:
+        """Build ClaudeAgentOptions from settings and builtin tools."""
         from claude_agent_sdk import ClaudeAgentOptions
+
+        from llmling_models.builtin_tools import get_claude_code_tool_name
+
+        # Start with configured allowed/disallowed tools
+        allowed_tools = list(self._allowed_tools)
+        disallowed_tools = list(self._disallowed_tools)
+
+        # Process builtin tools from model_request_parameters
+        if model_request_parameters and model_request_parameters.builtin_tools:
+            for tool in model_request_parameters.builtin_tools:
+                if tool_name := get_claude_code_tool_name(tool):
+                    # Add to allowed tools if not already there
+                    if tool_name not in allowed_tools:
+                        allowed_tools.append(tool_name)
+                    # Remove from disallowed if present
+                    if tool_name in disallowed_tools:
+                        disallowed_tools.remove(tool_name)
 
         return ClaudeAgentOptions(
             model=self._model,
@@ -273,8 +290,8 @@ class ClaudeCodeModel(Model):
             system_prompt=self._system_prompt if self._system_prompt else "",
             max_turns=self._max_turns,
             max_thinking_tokens=self._max_thinking_tokens,
-            allowed_tools=self._allowed_tools,
-            disallowed_tools=self._disallowed_tools,
+            allowed_tools=allowed_tools if allowed_tools else None,
+            disallowed_tools=disallowed_tools if disallowed_tools else None,
             include_partial_messages=self._include_partial_messages,
             # Disable loading external settings by default for predictable behavior
             setting_sources=[],
@@ -336,7 +353,7 @@ class ClaudeCodeModel(Model):
         )
 
         prompt = self._extract_prompt(messages)
-        options = self._build_options()
+        options = self._build_options(model_request_parameters)
 
         # Override system prompt if found in messages
         system_prompt = self._extract_system_prompt(messages)
@@ -449,7 +466,7 @@ class ClaudeCodeModel(Model):
         )
 
         prompt = self._extract_prompt(messages)
-        options = self._build_options()
+        options = self._build_options(model_request_parameters)
 
         # Override system prompt if found in messages
         system_prompt = self._extract_system_prompt(messages)
