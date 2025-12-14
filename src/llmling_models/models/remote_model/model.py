@@ -209,6 +209,11 @@ class RemoteProxyStreamedResponse(StreamedResponse):
         """Get the provider name."""
         return "remote-proxy"
 
+    @property
+    def provider_url(self) -> str | None:
+        """Get the provider URL."""
+        return None
+
     async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
         """Stream responses as events."""
         import anyenv

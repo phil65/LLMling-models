@@ -130,6 +130,11 @@ class OpenAIStreamedResponse(StreamedResponse):
         """Get the provider name."""
         return "pyodide"
 
+    @property
+    def provider_url(self) -> str | None:
+        """Get the provider URL."""
+        return None
+
     async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
         """Stream response chunks."""
         import anyenv

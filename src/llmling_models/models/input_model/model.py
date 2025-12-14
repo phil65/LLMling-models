@@ -44,6 +44,11 @@ class InputStreamedResponse(StreamedResponse):
         """Get the provider name."""
         return "input"
 
+    @property
+    def provider_url(self) -> str | None:
+        """Get the provider URL."""
+        return None
+
     async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
         """Stream characters as events."""
         try:
