@@ -271,19 +271,47 @@ class ClaudeCodeModel(Model):
         - `tools=[]` sends `--tools ""` to CLI → no tools
         - `tools=None` (default) → doesn't send flag → CLI uses all tools
         - `allowed_tools=[]` is falsy, doesn't send flag → no filtering
+
+        Also handles MCPServerTool for connecting to external MCP servers.
         """
         from claude_agent_sdk import ClaudeAgentOptions
+        from claude_agent_sdk.types import McpHttpServerConfig, McpSSEServerConfig
+        from pydantic_ai.builtin_tools import MCPServerTool
 
         from llmling_models.builtin_tools import get_claude_code_tool_name
 
-        # Collect tools from builtin_tools parameter
+        # Collect tools and MCP servers from builtin_tools parameter
         allowed_tools: list[str] = []
+        mcp_servers: dict[str, McpSSEServerConfig | McpHttpServerConfig] = {}
+
         if model_request_parameters and model_request_parameters.builtin_tools:
             for tool in model_request_parameters.builtin_tools:
-                if (tool_name := get_claude_code_tool_name(tool)) and (
-                    tool_name not in allowed_tools
+                # Handle MCPServerTool - convert to SDK mcp_servers format
+                if isinstance(tool, MCPServerTool) and tool.url:
+                    # Determine transport type from URL
+                    # Default to SSE for most MCP servers
+                    url = tool.url
+                    if "/sse" in url or url.endswith("/sse"):
+                        server_config: McpSSEServerConfig | McpHttpServerConfig = (
+                            McpSSEServerConfig(type="sse", url=url)
+                        )
+                    else:
+                        server_config = McpHttpServerConfig(type="http", url=url)
+                    # Add headers if provided
+                    if tool.headers:
+                        server_config["headers"] = tool.headers
+                    mcp_servers[tool.id] = server_config
+                    # Add MCP tools to allowed list if specified
+                    if tool.allowed_tools:
+                        for mcp_tool in tool.allowed_tools:
+                            mcp_tool_name = f"mcp__{tool.id}__{mcp_tool}"
+                            if mcp_tool_name not in allowed_tools:
+                                allowed_tools.append(mcp_tool_name)
+                # Handle Claude Code builtin tools
+                elif (builtin_name := get_claude_code_tool_name(tool)) and (
+                    builtin_name not in allowed_tools
                 ):
-                    allowed_tools.append(tool_name)
+                    allowed_tools.append(builtin_name)
 
         # Use `tools` parameter to control base tool set:
         # - Empty list = no tools (sends --tools "" to CLI)
@@ -297,6 +325,7 @@ class ClaudeCodeModel(Model):
             max_turns=self._max_turns,
             max_thinking_tokens=self._max_thinking_tokens,
             tools=allowed_tools,  # Empty list = no tools, non-empty = only those tools
+            mcp_servers=mcp_servers,  # type: ignore[arg-type]  # Subset of McpServerConfig
             include_partial_messages=self._include_partial_messages,
             # Disable loading external settings by default for predictable behavior
             setting_sources=[],
