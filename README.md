@@ -395,6 +395,65 @@ For convenience, most providers support configuration via environment variables:
 ```
 
 
+### Claude Code Model
+
+A model that delegates to the Claude Code CLI via the Claude Agent SDK, providing access to Claude with filesystem access, code execution, and other agentic capabilities:
+
+```python
+from pydantic_ai import Agent
+from llmling_models import ClaudeCodeModel, ClaudeCodeReadTool, ClaudeCodeGlobTool
+
+# Basic usage
+model = ClaudeCodeModel(model="sonnet")
+agent = Agent(model=model)
+
+# Without builtin tools, Claude has no tool access
+result = await agent.run("What is 2+2?")
+
+# With builtin tools, Claude can use them
+result = await agent.run(
+    "What files are in the current directory?",
+    builtin_tools=[ClaudeCodeGlobTool(), ClaudeCodeReadTool()],
+)
+```
+
+Available builtin tools:
+- `ClaudeCodeReadTool` - Read file contents
+- `ClaudeCodeWriteTool` - Write files
+- `ClaudeCodeEditTool` - Edit files
+- `ClaudeCodeBashTool` - Execute bash commands
+- `ClaudeCodeGlobTool` - Find files by pattern
+- `ClaudeCodeGrepTool` - Search file contents
+- `ClaudeCodeWebSearchTool` - Search the web
+- `ClaudeCodeWebFetchTool` - Fetch web content
+- `ClaudeCodeTaskTool` - Spawn subagents
+- `ClaudeCodeNotebookEditTool` - Edit Jupyter notebooks
+
+Convenience functions for batch tool access:
+```python
+from llmling_models import claude_code_all_tools, claude_code_read_only_tools
+
+# All tools
+agent = Agent(model=model, builtin_tools=claude_code_all_tools())
+
+# Read-only tools (no writes, edits, or bash)
+agent = Agent(model=model, builtin_tools=claude_code_read_only_tools())
+```
+
+Configuration options:
+```python
+model = ClaudeCodeModel(
+    model="opus",  # or "sonnet", "haiku", or full names like "claude-sonnet-4-5-20250929"
+    cwd="/path/to/workdir",  # Working directory
+    permission_mode="bypassPermissions",  # Tool permission handling
+    system_prompt="Custom system prompt",
+    max_turns=10,  # Max conversation turns
+    max_thinking_tokens=1000,  # For extended thinking
+)
+```
+
+Requires authentication via `claude login` (the CLI handles auth automatically).
+
 ## Installation
 
 ```bash
