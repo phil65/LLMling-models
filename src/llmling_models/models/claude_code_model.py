@@ -2,22 +2,37 @@
 
 from __future__ import annotations
 
+import asyncio
+import base64
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+import json
 from typing import TYPE_CHECKING, Any, Literal
 
-from pydantic_ai import ModelResponse, RequestUsage, TextPart, ThinkingPart
-from pydantic_ai.messages import BuiltinToolCallPart, BuiltinToolReturnPart
+from pydantic_ai import (
+    BinaryContent,
+    BuiltinToolCallPart,
+    BuiltinToolReturnPart,
+    ModelRequest,
+    ModelResponse,
+    ModelResponse as MsgResponse,
+    PartStartEvent,
+    RequestUsage,
+    SystemPromptPart,
+    TextPart,
+    ThinkingPart,
+    UserPromptPart,
+)
 from pydantic_ai.models import Model, StreamedResponse
 
 from llmling_models.log import get_logger
 
 
 if TYPE_CHECKING:
-    import asyncio
     from collections.abc import AsyncIterator
 
+    from claude_agent_sdk import ClaudeAgentOptions
     from pydantic_ai import ModelMessage, ModelResponseStreamEvent, RunContext
     from pydantic_ai.messages import ModelResponsePart
     from pydantic_ai.models import ModelRequestParameters
@@ -56,8 +71,6 @@ class ClaudeCodeRealStreamedResponse(StreamedResponse):
 
     async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
         """Stream events as they arrive from the queue."""
-        import asyncio
-
         from claude_agent_sdk import (
             AssistantMessage,
             ResultMessage,
@@ -75,13 +88,10 @@ class ClaudeCodeRealStreamedResponse(StreamedResponse):
             # Check if collection is done and queue is empty
             if self._collection_done.is_set() and self._message_queue.empty():
                 break
-
             # Check for collection errors
             if self._collection_error:
                 raise self._collection_error[0]
-
-            try:
-                # Try to get a message with a short timeout
+            try:  # Try to get a message with a short timeout
                 message = await asyncio.wait_for(self._message_queue.get(), timeout=0.1)
             except TimeoutError:
                 continue
@@ -140,12 +150,7 @@ class ClaudeCodeRealStreamedResponse(StreamedResponse):
                             provider_name="claude-code",
                         )
                         self._parts_manager._parts.append(part)
-                        yield {
-                            "type": "part-start",
-                            "index": len(self._parts_manager._parts) - 1,
-                            "part": part,
-                        }
-
+                        yield PartStartEvent(index=len(self._parts_manager._parts) - 1, part=part)
             elif isinstance(message, UserMessage):
                 # UserMessage contains tool results
                 if isinstance(message.content, list):
@@ -157,22 +162,17 @@ class ClaudeCodeRealStreamedResponse(StreamedResponse):
                             elif block.content is None:
                                 content = ""
                             else:
-                                import json
-
                                 content = json.dumps(block.content)
-                            part = BuiltinToolReturnPart(
+                            return_part = BuiltinToolReturnPart(
                                 tool_name=tool_name,
                                 content=content,
                                 tool_call_id=block.tool_use_id,
                                 provider_name="claude-code",
                             )
-                            self._parts_manager._parts.append(part)
-                            yield {
-                                "type": "part-start",
-                                "index": len(self._parts_manager._parts) - 1,
-                                "part": part,
-                            }
-
+                            self._parts_manager._parts.append(return_part)
+                            yield PartStartEvent(
+                                index=len(self._parts_manager._parts) - 1, part=part
+                            )
             elif isinstance(message, ResultMessage):
                 if message.usage:
                     u = message.usage
@@ -242,7 +242,7 @@ class ClaudeCodeModel(Model):
         super().__init__()
         self._model = model
         self._cwd = cwd
-        self._permission_mode = permission_mode
+        self._permission_mode: PermissionMode = permission_mode
         self._system_prompt = system_prompt
         self._max_turns = max_turns
         self._max_thinking_tokens = max_thinking_tokens
@@ -266,20 +266,29 @@ class ClaudeCodeModel(Model):
         Tool availability follows standard pydantic-ai semantics:
         - If no builtin tools passed: no tools available
         - If builtin tools passed: only those specific tools are allowed
+
+        Note: We use `tools=[]` (not `allowed_tools=[]`) to disable all tools.
+        - `tools=[]` sends `--tools ""` to CLI → no tools
+        - `tools=None` (default) → doesn't send flag → CLI uses all tools
+        - `allowed_tools=[]` is falsy, doesn't send flag → no filtering
         """
         from claude_agent_sdk import ClaudeAgentOptions
 
         from llmling_models.builtin_tools import get_claude_code_tool_name
 
         # Collect tools from builtin_tools parameter
-        # Empty list = no tools, consistent with standard pydantic-ai behavior
         allowed_tools: list[str] = []
         if model_request_parameters and model_request_parameters.builtin_tools:
             for tool in model_request_parameters.builtin_tools:
-                if tool_name := get_claude_code_tool_name(tool):
-                    if tool_name not in allowed_tools:
-                        allowed_tools.append(tool_name)
+                if (tool_name := get_claude_code_tool_name(tool)) and (
+                    tool_name not in allowed_tools
+                ):
+                    allowed_tools.append(tool_name)
 
+        # Use `tools` parameter to control base tool set:
+        # - Empty list = no tools (sends --tools "" to CLI)
+        # - Non-empty list = only those tools
+        # This ensures standard pydantic-ai semantics: no builtin tools = no tools
         return ClaudeAgentOptions(
             model=self._model,
             cwd=self._cwd,
@@ -287,46 +296,90 @@ class ClaudeCodeModel(Model):
             system_prompt=self._system_prompt if self._system_prompt else "",
             max_turns=self._max_turns,
             max_thinking_tokens=self._max_thinking_tokens,
-            allowed_tools=allowed_tools if allowed_tools else [],  # Empty = no tools
+            tools=allowed_tools,  # Empty list = no tools, non-empty = only those tools
             include_partial_messages=self._include_partial_messages,
             # Disable loading external settings by default for predictable behavior
             setting_sources=[],
         )
 
-    def _extract_prompt(self, messages: list[ModelMessage]) -> str:
-        """Extract a prompt string from pydantic-ai messages."""
-        from pydantic_ai.messages import ModelRequest, ModelResponse as MsgResponse
+    def _extract_prompt(self, messages: list[ModelMessage]) -> str | list[dict[str, Any]]:
+        """Extract prompt from pydantic-ai messages.
 
-        prompt_parts: list[str] = []
+        Returns either:
+        - str: Simple text prompt (for text-only messages)
+        - list[dict]: Structured content with text and images (for multimodal)
+
+        The SDK accepts string prompts directly, or AsyncIterable[dict] for
+        streaming with multimodal content.
+        """
+        text_parts: list[str] = []
+        content_parts: list[dict[str, Any]] = []
+        has_images = False
 
         for message in messages:
             if isinstance(message, ModelRequest):
                 for part in message.parts:
-                    if hasattr(part, "content"):
+                    # Skip system prompts - handled separately
+                    if isinstance(part, SystemPromptPart):
+                        continue
+                    if isinstance(part, UserPromptPart):
                         if isinstance(part.content, str):
-                            if part.part_kind == "system-prompt":
-                                continue
-                            prompt_parts.append(part.content)
-                        elif hasattr(part, "content") and isinstance(part.content, list | tuple):
+                            text_parts.append(part.content)
+                            content_parts.append({"type": "text", "text": part.content})
+                        else:
+                            # Sequence of UserContent items
                             for item in part.content:
                                 if isinstance(item, str):
-                                    prompt_parts.append(item)
-            elif isinstance(message, MsgResponse):
-                if message.parts:
-                    for part in message.parts:
-                        if hasattr(part, "content") and isinstance(part.content, str):
-                            prompt_parts.append(f"Assistant: {part.content}")
+                                    text_parts.append(item)
+                                    content_parts.append({"type": "text", "text": item})
+                                elif isinstance(item, BinaryContent):
+                                    # Handle binary content (images and PDFs)
+                                    if item.media_type:
+                                        if isinstance(item.data, bytes):
+                                            b64_data = base64.b64encode(item.data).decode()
+                                        else:
+                                            b64_data = item.data
 
-        return "\n\n".join(prompt_parts) if prompt_parts else ""
+                                        if item.media_type.startswith("image/"):
+                                            has_images = True
+                                            content_parts.append({
+                                                "type": "image",
+                                                "source": {
+                                                    "type": "base64",
+                                                    "media_type": item.media_type,
+                                                    "data": b64_data,
+                                                },
+                                            })
+                                        elif item.media_type == "application/pdf":
+                                            has_images = True  # triggers multimodal path
+                                            content_parts.append({
+                                                "type": "document",
+                                                "source": {
+                                                    "type": "base64",
+                                                    "media_type": "application/pdf",
+                                                    "data": b64_data,
+                                                },
+                                            })
+                                # ImageUrl, AudioUrl, etc. - URLs not supported by SDK
+
+            elif isinstance(message, MsgResponse):
+                for msg_part in message.parts:
+                    if isinstance(msg_part, TextPart):
+                        text = f"Assistant: {msg_part.content}"
+                        text_parts.append(text)
+                        content_parts.append({"type": "text", "text": text})
+
+        # Return structured content if we have images, otherwise simple string
+        if has_images:
+            return content_parts
+        return "\n\n".join(text_parts) if text_parts else ""
 
     def _extract_system_prompt(self, messages: list[ModelMessage]) -> str | None:
         """Extract system prompt from messages."""
-        from pydantic_ai.messages import ModelRequest
-
         for message in messages:
             if isinstance(message, ModelRequest):
                 for part in message.parts:
-                    if part.part_kind == "system-prompt" and hasattr(part, "content"):
+                    if isinstance(part, SystemPromptPart):
                         return part.content
         return None
 
@@ -348,7 +401,7 @@ class ClaudeCodeModel(Model):
             query,
         )
 
-        prompt = self._extract_prompt(messages)
+        prompt_content = self._extract_prompt(messages)
         options = self._build_options(model_request_parameters)
 
         # Override system prompt if found in messages
@@ -363,8 +416,22 @@ class ClaudeCodeModel(Model):
         # Collect all messages first to ensure the iterator is fully consumed
         # This prevents issues with anyio task group cleanup
         all_messages: list[Any] = []
-        async for message in query(prompt=prompt, options=options):
-            all_messages.append(message)
+
+        # Handle multimodal vs text-only prompts
+        if isinstance(prompt_content, list):
+            # Multimodal: use streaming format with structured content
+            async def multimodal_prompt() -> AsyncIterator[dict[str, Any]]:
+                yield {
+                    "type": "user",
+                    "message": {"role": "user", "content": prompt_content},
+                }
+
+            async for message in query(prompt=multimodal_prompt(), options=options):
+                all_messages.append(message)  # noqa: PERF401
+        else:
+            # Text-only: use simple string format
+            async for message in query(prompt=prompt_content, options=options):
+                all_messages.append(message)  # noqa: PERF401
 
         # Now process collected messages
         # Claude Code executes tools internally. We use BuiltinToolCallPart and
@@ -413,8 +480,6 @@ class ClaudeCodeModel(Model):
                                 content = ""
                             else:
                                 # List of content blocks - convert to string
-                                import json
-
                                 content = json.dumps(block.content)
                             parts.append(
                                 BuiltinToolReturnPart(
@@ -455,13 +520,9 @@ class ClaudeCodeModel(Model):
         Uses an asyncio.Queue to decouple the Claude Agent SDK's task group
         from pydantic-ai's streaming, enabling true real-time streaming.
         """
-        import asyncio
+        from claude_agent_sdk import query
 
-        from claude_agent_sdk import (
-            query,
-        )
-
-        prompt = self._extract_prompt(messages)
+        prompt_content = self._extract_prompt(messages)
         options = self._build_options(model_request_parameters)
 
         # Override system prompt if found in messages
@@ -477,9 +538,22 @@ class ClaudeCodeModel(Model):
         async def collect_messages() -> None:
             """Collect messages from SDK in background task."""
             try:
-                async for message in query(prompt=prompt, options=options):
-                    await message_queue.put(message)
-            except Exception as e:
+                # Handle multimodal vs text-only prompts
+                if isinstance(prompt_content, list):
+                    # Multimodal: use streaming format with structured content
+                    async def multimodal_prompt() -> AsyncIterator[dict[str, Any]]:
+                        yield {
+                            "type": "user",
+                            "message": {"role": "user", "content": prompt_content},
+                        }
+
+                    async for message in query(prompt=multimodal_prompt(), options=options):
+                        await message_queue.put(message)
+                else:
+                    # Text-only: use simple string format
+                    async for message in query(prompt=prompt_content, options=options):
+                        await message_queue.put(message)
+            except Exception as e:  # noqa: BLE001
                 collection_error.append(e)
             finally:
                 collection_done.set()
@@ -506,16 +580,21 @@ class ClaudeCodeModel(Model):
 
 
 if __name__ == "__main__":
-    import asyncio
-
     from pydantic_ai import Agent
 
     async def test() -> None:
-        model = ClaudeCodeModel(model="sonnet", permission_mode="bypassPermissions")
+        model = ClaudeCodeModel(model="haiku", permission_mode="bypassPermissions")
         agent: Agent[None, str] = Agent(model=model)
 
-        print("Testing Claude Code Model:")
-        result = await agent.run("What files are in the current directory?")
-        print(f"Result: {result.output}")
+        from llmling_models import ClaudeCodeGlobTool, ClaudeCodeReadTool
+
+        print("Testing Claude Code Model (streaming, with tools):")
+        async with agent.run_stream(
+            "What files are in the current directory?",
+            builtin_tools=[ClaudeCodeGlobTool(), ClaudeCodeReadTool()],
+        ) as result:
+            async for event in result.stream_text(delta=True):
+                print(event, end="", flush=True)
+        print("\n--- Done ---")
 
     asyncio.run(test())
