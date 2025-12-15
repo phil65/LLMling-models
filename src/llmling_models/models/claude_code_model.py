@@ -44,6 +44,89 @@ logger = get_logger(__name__)
 PermissionMode = Literal["default", "acceptEdits", "plan", "bypassPermissions"]
 
 
+def _extract_system_prompt(messages: list[ModelMessage]) -> str | None:
+    """Extract system prompt from messages."""
+    for message in messages:
+        if isinstance(message, ModelRequest):
+            for part in message.parts:
+                if isinstance(part, SystemPromptPart):
+                    return part.content
+    return None
+
+
+def _extract_prompt(messages: list[ModelMessage]) -> str | list[dict[str, Any]]:
+    """Extract prompt from pydantic-ai messages.
+
+    Returns either:
+    - str: Simple text prompt (for text-only messages)
+    - list[dict]: Structured content with text and images (for multimodal)
+
+    The SDK accepts string prompts directly, or AsyncIterable[dict] for
+    streaming with multimodal content.
+    """
+    text_parts: list[str] = []
+    content_parts: list[dict[str, Any]] = []
+    has_images = False
+
+    for message in messages:
+        if isinstance(message, ModelRequest):
+            for part in message.parts:
+                # Skip system prompts - handled separately
+                if isinstance(part, SystemPromptPart):
+                    continue
+                if isinstance(part, UserPromptPart):
+                    if isinstance(part.content, str):
+                        text_parts.append(part.content)
+                        content_parts.append({"type": "text", "text": part.content})
+                    else:
+                        # Sequence of UserContent items
+                        for item in part.content:
+                            if isinstance(item, str):
+                                text_parts.append(item)
+                                content_parts.append({"type": "text", "text": item})
+                            elif isinstance(item, BinaryContent):
+                                # Handle binary content (images and PDFs)
+                                if item.media_type:
+                                    if isinstance(item.data, bytes):
+                                        b64_data = base64.b64encode(item.data).decode()
+                                    else:
+                                        b64_data = item.data
+
+                                    if item.media_type.startswith("image/"):
+                                        has_images = True
+                                        content_parts.append({
+                                            "type": "image",
+                                            "source": {
+                                                "type": "base64",
+                                                "media_type": item.media_type,
+                                                "data": b64_data,
+                                            },
+                                        })
+                                    elif item.media_type == "application/pdf":
+                                        has_images = True  # triggers multimodal path
+                                        content_parts.append({
+                                            "type": "document",
+                                            "source": {
+                                                "type": "base64",
+                                                "media_type": "application/pdf",
+                                                "data": b64_data,
+                                            },
+                                        })
+                            # ImageUrl, AudioUrl, etc. - URLs not supported by SDK
+
+        elif isinstance(message, MsgResponse):
+            for msg_part in message.parts:
+                if isinstance(msg_part, TextPart):
+                    text = f"Assistant: {msg_part.content}"
+                    text_parts.append(text)
+                    content_parts.append({"type": "text", "text": text})
+
+    # Return structured content if we have images, otherwise simple string
+    if has_images:
+        return content_parts
+    return "\n\n".join(text_parts) if text_parts else ""
+
+
 @dataclass(kw_only=True)
 class ClaudeCodeRealStreamedResponse(StreamedResponse):
     """Real-time streaming response from Claude Code.
@@ -331,87 +414,6 @@ class ClaudeCodeModel(Model):
             setting_sources=[],
         )
 
-    def _extract_prompt(self, messages: list[ModelMessage]) -> str | list[dict[str, Any]]:
-        """Extract prompt from pydantic-ai messages.
-
-        Returns either:
-        - str: Simple text prompt (for text-only messages)
-        - list[dict]: Structured content with text and images (for multimodal)
-
-        The SDK accepts string prompts directly, or AsyncIterable[dict] for
-        streaming with multimodal content.
-        """
-        text_parts: list[str] = []
-        content_parts: list[dict[str, Any]] = []
-        has_images = False
-
-        for message in messages:
-            if isinstance(message, ModelRequest):
-                for part in message.parts:
-                    # Skip system prompts - handled separately
-                    if isinstance(part, SystemPromptPart):
-                        continue
-                    if isinstance(part, UserPromptPart):
-                        if isinstance(part.content, str):
-                            text_parts.append(part.content)
-                            content_parts.append({"type": "text", "text": part.content})
-                        else:
-                            # Sequence of UserContent items
-                            for item in part.content:
-                                if isinstance(item, str):
-                                    text_parts.append(item)
-                                    content_parts.append({"type": "text", "text": item})
-                                elif isinstance(item, BinaryContent):
-                                    # Handle binary content (images and PDFs)
-                                    if item.media_type:
-                                        if isinstance(item.data, bytes):
-                                            b64_data = base64.b64encode(item.data).decode()
-                                        else:
-                                            b64_data = item.data
-
-                                        if item.media_type.startswith("image/"):
-                                            has_images = True
-                                            content_parts.append({
-                                                "type": "image",
-                                                "source": {
-                                                    "type": "base64",
-                                                    "media_type": item.media_type,
-                                                    "data": b64_data,
-                                                },
-                                            })
-                                        elif item.media_type == "application/pdf":
-                                            has_images = True  # triggers multimodal path
-                                            content_parts.append({
-                                                "type": "document",
-                                                "source": {
-                                                    "type": "base64",
-                                                    "media_type": "application/pdf",
-                                                    "data": b64_data,
-                                                },
-                                            })
-                                # ImageUrl, AudioUrl, etc. - URLs not supported by SDK
-
-            elif isinstance(message, MsgResponse):
-                for msg_part in message.parts:
-                    if isinstance(msg_part, TextPart):
-                        text = f"Assistant: {msg_part.content}"
-                        text_parts.append(text)
-                        content_parts.append({"type": "text", "text": text})
-
-        # Return structured content if we have images, otherwise simple string
-        if has_images:
-            return content_parts
-        return "\n\n".join(text_parts) if text_parts else ""
-
-    def _extract_system_prompt(self, messages: list[ModelMessage]) -> str | None:
-        """Extract system prompt from messages."""
-        for message in messages:
-            if isinstance(message, ModelRequest):
-                for part in message.parts:
-                    if isinstance(part, SystemPromptPart):
-                        return part.content
-        return None
-
     async def request(
         self,
         messages: list[ModelMessage],
@@ -430,11 +432,11 @@ class ClaudeCodeModel(Model):
             query,
         )
 
-        prompt_content = self._extract_prompt(messages)
+        prompt_content = _extract_prompt(messages)
         options = self._build_options(model_request_parameters)
 
         # Override system prompt if found in messages
-        system_prompt = self._extract_system_prompt(messages)
+        system_prompt = _extract_system_prompt(messages)
         if system_prompt:
             options.system_prompt = system_prompt
 
@@ -477,10 +479,7 @@ class ClaudeCodeModel(Model):
                         parts.append(TextPart(content=block.text))
                     elif isinstance(block, ThinkingBlock):
                         parts.append(
-                            ThinkingPart(
-                                content=block.thinking,
-                                signature=block.signature,
-                            )
+                            ThinkingPart(content=block.thinking, signature=block.signature)
                         )
                     elif isinstance(block, ToolUseBlock):
                         # Track tool name for matching with results
@@ -528,13 +527,8 @@ class ClaudeCodeModel(Model):
                         cache_read_tokens=u.get("cache_read_input_tokens", 0),
                         cache_write_tokens=u.get("cache_creation_input_tokens", 0),
                     )
-
-        return ModelResponse(
-            parts=parts,
-            usage=usage,
-            model_name=model_name,
-            timestamp=datetime.now(UTC),
-        )
+        now = datetime.now(UTC)
+        return ModelResponse(parts=parts, usage=usage, model_name=model_name, timestamp=now)
 
     @asynccontextmanager
     async def request_stream(
@@ -551,11 +545,11 @@ class ClaudeCodeModel(Model):
         """
         from claude_agent_sdk import query
 
-        prompt_content = self._extract_prompt(messages)
+        prompt_content = _extract_prompt(messages)
         options = self._build_options(model_request_parameters)
 
         # Override system prompt if found in messages
-        system_prompt = self._extract_system_prompt(messages)
+        system_prompt = _extract_system_prompt(messages)
         if system_prompt:
             options.system_prompt = system_prompt
 
