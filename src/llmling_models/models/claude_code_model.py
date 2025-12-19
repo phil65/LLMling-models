@@ -58,13 +58,17 @@ PermissionMode = Literal["default", "acceptEdits", "plan", "bypassPermissions"]
 
 
 def _extract_system_prompt(messages: list[ModelMessage]) -> str | None:
-    """Extract system prompt from messages."""
+    """Extract system prompt from messages.
+
+    Collects all SystemPromptPart entries and joins them with double newlines.
+    """
+    system_parts: list[str] = []
     for message in messages:
         if isinstance(message, ModelRequest):
             for part in message.parts:
                 if isinstance(part, SystemPromptPart):
-                    return part.content
-    return None
+                    system_parts.append(part.content)  # noqa: PERF401
+    return "\n\n".join(system_parts) if system_parts else None
 
 
 def _extract_prompt(messages: list[ModelMessage]) -> str | list[dict[str, Any]]:
