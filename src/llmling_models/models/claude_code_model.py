@@ -26,6 +26,18 @@ from pydantic_ai import (
 )
 from pydantic_ai.models import Model, StreamedResponse
 
+from llmling_models.builtin_tools import (
+    ClaudeCodeBashTool,
+    ClaudeCodeEditTool,
+    ClaudeCodeGlobTool,
+    ClaudeCodeGrepTool,
+    ClaudeCodeNotebookEditTool,
+    ClaudeCodeReadTool,
+    ClaudeCodeTaskTool,
+    ClaudeCodeWebFetchTool,
+    ClaudeCodeWebSearchTool,
+    ClaudeCodeWriteTool,
+)
 from llmling_models.log import get_logger
 
 
@@ -34,6 +46,7 @@ if TYPE_CHECKING:
 
     from claude_agent_sdk import ClaudeAgentOptions
     from pydantic_ai import ModelMessage, ModelResponseStreamEvent, RunContext
+    from pydantic_ai.builtin_tools import AbstractBuiltinTool
     from pydantic_ai.messages import ModelResponsePart
     from pydantic_ai.models import ModelRequestParameters
     from pydantic_ai.settings import ModelSettings
@@ -340,6 +353,26 @@ class ClaudeCodeModel(Model):
     def system(self) -> str:
         """Return the system/provider name."""
         return "claude-code"
+
+    @classmethod
+    def supported_builtin_tools(cls) -> frozenset[type[AbstractBuiltinTool]]:
+        """Return the set of builtin tool types this model class can handle.
+
+        Subclasses should override this to reflect their actual capabilities.
+        Default is empty set - subclasses must explicitly declare support.
+        """
+        return frozenset([
+            ClaudeCodeBashTool,
+            ClaudeCodeEditTool,
+            ClaudeCodeGlobTool,
+            ClaudeCodeGrepTool,
+            ClaudeCodeNotebookEditTool,
+            ClaudeCodeReadTool,
+            ClaudeCodeTaskTool,
+            ClaudeCodeWebFetchTool,
+            ClaudeCodeWebSearchTool,
+            ClaudeCodeWriteTool,
+        ])
 
     def _build_options(
         self, model_request_parameters: ModelRequestParameters | None = None
