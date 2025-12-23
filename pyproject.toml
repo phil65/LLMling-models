@@ -3,7 +3,7 @@
 [project]
 name = "llmling-models"
 version = "1.4.0"
-description = "Pydantic-AI models for LLMling-agent"
+description = "Pydantic-AI models for AgentPool"
 readme = "README.md"
 requires-python = ">=3.13"
 license = "MIT"

@@ -1,6 +1,6 @@
 """LLMling-models: main package.
 
-Pydantic-AI models for LLMling-agent.
+Pydantic-AI models for AgentPool.
 """
 
 from __future__ import annotations

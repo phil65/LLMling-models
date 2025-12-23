@@ -1,5 +1,5 @@
 site_name: "LLMling-models"
-site_description: "Pydantic-AI models for LLMling-agent"
+site_description: "Pydantic-AI models for AgentPool"
 repo_url: "https://github.com/phil65/llmling-models/"
 site_url: https://phil65.github.io/llmling-models/
 site_author: "Philipp Temminghoff"
