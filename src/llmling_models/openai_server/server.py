@@ -133,7 +133,7 @@ class OpenAIServer:
 
         # Add CORS middleware
         self.app.add_middleware(
-            CORSMiddleware,
+            CORSMiddleware,  # ty: ignore[invalid-argument-type]
             allow_origins=["*"],
             allow_credentials=True,
             allow_methods=["*"],

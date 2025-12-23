@@ -75,7 +75,7 @@ class UserSelectModel(MultiModel):
             selection_prompt = self.input_prompt.format(max=len(self.available_models) - 1)
             input_method = handler.get_input
             if inspect.iscoroutinefunction(input_method):
-                selection = await input_method(selection_prompt)
+                selection = await input_method(selection_prompt)  # ty: ignore[invalid-await]
             else:
                 response_or_awaitable = input_method(selection_prompt)
                 if isinstance(response_or_awaitable, Awaitable):
@@ -83,7 +83,7 @@ class UserSelectModel(MultiModel):
                 else:
                     selection = response_or_awaitable
             try:
-                index = int(selection)
+                index = int(selection)  # ty: ignore[invalid-argument-type]
                 if 0 <= index < len(self.available_models):
                     selected_model = self.available_models[index]
                     logger.info("User selected model: %s", selected_model.model_name)

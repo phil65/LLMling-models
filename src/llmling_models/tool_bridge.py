@@ -115,7 +115,8 @@ def _get_function_description(func: Callable[..., Any]) -> str:
     if doc:
         # Return first line/paragraph
         return doc.split("\n\n")[0].strip()
-    return f"Call the {func.__name__} function"
+    name = getattr(func, "__name__", "unknown")
+    return f"Call the {name} function"
 
 
 @dataclass
@@ -249,7 +250,7 @@ class ToolBridge:
 
         from fastmcp.tools import Tool as FastMCPTool
 
-        name = func.__name__
+        name = getattr(func, "__name__", "unknown")
         description = _get_function_description(func)
         parameters = _get_function_schema(func)
 

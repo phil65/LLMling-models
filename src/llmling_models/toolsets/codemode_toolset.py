@@ -104,7 +104,7 @@ class CodeModeToolset[AgentDepsT = None](AbstractToolset[AgentDepsT]):
             parameters_json_schema=CodeExecutionParams.model_json_schema(),
         )
         tool = ToolsetTool(
-            toolset=self,
+            toolset=self,  # ty: ignore[invalid-argument-type]
             tool_def=tool_def,
             max_retries=self.max_retries,
             args_validator=SchemaValidator(CodeExecutionParams.__pydantic_core_schema__),
