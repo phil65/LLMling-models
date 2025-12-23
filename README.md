@@ -25,7 +25,7 @@
 
 # llmling-models
 
-Collection of model wrappers and adapters for use with [LLMling-Agent](https://github.com/phil65/llmling-agent), but should work with the underlying pydantic-ai API without issues.
+Collection of model wrappers and adapters for use with [AgentPool](https://github.com/phil65/agentpool), but should work with the underlying pydantic-ai API without issues.
 
 **WARNING**:
 
