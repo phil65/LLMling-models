@@ -120,9 +120,11 @@ class RemoteInputModel(Model):
                     usage=RequestUsage(),
                 )
 
+            except httpx.HTTPStatusError as e:
+                logger.exception("Error response: %s", e.response.text)
+                msg = f"HTTP error: {e}"
+                raise RuntimeError(msg) from e
             except httpx.HTTPError as e:
-                if hasattr(e, "response") and e.response is not None:  # pyright: ignore[reportAttributeAccessIssue]
-                    logger.exception("Error response: %s", e.response.text)  # pyright: ignore[reportAttributeAccessIssue]
                 msg = f"HTTP error: {e}"
                 raise RuntimeError(msg) from e
 
