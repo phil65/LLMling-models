@@ -537,12 +537,32 @@ class TestModelConfig(BaseModelConfig):
     )
     """Tools that can be called by the test model."""
 
+    tool_args: dict[str, dict[str, Any]] | None = Field(
+        default=None,
+        examples=[{"read_file": {"path": "/test/file.txt"}}],
+        title="Fixed tool arguments",
+    )
+    """Optional mapping of tool_name -> args to use instead of generated args."""
+
+    seed: int = Field(default=0, title="Random seed")
+    """Seed for generating random tool arguments (when tool_args not specified)."""
+
     def get_model(self) -> Any:
+        if self.tool_args:
+            from llmling_models.models.test_model import FixedArgsTestModel
+
+            return FixedArgsTestModel(
+                tool_args=self.tool_args,
+                custom_output_text=self.custom_output_text,
+                call_tools=self.call_tools,
+                seed=self.seed,
+            )
         from pydantic_ai.models.test import TestModel
 
         return TestModel(
             custom_output_text=self.custom_output_text,
             call_tools=self.call_tools,
+            seed=self.seed,
         )
 
 

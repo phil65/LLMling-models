@@ -10,10 +10,12 @@ from llmling_models.models.input_model import InputModel
 from llmling_models.models.pyodide_model import SimpleOpenAIModel
 from llmling_models.models.remote_input import RemoteInputModel
 from llmling_models.models.remote_model import RemoteProxyModel
+from llmling_models.models.test_model import FixedArgsTestModel
 
 __all__ = [
     "AugmentedModel",
     "DelegationMultiModel",
+    "FixedArgsTestModel",
     "InputModel",
     "RemoteInputModel",
     "RemoteProxyModel",
