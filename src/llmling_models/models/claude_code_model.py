@@ -271,7 +271,7 @@ class ClaudeCodeStreamedResponse(StreamedResponse):
                             )
                             self._parts_manager._parts.append(return_part)
                             yield PartStartEvent(
-                                index=len(self._parts_manager._parts) - 1, part=part
+                                index=len(self._parts_manager._parts) - 1, part=return_part
                             )
             elif isinstance(message, ResultMessage):
                 if message.usage:
