@@ -145,7 +145,7 @@ def _extract_prompt(messages: list[ModelMessage]) -> str | list[dict[str, Any]]:
 
 
 @dataclass(kw_only=True)
-class ClaudeCodeRealStreamedResponse(StreamedResponse):
+class ClaudeCodeStreamedResponse(StreamedResponse):
     """Real-time streaming response from Claude Code.
 
     Uses an asyncio.Queue to receive messages from the SDK as they arrive,
@@ -622,7 +622,7 @@ class ClaudeCodeModel(Model):
         collection_task = asyncio.create_task(collect_messages())
 
         try:
-            yield ClaudeCodeRealStreamedResponse(
+            yield ClaudeCodeStreamedResponse(
                 model_request_parameters=model_request_parameters,
                 _message_queue=message_queue,
                 _collection_done=collection_done,
