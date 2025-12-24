@@ -13,7 +13,6 @@ import base64
 from dataclasses import dataclass, field
 import hashlib
 import json
-import os
 from pathlib import Path
 import secrets
 import sys
@@ -122,17 +121,18 @@ class AnthropicTokenStore:
         try:
             data = json.loads(self.path.read_text())
             self._token = AnthropicOAuthToken.from_dict(data)
-            return self._token
         except (json.JSONDecodeError, KeyError, TypeError) as e:
             logger.warning("Failed to load token from %s: %s", self.path, e)
             return None
+        else:
+            return self._token
 
     def save(self, token: AnthropicOAuthToken) -> None:
         """Save token to file."""
         self._token = token
         self.path.write_text(json.dumps(token.to_dict(), indent=2))
         # Set restrictive permissions (owner read/write only)
-        os.chmod(self.path, 0o600)
+        self.path.chmod(0o600)
         logger.debug("Saved token to %s", self.path)
 
     def clear(self) -> None:

@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from pydantic_ai.providers import Provider
 
 
-def infer_provider(provider: str) -> Provider[Any]:
+def infer_provider(provider: str) -> Provider[Any]:  # noqa: PLR0911
     """Infer the provider from the provider name."""
     if provider == "copilot":
         from llmling_models.providers.copilot_provider import CopilotProvider

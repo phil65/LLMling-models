@@ -217,7 +217,7 @@ class AnthropicMaxProvider(Provider[AsyncAnthropic]):
             token_store: Custom token store (defaults to standard location)
         """
         self._token_store = token_store or AnthropicTokenStore()
-        self._client: AsyncAnthropic | None = None
+        self._client: AsyncAnthropic | None = None  # type: ignore[assignment]
 
     @property
     def name(self) -> str:

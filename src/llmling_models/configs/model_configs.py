@@ -914,13 +914,14 @@ class AnthropicModelConfig(BaseModelConfig):
                 AnthropicMaxProvider,
             )
 
-            # Extract model name from identifier (e.g., "anthropic:claude-3-opus" -> "claude-3-opus")
-            model_name = self.identifier
+            # Extract model name from identifier
+            # (e.g., "anthropic:claude-3-opus" -> "claude-3-opus")
+            model_name: str = self.identifier
             if ":" in model_name:
                 model_name = model_name.split(":", 1)[1]
 
             provider = AnthropicMaxProvider()
-            return AnthropicModel(model_name, provider=provider)
+            return AnthropicModel(model_name, provider=provider)  # type: ignore[arg-type]
 
         from llmling_models import infer_model
 
