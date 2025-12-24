@@ -45,11 +45,15 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     from claude_agent_sdk import ClaudeAgentOptions
-    from pydantic_ai import ModelMessage, ModelResponseStreamEvent, RunContext
+    from pydantic_ai import (
+        ModelMessage,
+        ModelResponsePart,
+        ModelResponseStreamEvent,
+        ModelSettings,
+        RunContext,
+    )
     from pydantic_ai.builtin_tools import AbstractBuiltinTool
-    from pydantic_ai.messages import ModelResponsePart
     from pydantic_ai.models import ModelRequestParameters
-    from pydantic_ai.settings import ModelSettings
 
 logger = get_logger(__name__)
 

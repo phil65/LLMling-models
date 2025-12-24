@@ -13,13 +13,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import create_model
 from pydantic_ai import (
+    ModelSettings,
     PartDeltaEvent,
     PartStartEvent,
     TextPart,
     TextPartDelta,
 )
 from pydantic_ai.models import ModelRequestParameters
-from pydantic_ai.settings import ModelSettings
 import tokonomics
 
 from llmling_models.log import get_logger

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from pydantic_ai import Agent
+from pydantic_ai import Agent, ToolDefinition
+from pydantic_ai.models.test import TestModel
 import pytest
 
 from llmling_models.configs import TestModelConfig
@@ -18,10 +19,7 @@ class TestFixedArgsTestModel:
             call_tools=["my_tool"],
             tool_args={"my_tool": {"path": "/fixed/path", "count": 42}},
         )
-
         # Create a mock tool definition
-        from pydantic_ai.tools import ToolDefinition
-
         tool_def = ToolDefinition(
             name="my_tool",
             description="A test tool",
@@ -44,8 +42,6 @@ class TestFixedArgsTestModel:
             tool_args={"my_tool": {"path": "/fixed/path"}},
             seed=123,
         )
-
-        from pydantic_ai.tools import ToolDefinition
 
         tool_def = ToolDefinition(
             name="other_tool",
@@ -92,8 +88,6 @@ class TestTestModelConfig:
 
     def test_returns_test_model_without_tool_args(self) -> None:
         """Test that config without tool_args returns standard TestModel."""
-        from pydantic_ai.models.test import TestModel
-
         config = TestModelConfig(
             call_tools=["tool1"],
             custom_output_text="test output",

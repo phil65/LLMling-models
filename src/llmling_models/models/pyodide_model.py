@@ -38,10 +38,10 @@ if TYPE_CHECKING:
         ModelMessage,
         ModelResponsePart,
         ModelResponseStreamEvent,
+        ModelSettings,
         RunContext,
+        ToolDefinition,
     )
-    from pydantic_ai.settings import ModelSettings
-    from pydantic_ai.tools import ToolDefinition
 
 
 logger = get_logger(__name__)
