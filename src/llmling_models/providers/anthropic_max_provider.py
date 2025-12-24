@@ -16,7 +16,7 @@ from anthropic import AsyncAnthropic
 from httpx import AsyncClient as AsyncHTTPClient
 from pydantic_ai.providers import Provider
 
-from llmling_models.anthropic_auth import (
+from llmling_models.auth.anthropic_auth import (
     OAUTH_BETA_HEADERS,
     AnthropicTokenStore,
     get_or_refresh_token_async,
@@ -27,7 +27,7 @@ from llmling_models.log import get_logger
 if TYPE_CHECKING:
     from httpx import Request, Response
 
-    from llmling_models.anthropic_auth import AnthropicOAuthToken
+    from llmling_models.auth.anthropic_auth import AnthropicOAuthToken
 
 
 logger = get_logger(__name__)

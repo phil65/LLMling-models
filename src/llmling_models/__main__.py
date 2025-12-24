@@ -13,7 +13,7 @@ from typing import Any, cast
 from pydantic_ai.models import Model
 import yaml
 
-from llmling_models.auth import authenticate_copilot, save_token
+from llmling_models.auth.github_auth import authenticate_copilot, save_token
 from llmling_models.log import get_logger
 from llmling_models.openai_server import ModelRegistry, OpenAIServer
 
@@ -354,7 +354,7 @@ def anthropic_auth_command(args: argparse.Namespace) -> None:
     """Authenticate with Anthropic Claude Max/Pro."""
     import time
 
-    from llmling_models.anthropic_auth import (
+    from llmling_models.auth.anthropic_auth import (
         AnthropicTokenStore,
         authenticate_anthropic_max,
     )
