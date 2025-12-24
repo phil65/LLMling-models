@@ -36,4 +36,9 @@ def infer_provider(provider: str) -> Provider[Any]:
 
         return RequestyProvider()
 
+    if provider in ("anthropic-max", "anthropic-oauth"):
+        from llmling_models.providers.anthropic_max_provider import AnthropicMaxProvider
+
+        return AnthropicMaxProvider()
+
     return _infer_provider(provider)

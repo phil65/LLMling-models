@@ -4,7 +4,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 from pydantic import ConfigDict, Field, ImportString, SecretStr
-from pydantic_ai.settings import ModelSettings as PyAIModelSettings
+from pydantic_ai import ModelSettings as PyAIModelSettings
 from schemez import Schema
 from tokonomics import ModelName
 from tokonomics.model_names.anthropic import AnthropicModels
@@ -761,6 +761,13 @@ class AnthropicModelConfig(BaseModelConfig):
     )
     """String identifier for the model."""
 
+    auth_method: Literal["api_key", "oauth"] = Field(
+        default="api_key",
+        title="Authentication method",
+        description="Use 'oauth' for Claude Max/Pro subscription authentication",
+    )
+    """Authentication method: 'api_key' (default) or 'oauth' for Claude Max/Pro."""
+
     max_tokens: int | None = Field(
         default=None,
         ge=1,
@@ -900,6 +907,21 @@ class AnthropicModelConfig(BaseModelConfig):
         return AnthropicModelSettings(**{k: v for k, v in settings.items() if v is not None})  # type: ignore[typeddict-item, no-any-return]
 
     def get_model(self) -> Any:
+        if self.auth_method == "oauth":
+            from pydantic_ai.models.anthropic import AnthropicModel
+
+            from llmling_models.providers.anthropic_max_provider import (
+                AnthropicMaxProvider,
+            )
+
+            # Extract model name from identifier (e.g., "anthropic:claude-3-opus" -> "claude-3-opus")
+            model_name = self.identifier
+            if ":" in model_name:
+                model_name = model_name.split(":", 1)[1]
+
+            provider = AnthropicMaxProvider()
+            return AnthropicModel(model_name, provider=provider)
+
         from llmling_models import infer_model
 
         return infer_model(self.identifier)

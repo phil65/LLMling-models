@@ -99,6 +99,32 @@ def setup_copilot_auth_parser(subparsers: Any) -> None:
     auth_parser.set_defaults(func=copilot_auth_command)
 
 
+def setup_anthropic_auth_parser(subparsers: Any) -> None:
+    """Set up parser for 'anthropic-auth' command."""
+    auth_parser = subparsers.add_parser(
+        "anthropic-auth",
+        help="Authenticate with Anthropic Claude Max/Pro using OAuth",
+    )
+
+    auth_parser.add_argument(
+        "--no-browser",
+        action="store_true",
+        help="Don't automatically open the browser",
+    )
+    auth_parser.add_argument(
+        "--logout",
+        action="store_true",
+        help="Remove stored token and log out",
+    )
+    auth_parser.add_argument(
+        "--status",
+        action="store_true",
+        help="Show current authentication status",
+    )
+
+    auth_parser.set_defaults(func=anthropic_auth_command)
+
+
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description="LLMling-models CLI tool")
@@ -118,6 +144,7 @@ def parse_args() -> argparse.Namespace:
     # Set up subcommand parsers
     setup_serve_parser(subparsers)
     setup_copilot_auth_parser(subparsers)
+    setup_anthropic_auth_parser(subparsers)
 
     return parser.parse_args()
 
@@ -318,6 +345,52 @@ def copilot_auth_command(args: argparse.Namespace) -> None:
         if args.save:
             save_token(result.token, args.env_var)
 
+    except Exception:
+        logger.exception("Authentication failed")
+        sys.exit(1)
+
+
+def anthropic_auth_command(args: argparse.Namespace) -> None:
+    """Authenticate with Anthropic Claude Max/Pro."""
+    import time
+
+    from llmling_models.anthropic_auth import (
+        AnthropicTokenStore,
+        authenticate_anthropic_max,
+    )
+
+    store = AnthropicTokenStore()
+
+    if args.logout:
+        store.clear()
+        print("Logged out. Token removed.")
+        return
+
+    if args.status:
+        token = store.load()
+        if token is None:
+            print("Not authenticated.")
+            print(f"Token path: {store.path}")
+            sys.exit(1)
+        elif token.is_expired():
+            print("Token expired. Run without --status to refresh.")
+            sys.exit(1)
+        else:
+            remaining = token.expires_at - time.time()
+            hours = int(remaining // 3600)
+            minutes = int((remaining % 3600) // 60)
+            print(f"Authenticated. Token expires in {hours}h {minutes}m.")
+            print(f"Token path: {store.path}")
+        return
+
+    try:
+        token = authenticate_anthropic_max(
+            verbose=True,
+            open_browser=not args.no_browser,
+        )
+        store.save(token)
+        print(f"\nToken saved to: {store.path}")
+        print("You can now use Claude Max/Pro models with auth_method='oauth'")
     except Exception:
         logger.exception("Authentication failed")
         sys.exit(1)
