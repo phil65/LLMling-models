@@ -56,6 +56,38 @@ if TYPE_CHECKING:
     from uvicorn import Server
 
 
+def _convert_to_tool_result(result: Any) -> ToolResult:
+    """Convert a tool's return value to a FastMCP ToolResult.
+
+    Handles different result types appropriately:
+    - ToolResult: Pass through unchanged
+    - dict: Use as structured_content (enables programmatic access by clients)
+    - Pydantic models: Serialize to dict for structured_content
+    - Other types: Pass to ToolResult(content=...) which handles conversion internally
+      (including str, list, ContentBlock, Image, Audio, File, primitives)
+    """
+    from fastmcp.tools.tool import ToolResult
+    from pydantic import BaseModel
+
+    # Already a ToolResult - pass through
+    if isinstance(result, ToolResult):
+        return result
+
+    # Dict - use as structured_content (FastMCP auto-populates content as JSON)
+    if isinstance(result, dict):
+        return ToolResult(structured_content=result)
+
+    # Pydantic model - serialize to dict for structured_content
+    if isinstance(result, BaseModel):
+        return ToolResult(structured_content=result.model_dump(mode="json"))
+
+    # All other types (str, list, ContentBlock, Image, None, primitives, etc.)
+    # ToolResult's internal _convert_to_content handles these correctly
+    if result is None:
+        return ToolResult(content="")
+    return ToolResult(content=result)
+
+
 def _get_function_schema(func: Callable[..., Any]) -> dict[str, Any]:
     """Extract JSON schema from a function's signature and docstring."""
     sig = inspect.signature(func)
@@ -274,12 +306,8 @@ class ToolBridge:
                 self, arguments: dict[str, Any], context: Context | None = None
             ) -> ToolResult:
                 """Execute the wrapped function."""
-                from fastmcp.tools.tool import ToolResult
-
                 result = await bridge._invoke_tool(name, arguments)
-                if isinstance(result, str):
-                    return ToolResult(content=result)
-                return ToolResult(content=str(result))
+                return _convert_to_tool_result(result)
 
         self._mcp.add_tool(BridgedTool())
 
