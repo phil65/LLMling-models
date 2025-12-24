@@ -27,12 +27,6 @@
 
 Collection of model wrappers and adapters for use with [AgentPool](https://github.com/phil65/agentpool), but should work with the underlying pydantic-ai API without issues.
 
-**WARNING**:
-
-This is just a prototype for now and will likely change in the future.
-Also, pydantic-ais APIs dont seem stable yet, so things might not work across all pydantic-ai versions.
-I will try to keep this up to date as fast as possible.
-
 ## CodeModeToolset
 
 The `CodeModeToolset` wraps other pydantic-ai toolsets and provides Python code execution with all their tools available as async functions. This approach is more effective than traditional tool calling because LLMs have extensive training on real-world code but limited exposure to synthetic tool-calling examples. When tools are presented as a programming API, LLMs can handle more complex scenarios, chain multiple operations efficiently without token overhead between calls, and leverage their code-writing strengths. (more info: [https://blog.cloudflare.com/code-mode/](https://blog.cloudflare.com/code-mode/))
@@ -60,10 +54,6 @@ async with agent:
 The toolset generates documentation for all available tools and handles the execution environment automatically.
 
 ## Available Models
-
-
-### Multi-Models
-
 
 ### Augmented Model
 
@@ -457,15 +447,5 @@ Requires authentication via `claude login` (the CLI handles auth automatically).
 ## Installation
 
 ```bash
-pip install llmling-models
+uv add llmling-models
 ```
-
-## Requirements
-
-- Python 3.12+
-- pydantic-ai
-- Either tokenizers or transformers for improved token calculation
-
-## License
-
-MIT
