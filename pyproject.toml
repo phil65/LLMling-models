@@ -2,7 +2,7 @@
 
 [project]
 name = "llmling-models"
-version = "1.4.3"
+version = "1.4.4"
 description = "Pydantic-AI models for AgentPool"
 readme = "README.md"
 requires-python = ">=3.13"
