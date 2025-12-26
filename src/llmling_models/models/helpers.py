@@ -111,6 +111,13 @@ def _infer_single_model(model: str | Model) -> Model:  # noqa: PLR0911
         return _create_zen_model(model_name=model.removeprefix("zen:"))
     if model.startswith("openai:"):
         return _get_openai_based_model(model.removeprefix("openai:"))
+    if model.startswith("anthropic-max:"):
+        from pydantic_ai.models.anthropic import AnthropicModel
+
+        from llmling_models.providers.anthropic_max_provider import AnthropicMaxProvider
+
+        provider = AnthropicMaxProvider()
+        return AnthropicModel(model_name=model.removeprefix("anthropic-max:"), provider=provider)
 
     if model.startswith("simple-openai:"):
         from llmling_models.models.pyodide_model import SimpleOpenAIModel
@@ -181,7 +188,7 @@ def _infer_single_model(model: str | Model) -> Model:  # noqa: PLR0911
 if __name__ == "__main__":
     from pydantic_ai import Agent
 
-    model = infer_model("openrouter:arcee-ai/trinity-mini:free")
+    model = infer_model("anthropic-max:claude-haiku-4-5")
     agent = Agent(model=model)
     result = agent.run_sync("hello")
     print(result)
