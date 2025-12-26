@@ -80,9 +80,7 @@ def infer_model(model: str | Model) -> Model:
     return _infer_single_model(model)
 
 
-def _infer_single_model(  # noqa: PLR0911
-    model: str | Model,
-) -> Model:
+def _infer_single_model(model: str | Model) -> Model:  # noqa: PLR0911
     """Extended infer_model from pydantic-ai."""
     if not isinstance(model, str):
         return model
@@ -107,10 +105,6 @@ def _infer_single_model(  # noqa: PLR0911
         from llmling_models.providers.zen_provider_factory import _create_zen_model
 
         return _create_zen_model(model_name=model.removeprefix("zen:"))
-
-    if model.startswith("copilot:"):
-        key = os.getenv("GITHUB_COPILOT_API_KEY")
-        return get_model(model, base_url="https://api.githubcopilot.com", api_key=key)
     if model.startswith("openai:"):
         return get_model(model.removeprefix("openai:"))
 
@@ -118,6 +112,10 @@ def _infer_single_model(  # noqa: PLR0911
         from llmling_models.models.pyodide_model import SimpleOpenAIModel
 
         return SimpleOpenAIModel(model=model.removeprefix("simple-openai:"))
+
+    if model.startswith("copilot:"):
+        key = os.getenv("GITHUB_COPILOT_API_KEY")
+        return get_model(model, base_url="https://api.githubcopilot.com", api_key=key)
 
     if model.startswith("copilot:"):
         from httpx import AsyncClient
