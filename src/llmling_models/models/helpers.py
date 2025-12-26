@@ -18,11 +18,7 @@ if TYPE_CHECKING:
     from pydantic_ai.models import Model
 
 
-def get_model(
-    model: str,
-    base_url: str | None = None,
-    api_key: str | None = None,
-) -> Model:
+def get_model(model: str, base_url: str | None = None, api_key: str | None = None) -> Model:
     """Get model instance with appropriate implementation based on environment."""
     # Check if this is a provider model (contains colon)
     provider_name = None
@@ -30,11 +26,6 @@ def get_model(
 
     if ":" in model:
         provider_name, model_name = model.split(":", 1)
-
-        # Special handling for openrouter (TODO: check this)
-        if provider_name == "openrouter":
-            model_name = model_name.replace(":", "/")
-
     # For pyodide environments, use SimpleOpenAIModel
     if not importlib.util.find_spec("openai"):
         from llmling_models.models.pyodide_model import SimpleOpenAIModel
@@ -183,3 +174,12 @@ def _infer_single_model(  # noqa: PLR0911
 
         return ClaudeCodeModel()
     return infer_model_(model)
+
+
+if __name__ == "__main__":
+    from pydantic_ai import Agent
+
+    model = get_model("openrouter:arcee-ai/trinity-mini:free")
+    agent = Agent(model=model)
+    result = agent.run_sync("hello")
+    print(result)
