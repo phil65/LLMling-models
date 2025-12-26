@@ -44,7 +44,7 @@ def test_openai_model():
 
 def test_openrouter_format():
     """Test openrouter format conversion."""
-    model = infer_model("openrouter:anthropic:claude-3-sonnet-20240229")
+    model = infer_model("openrouter:anthropic/claude-3-sonnet-20240229")
     # Check that colon was converted to slash in model name
     assert "claude-3-sonnet-20240229" in model.model_name
     assert "/" in model.model_name
