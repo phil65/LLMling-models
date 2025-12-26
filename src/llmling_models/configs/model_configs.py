@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Annotated, Any, Literal
 from pydantic import ConfigDict, Field, ImportString, SecretStr
 from pydantic_ai import ModelSettings as PyAIModelSettings
 from schemez import Schema
-from tokonomics import ModelName
+from tokonomics.model_names import ModelId
 from tokonomics.model_names.anthropic import AnthropicModelId
 from tokonomics.model_names.gemini import GeminiModelId
 from tokonomics.model_names.openai import OpenaiModelId
@@ -22,6 +22,17 @@ if TYPE_CHECKING:
 
     from llmling_models import DelegationMultiModel, InputModel
     from llmling_models.models.augmented import AugmentedModel
+
+
+ClaudeCodePermissionMode = Literal["default", "acceptEdits", "plan", "bypassPermissions"]
+ClaudeCodeModelName = Literal["sonnet", "opus", "haiku"]
+
+# Full model names also supported by Claude Code CLI
+ClaudeCodeFullModelName = Literal[
+    "claude-sonnet-4-5-20250929",
+    "claude-opus-4-5-20251101",
+    "claude-haiku-4-5-20251001",
+]
 
 
 class BaseModelConfig(Schema):
@@ -53,7 +64,7 @@ class PrePostPromptConfig(Schema):
     )
     """The prompt text to be applied."""
 
-    model: ModelName | BaseModelConfig | str = Field(
+    model: ModelId | BaseModelConfig | str = Field(
         examples=[["openai:gpt-5-nano", "anthropic:claude-sonnet-4-5"]],
         title="Model identifier",
     )
@@ -68,7 +79,7 @@ class AugmentedModelConfig(BaseModelConfig):
     type: Literal["augmented"] = Field(default="augmented", init=False)
     """Type identifier for augmented model."""
 
-    main_model: ModelName | BaseModelConfig | str = Field(
+    main_model: ModelId | BaseModelConfig | str = Field(
         examples=["openai:gpt-5-nano", "anthropic:claude-sonnet-4-5"],
         title="Primary model",
     )
@@ -109,13 +120,13 @@ class DelegationModelConfig(BaseModelConfig):
     type: Literal["delegation"] = Field(default="delegation", init=False)
     """Type identifier for delegation model."""
 
-    selector_model: ModelName | str | BaseModelConfig = Field(
+    selector_model: ModelId | str | BaseModelConfig = Field(
         examples=["openai:gpt-5-nano"],
         title="Selector model",
     )
     """Model responsible for selecting which model to use."""
 
-    models: list[ModelName | str | BaseModelConfig] = Field(
+    models: list[ModelId | str | BaseModelConfig] = Field(
         min_length=1,
         title="Available models",
         examples=[["openai:gpt-5-nano", "anthropic:claude-sonnet-4-5"]],
@@ -173,7 +184,7 @@ class FallbackModelConfig(BaseModelConfig):
     type: Literal["fallback"] = Field(default="fallback", init=False)
     """Type identifier for fallback model."""
 
-    models: list[ModelName | str | BaseModelConfig] = Field(
+    models: list[ModelId | str | BaseModelConfig] = Field(
         min_length=1,
         title="Fallback models",
         examples=[["openai:gpt-5-nano", "anthropic:claude-sonnet-4-5"]],
@@ -318,7 +329,7 @@ class UserSelectModelConfig(BaseModelConfig):
     type: Literal["user-select"] = Field(default="user-select", init=False)
     """Type identifier for user-select model."""
 
-    models: list[ModelName | str | BaseModelConfig] = Field(
+    models: list[ModelId | str | BaseModelConfig] = Field(
         min_length=1,
         title="Selectable models",
         examples=[["openai:gpt-5-nano", "anthropic:claude-sonnet-4-5"]],
@@ -375,7 +386,7 @@ class StringModelConfig(BaseModelConfig):
     type: Literal["string"] = Field(default="string", init=False)
     """Type identifier for string model."""
 
-    identifier: ModelName | str = Field(
+    identifier: ModelId | str = Field(
         examples=["openai:gpt-5-nano", "anthropic:claude-sonnet-4-5"],
         title="Model identifier",
     )
@@ -1077,17 +1088,6 @@ class GeminiModelConfig(BaseModelConfig):
         from llmling_models import infer_model
 
         return infer_model(self.identifier)
-
-
-ClaudeCodePermissionMode = Literal["default", "acceptEdits", "plan", "bypassPermissions"]
-ClaudeCodeModelName = Literal["sonnet", "opus", "haiku"]
-
-# Full model names also supported by Claude Code CLI
-ClaudeCodeFullModelName = Literal[
-    "claude-sonnet-4-5-20250929",
-    "claude-opus-4-5-20251101",
-    "claude-haiku-4-5-20251001",
-]
 
 
 class ClaudeCodeModelConfig(BaseModelConfig):
