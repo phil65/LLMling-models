@@ -117,7 +117,8 @@ def _infer_single_model(model: str | Model) -> Model:  # noqa: PLR0911
         from llmling_models.providers.anthropic_max_provider import AnthropicMaxProvider
 
         provider = AnthropicMaxProvider()
-        return AnthropicModel(model_name=model.removeprefix("anthropic-max:"), provider=provider)
+        model_name = model.removeprefix("anthropic-max:")
+        return AnthropicModel(model_name=model_name, provider=provider)  # type: ignore[arg-type]
 
     if model.startswith("simple-openai:"):
         from llmling_models.models.pyodide_model import SimpleOpenAIModel
