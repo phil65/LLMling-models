@@ -18,7 +18,9 @@ if TYPE_CHECKING:
     from pydantic_ai.models import Model
 
 
-def get_model(model: str, base_url: str | None = None, api_key: str | None = None) -> Model:
+def _get_openai_based_model(
+    model: str, base_url: str | None = None, api_key: str | None = None
+) -> Model:
     """Get model instance with appropriate implementation based on environment."""
     # Check if this is a provider model (contains colon)
     provider_name = None
@@ -87,26 +89,28 @@ def _infer_single_model(model: str | Model) -> Model:  # noqa: PLR0911
 
     if model.startswith("openrouter:"):
         key = os.getenv("OPENROUTER_API_KEY")
-        return get_model(model, base_url="https://openrouter.ai/api/v1", api_key=key)
+        return _get_openai_based_model(model, base_url="https://openrouter.ai/api/v1", api_key=key)
     if model.startswith("grok:"):
         key = os.getenv("X_AI_API_KEY") or os.getenv("GROK_API_KEY")
-        return get_model(model, base_url="https://api.x.ai/v1", api_key=key)
+        return _get_openai_based_model(model, base_url="https://api.x.ai/v1", api_key=key)
     if model.startswith("deepseek:"):
         key = os.getenv("DEEPSEEK_API_KEY")
-        return get_model(model, base_url="https://api.deepseek.com", api_key=key)
+        return _get_openai_based_model(model, base_url="https://api.deepseek.com", api_key=key)
     if model.startswith("perplexity:"):
         key = os.getenv("PERPLEXITY_API_KEY")
-        return get_model(model, base_url="https://api.perplexity.ai", api_key=key)
+        return _get_openai_based_model(model, base_url="https://api.perplexity.ai", api_key=key)
     if model.startswith("lm-studio:"):
-        return get_model(model, base_url="http://localhost:1234/v1/", api_key="lm-studio")
+        return _get_openai_based_model(
+            model, base_url="http://localhost:1234/v1/", api_key="lm-studio"
+        )
     if model.startswith("openai:"):
-        return get_model(model)
+        return _get_openai_based_model(model)
     if model.startswith("zen:"):
         from llmling_models.providers.zen_provider_factory import _create_zen_model
 
         return _create_zen_model(model_name=model.removeprefix("zen:"))
     if model.startswith("openai:"):
-        return get_model(model.removeprefix("openai:"))
+        return _get_openai_based_model(model.removeprefix("openai:"))
 
     if model.startswith("simple-openai:"):
         from llmling_models.models.pyodide_model import SimpleOpenAIModel
@@ -115,7 +119,7 @@ def _infer_single_model(model: str | Model) -> Model:  # noqa: PLR0911
 
     if model.startswith("copilot:"):
         key = os.getenv("GITHUB_COPILOT_API_KEY")
-        return get_model(model, base_url="https://api.githubcopilot.com", api_key=key)
+        return _get_openai_based_model(model, base_url="https://api.githubcopilot.com", api_key=key)
 
     if model.startswith("copilot:"):
         from httpx import AsyncClient
@@ -177,7 +181,7 @@ def _infer_single_model(model: str | Model) -> Model:  # noqa: PLR0911
 if __name__ == "__main__":
     from pydantic_ai import Agent
 
-    model = get_model("openrouter:arcee-ai/trinity-mini:free")
+    model = infer_model("openrouter:arcee-ai/trinity-mini:free")
     agent = Agent(model=model)
     result = agent.run_sync("hello")
     print(result)
