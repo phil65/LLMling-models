@@ -412,17 +412,13 @@ class ClaudeCodeModel(Model):
             for tool in model_request_parameters.builtin_tools:
                 # Handle MCPServerTool - convert to SDK mcp_servers format
                 if isinstance(tool, MCPServerTool) and tool.url:
-                    # Determine transport type from URL
-                    # Default to SSE for most MCP servers
                     url = tool.url
-                    if "/sse" in url or url.endswith("/sse"):
-                        server_config: McpSSEServerConfig | McpHttpServerConfig = (
-                            McpSSEServerConfig(type="sse", url=url)
-                        )
-                    else:
-                        server_config = McpHttpServerConfig(type="http", url=url)
-                    # Add headers if provided
-                    if tool.headers:
+                    server_config = (
+                        McpSSEServerConfig(type="sse", url=url)
+                        if "/sse" in url or url.endswith("/sse")
+                        else McpHttpServerConfig(type="http", url=url)
+                    )
+                    if tool.headers:  # Add headers if provided
                         server_config["headers"] = tool.headers
                     mcp_servers[tool.id] = server_config
                     # Add MCP tools to allowed list if specified
@@ -445,7 +441,7 @@ class ClaudeCodeModel(Model):
             model=self._model,
             cwd=self._cwd,
             permission_mode=self._permission_mode,
-            system_prompt=self._system_prompt if self._system_prompt else "",
+            system_prompt=self._system_prompt or "",
             max_turns=self._max_turns,
             max_thinking_tokens=self._max_thinking_tokens,
             tools=allowed_tools,  # Empty list = no tools, non-empty = only those tools
@@ -475,10 +471,8 @@ class ClaudeCodeModel(Model):
 
         prompt_content = _extract_prompt(messages)
         options = self._build_options(model_request_parameters)
-
         # Override system prompt if found in messages
-        system_prompt = _extract_system_prompt(messages)
-        if system_prompt:
+        if system_prompt := _extract_system_prompt(messages):
             options.system_prompt = system_prompt
 
         parts: list[ModelResponsePart] = []
@@ -588,12 +582,9 @@ class ClaudeCodeModel(Model):
 
         prompt_content = _extract_prompt(messages)
         options = self._build_options(model_request_parameters)
-
         # Override system prompt if found in messages
-        system_prompt = _extract_system_prompt(messages)
-        if system_prompt:
+        if system_prompt := _extract_system_prompt(messages):
             options.system_prompt = system_prompt
-
         # Use a queue to decouple SDK iteration from streaming
         message_queue: asyncio.Queue[Any] = asyncio.Queue()
         collection_done = asyncio.Event()
