@@ -7,9 +7,9 @@ from pydantic import ConfigDict, Field, ImportString, SecretStr
 from pydantic_ai import ModelSettings as PyAIModelSettings
 from schemez import Schema
 from tokonomics import ModelName
-from tokonomics.model_names.anthropic import AnthropicModels
-from tokonomics.model_names.gemini import GeminiModels
-from tokonomics.model_names.openai import OpenaiModels
+from tokonomics.model_names.anthropic import AnthropicModelId
+from tokonomics.model_names.gemini import GeminiModelId
+from tokonomics.model_names.openai import OpenaiModelId
 
 
 if TYPE_CHECKING:
@@ -574,7 +574,7 @@ class OpenAIModelConfig(BaseModelConfig):
     type: Literal["openai"] = Field(default="openai", init=False)
     """Type identifier for OpenAI model."""
 
-    identifier: OpenaiModels = Field(
+    identifier: OpenaiModelId = Field(
         examples=["openai:gpt-4", "openai:gpt-4-turbo"],
         title="Model identifier",
     )
@@ -755,7 +755,7 @@ class AnthropicModelConfig(BaseModelConfig):
     type: Literal["anthropic"] = Field(default="anthropic", init=False)
     """Type identifier for Anthropic model."""
 
-    identifier: AnthropicModels = Field(
+    identifier: AnthropicModelId = Field(
         examples=["anthropic:claude-3-opus", "anthropic:claude-3-sonnet"],
         title="Model identifier",
     )
@@ -936,7 +936,7 @@ class GeminiModelConfig(BaseModelConfig):
     type: Literal["gemini"] = Field(default="gemini", init=False)
     """Type identifier for Gemini model."""
 
-    identifier: GeminiModels = Field(
+    identifier: GeminiModelId = Field(
         examples=["gemini:gemini-2.0-flash", "gemini:gemini-1.5-pro"],
         title="Model identifier",
     )
