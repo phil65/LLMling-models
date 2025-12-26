@@ -7,9 +7,9 @@ from pydantic import ConfigDict, Field, ImportString, SecretStr
 from pydantic_ai import ModelSettings as PyAIModelSettings
 from schemez import Schema
 from tokonomics.model_names import ModelId
-from tokonomics.model_names.anthropic import AnthropicModelId
-from tokonomics.model_names.gemini import GeminiModelId
-from tokonomics.model_names.openai import OpenaiModelId
+from tokonomics.model_names.anthropic import AnthropicModelName
+from tokonomics.model_names.gemini import GeminiModelName
+from tokonomics.model_names.openai import OpenaiModelName
 
 
 if TYPE_CHECKING:
@@ -585,10 +585,7 @@ class OpenAIModelConfig(BaseModelConfig):
     type: Literal["openai"] = Field(default="openai", init=False)
     """Type identifier for OpenAI model."""
 
-    identifier: OpenaiModelId = Field(
-        examples=["openai:gpt-4", "openai:gpt-4-turbo"],
-        title="Model identifier",
-    )
+    identifier: OpenaiModelName = Field(examples=["gpt-4", "gpt-4-turbo"], title="Model identifier")
     """String identifier for the model."""
 
     max_tokens: int | None = Field(
@@ -755,7 +752,7 @@ class OpenAIModelConfig(BaseModelConfig):
     def get_model(self) -> Any:
         from llmling_models import infer_model
 
-        return infer_model(self.identifier)
+        return infer_model("openai:" + self.identifier)
 
 
 class AnthropicModelConfig(BaseModelConfig):
@@ -766,8 +763,8 @@ class AnthropicModelConfig(BaseModelConfig):
     type: Literal["anthropic"] = Field(default="anthropic", init=False)
     """Type identifier for Anthropic model."""
 
-    identifier: AnthropicModelId = Field(
-        examples=["anthropic:claude-3-opus", "anthropic:claude-3-sonnet"],
+    identifier: AnthropicModelName = Field(
+        examples=["claude-3-opus", "claude-3-sonnet"],
         title="Model identifier",
     )
     """String identifier for the model."""
@@ -925,14 +922,8 @@ class AnthropicModelConfig(BaseModelConfig):
                 AnthropicMaxProvider,
             )
 
-            # Extract model name from identifier
-            # (e.g., "anthropic:claude-3-opus" -> "claude-3-opus")
-            model_name: str = self.identifier
-            if ":" in model_name:
-                model_name = model_name.split(":", 1)[1]
-
             provider = AnthropicMaxProvider()
-            return AnthropicModel(model_name, provider=provider)  # type: ignore[arg-type]
+            return AnthropicModel(self.identifier, provider=provider)  # type: ignore[arg-type]
 
         from llmling_models import infer_model
 
@@ -947,8 +938,8 @@ class GeminiModelConfig(BaseModelConfig):
     type: Literal["gemini"] = Field(default="gemini", init=False)
     """Type identifier for Gemini model."""
 
-    identifier: GeminiModelId = Field(
-        examples=["gemini:gemini-2.0-flash", "gemini:gemini-1.5-pro"],
+    identifier: GeminiModelName = Field(
+        examples=["gemini-2.0-flash", "gemini-1.5-pro"],
         title="Model identifier",
     )
     """String identifier for the model."""
@@ -1087,7 +1078,7 @@ class GeminiModelConfig(BaseModelConfig):
     def get_model(self) -> Any:
         from llmling_models import infer_model
 
-        return infer_model(self.identifier)
+        return infer_model("gemini:" + self.identifier)
 
 
 class ClaudeCodeModelConfig(BaseModelConfig):
