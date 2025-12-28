@@ -10,6 +10,7 @@ from tokonomics.model_names import ModelId
 from tokonomics.model_names.anthropic import AnthropicModelName
 from tokonomics.model_names.gemini import GeminiModelName
 from tokonomics.model_names.openai import OpenaiModelName
+from tokonomics.model_names.openrouter import OpenrouterModelName
 
 
 if TYPE_CHECKING:
@@ -19,6 +20,7 @@ if TYPE_CHECKING:
     from pydantic_ai.models.function import FunctionModel
     from pydantic_ai.models.gemini import GeminiModelSettings
     from pydantic_ai.models.openai import OpenAIChatModelSettings
+    from pydantic_ai.models.openrouter import OpenRouterModelSettings
 
     from llmling_models import DelegationMultiModel, InputModel
     from llmling_models.models.augmented import AugmentedModel
@@ -678,7 +680,7 @@ class OpenAIModelConfig(BaseModelConfig):
     )
     """Extra body to send to the model."""
 
-    reasoning_effort: Literal["low", "medium", "high"] | None = Field(
+    reasoning_effort: Literal["none", "minimal", "low", "medium", "high", "xhigh"] | None = Field(
         default=None,
         title="Reasoning effort",
     )
@@ -722,6 +724,18 @@ class OpenAIModelConfig(BaseModelConfig):
     See the [OpenAI Prompt Caching documentation](https://platform.openai.com/docs/guides/prompt-caching#how-it-works) for more information.
     """  # noqa: E501
 
+    prediction: dict[str, Any] | None = Field(
+        default=None,
+        title="Predicted output",
+        examples=[{"type": "content", "content": "predicted response text"}],
+    )
+    """Predicted output for the model to use as a starting point.
+
+    Can be a simple string content or structured with text parts:
+    - Simple: {"type": "content", "content": "predicted text"}
+    - Parts: {"type": "content", "content": [{"type": "text", "text": "predicted"}]}
+    """
+
     def get_model_settings(self) -> OpenAIChatModelSettings:
         """Get model settings in pydantic-ai format."""
         from pydantic_ai.models.openai import OpenAIChatModelSettings
@@ -746,6 +760,7 @@ class OpenAIModelConfig(BaseModelConfig):
             "openai_service_tier": self.service_tier,
             "openai_prompt_cache_key": self.prompt_cache_key,
             "openai_prompt_cache_retention": self.prompt_cache_retention,
+            "openai_prediction": self.prediction,
         }
         return OpenAIChatModelSettings(**{k: v for k, v in settings.items() if v is not None})  # type: ignore[typeddict-item, no-any-return]
 
@@ -753,6 +768,189 @@ class OpenAIModelConfig(BaseModelConfig):
         from llmling_models import infer_model
 
         return infer_model("openai:" + self.identifier)
+
+
+class OpenRouterModelConfig(BaseModelConfig):
+    """Configuration for OpenRouter models.
+
+    OpenRouter provides access to many models through a unified API.
+    """
+
+    model_config = ConfigDict(json_schema_extra={"x-doc-title": "OpenRouter model"})
+
+    type: Literal["openrouter"] = Field(default="openrouter", init=False)
+    """Type identifier for OpenRouter model."""
+
+    identifier: OpenrouterModelName = Field(
+        examples=["anthropic/claude-3.5-sonnet", "openai/gpt-4-turbo"],
+        title="Model identifier",
+    )
+    """String identifier for the model."""
+
+    # Base model settings
+    max_tokens: int | None = Field(
+        default=None,
+        ge=1,
+        examples=[1024, 2048, 4096],
+        title="Maximum tokens",
+    )
+    """The maximum number of tokens to generate before stopping."""
+
+    temperature: float | None = Field(
+        default=None,
+        ge=0.0,
+        examples=[0.0, 0.7, 1.0, 2.0],
+        title="Temperature",
+    )
+    """Amount of randomness injected into the response."""
+
+    top_p: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        examples=[0.1, 0.9, 1.0],
+        title="Top-p (nucleus sampling)",
+    )
+    """An alternative to sampling with temperature, called nucleus sampling."""
+
+    timeout: float | None = Field(
+        default=None,
+        examples=[30.0, 60.0, 120.0],
+        title="Request timeout",
+    )
+    """Override the client-level default timeout for a request, in seconds."""
+
+    seed: int | None = Field(
+        default=None,
+        examples=[42, 123, 999],
+        title="Random seed",
+    )
+    """The random seed to use for the model."""
+
+    presence_penalty: float | None = Field(
+        default=None,
+        ge=-2.0,
+        le=2.0,
+        examples=[-1.0, 0.0, 0.5, 1.0],
+        title="Presence penalty",
+    )
+    """Penalize new tokens based on whether they have appeared in the text so far."""
+
+    frequency_penalty: float | None = Field(
+        default=None,
+        ge=-2.0,
+        le=2.0,
+        examples=[-1.0, 0.0, 0.5, 1.0],
+        title="Frequency penalty",
+    )
+    """Penalize new tokens based on their existing frequency in the text so far."""
+
+    stop_sequences: list[str] | None = Field(
+        default=None,
+        examples=[["STOP", "END"], ["\n\n"]],
+        title="Stop sequences",
+    )
+    """Sequences that will cause the model to stop generating."""
+
+    extra_headers: dict[str, str] | None = Field(
+        default=None,
+        examples=[{"Custom-Header": "value"}],
+        title="Extra headers",
+    )
+    """Extra headers to send to the model."""
+
+    # OpenRouter-specific settings
+    models: list[str] | None = Field(
+        default=None,
+        title="Fallback models",
+        examples=[["anthropic/claude-3-sonnet", "openai/gpt-4"]],
+    )
+    """List of fallback models to try if the primary model fails."""
+
+    provider: dict[str, Any] | None = Field(
+        default=None,
+        title="Provider configuration",
+        examples=[
+            {"order": ["anthropic", "openai"], "allow_fallbacks": True},
+            {"only": ["anthropic"], "data_collection": "deny"},
+        ],
+    )
+    """Provider routing configuration.
+
+    Options include:
+    - order: List of provider preferences
+    - allow_fallbacks: Whether to allow fallback providers
+    - require_parameters: Require providers to support all parameters
+    - data_collection: 'allow' or 'deny' data collection
+    - only: Restrict to specific providers
+    - ignore: Exclude specific providers
+    - quantizations: Preferred quantization levels
+    - sort: Sort by 'price', 'throughput', or 'latency'
+    """
+
+    preset: str | None = Field(
+        default=None,
+        title="Preset configuration",
+    )
+    """Named preset configuration for common use cases."""
+
+    transforms: list[Literal["middle-out"]] | None = Field(
+        default=None,
+        title="Transforms",
+    )
+    """List of transforms to apply to requests."""
+
+    reasoning: dict[str, Any] | None = Field(
+        default=None,
+        title="Reasoning configuration",
+        examples=[
+            {"effort": "high", "max_tokens": 10000},
+            {"effort": "medium", "exclude": True},
+        ],
+    )
+    """Reasoning/thinking configuration.
+
+    Options include:
+    - effort: 'high', 'medium', or 'low'
+    - max_tokens: Maximum tokens for reasoning
+    - exclude: Whether to exclude reasoning from response
+    - enabled: Enable/disable reasoning
+    """
+
+    usage: dict[str, Any] | None = Field(
+        default=None,
+        title="Usage configuration",
+        examples=[{"include": True}],
+    )
+    """Usage tracking configuration."""
+
+    def get_model_settings(self) -> OpenRouterModelSettings:
+        """Get model settings in pydantic-ai format."""
+        from pydantic_ai.models.openrouter import OpenRouterModelSettings
+
+        settings: dict[str, Any] = {
+            "max_tokens": self.max_tokens,
+            "temperature": self.temperature,
+            "top_p": self.top_p,
+            "timeout": self.timeout,
+            "seed": self.seed,
+            "presence_penalty": self.presence_penalty,
+            "frequency_penalty": self.frequency_penalty,
+            "stop_sequences": self.stop_sequences,
+            "extra_headers": self.extra_headers,
+            "openrouter_models": self.models,
+            "openrouter_provider": self.provider,
+            "openrouter_preset": self.preset,
+            "openrouter_transforms": self.transforms,
+            "openrouter_reasoning": self.reasoning,
+            "openrouter_usage": self.usage,
+        }
+        return OpenRouterModelSettings(**{k: v for k, v in settings.items() if v is not None})  # type: ignore[typeddict-item, no-any-return]
+
+    def get_model(self) -> Any:
+        from pydantic_ai.models.openrouter import OpenRouterModel
+
+        return OpenRouterModel(self.identifier)
 
 
 class AnthropicModelConfig(BaseModelConfig):
@@ -890,11 +1088,41 @@ class AnthropicModelConfig(BaseModelConfig):
     )
     """Convenience setting to enable caching for the last user message."""
 
+    thinking_budget: int | None = Field(
+        default=None,
+        ge=1024,
+        examples=[10000, 50000, 100000],
+        title="Thinking budget tokens",
+    )
+    """Budget tokens for extended thinking mode.
+
+    When set, enables Claude's extended thinking capability, allowing the model
+    to reason through complex problems before responding. Higher values allow
+    for more thorough reasoning but increase latency and cost.
+    """
+
+    container: dict[str, Any] | Literal[False] | None = Field(
+        default=None,
+        title="Container sandbox",
+        examples=[
+            {"id": "container-123"},
+            {"id": "my-container", "skills": [{"skill_id": "computer", "type": "anthropic"}]},
+            False,
+        ],
+    )
+    """Container sandbox configuration for Claude.
+
+    Enables running Claude in a sandboxed container environment with optional skills.
+    Set to False to explicitly disable container mode, or provide config dict:
+    - id: Container identifier
+    - skills: List of skills with skill_id, type ('anthropic' or 'custom'), and version
+    """
+
     def get_model_settings(self) -> AnthropicModelSettings:
         """Get model settings in pydantic-ai format."""
         from pydantic_ai.models.anthropic import AnthropicModelSettings
 
-        settings = {
+        settings: dict[str, Any] = {
             "max_tokens": self.max_tokens,
             "temperature": self.temperature,
             "top_p": self.top_p,
@@ -912,6 +1140,15 @@ class AnthropicModelConfig(BaseModelConfig):
             "anthropic_cache_instructions": self.cache_instructions,
             "anthropic_cache_messages": self.cache_messages,
         }
+        # Add thinking config if budget is set
+        if self.thinking_budget is not None:
+            settings["anthropic_thinking"] = {
+                "type": "enabled",
+                "budget_tokens": self.thinking_budget,
+            }
+        # Add container config if set (can be dict or False)
+        if self.container is not None:
+            settings["anthropic_container"] = self.container
         return AnthropicModelSettings(**{k: v for k, v in settings.items() if v is not None})  # type: ignore[typeddict-item, no-any-return]
 
     def get_model(self) -> Any:
@@ -1252,6 +1489,7 @@ AnyModelConfig = Annotated[
     | FunctionModelConfig
     | ImportModelConfig
     | InputModelConfig
+    | OpenRouterModelConfig
     | RemoteInputConfig
     | RemoteProxyConfig
     | StringModelConfig

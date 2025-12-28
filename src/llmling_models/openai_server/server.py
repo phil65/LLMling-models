@@ -36,9 +36,7 @@ if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
     from fastapi import WebSocket
-    from pydantic_ai import (
-        ModelMessage,
-    )
+    from pydantic_ai import ModelMessage
     from pydantic_ai.models import Model
 
 
