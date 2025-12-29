@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from pydantic_ai.models.fallback import FallbackModel
     from pydantic_ai.models.function import FunctionModel
     from pydantic_ai.models.gemini import GeminiModelSettings
-    from pydantic_ai.models.openai import OpenAIChatModelSettings
+    from pydantic_ai.models.openai import OpenAIResponsesModelSettings
     from pydantic_ai.models.openrouter import OpenRouterModelSettings
 
     from llmling_models import DelegationMultiModel, InputModel
@@ -712,13 +712,19 @@ class OpenAIModelConfig(BaseModelConfig):
     )
     """The service tier to use for the model request."""
 
-    prompt_cache_key: str
+    prompt_cache_key: str | None = Field(
+        default=None,
+        title="Prompt cache key",
+    )
     """Used by OpenAI to cache responses for similar requests to optimize your cache hit rates.
 
     See the [OpenAI Prompt Caching documentation](https://platform.openai.com/docs/guides/prompt-caching#how-it-works) for more information.
     """  # noqa: E501
 
-    prompt_cache_retention: Literal["in-memory", "24h"]
+    prompt_cache_retention: Literal["in-memory", "24h"] | None = Field(
+        default=None,
+        title="Prompt cache retention",
+    )
     """The retention policy for the prompt cache. Set to 24h to enable extended prompt caching, which keeps cached prefixes active for longer, up to a maximum of 24 hours.
 
     See the [OpenAI Prompt Caching documentation](https://platform.openai.com/docs/guides/prompt-caching#how-it-works) for more information.
@@ -736,11 +742,90 @@ class OpenAIModelConfig(BaseModelConfig):
     - Parts: {"type": "content", "content": [{"type": "text", "text": "predicted"}]}
     """
 
-    def get_model_settings(self) -> OpenAIChatModelSettings:
+    # Responses API specific settings
+    builtin_tools: list[dict[str, Any]] | None = Field(
+        default=None,
+        title="Built-in tools",
+    )
+    """The provided OpenAI built-in tools to use (file_search, web_search, computer).
+
+    See [OpenAI's built-in tools](https://platform.openai.com/docs/guides/tools?api-mode=responses)
+    for more details.
+    """
+
+    reasoning_summary: Literal["detailed", "concise", "auto"] | None = Field(
+        default=None,
+        title="Reasoning summary",
+    )
+    """A summary of the reasoning performed by the model.
+
+    This can be useful for debugging and understanding the model's reasoning process.
+    One of `concise`, `detailed`, or `auto`.
+    """
+
+    send_reasoning_ids: bool | None = Field(
+        default=None,
+        title="Send reasoning IDs",
+    )
+    """Whether to send the unique IDs of reasoning, text, and function call parts from the message
+    history to the model.
+
+    Enabled by default for reasoning models. Disable if you get errors about items not matching.
+    """
+
+    truncation: Literal["disabled", "auto"] | None = Field(
+        default=None,
+        title="Truncation strategy",
+    )
+    """The truncation strategy to use for the model response.
+
+    - `disabled` (default): Request fails if response exceeds context window.
+    - `auto`: Model truncates by dropping input items in the middle of the conversation.
+    """
+
+    text_verbosity: Literal["low", "medium", "high"] | None = Field(
+        default=None,
+        title="Text verbosity",
+    )
+    """Constrains the verbosity of the model's text response.
+
+    Lower values will result in more concise responses, while higher values will
+    result in more verbose responses.
+    """
+
+    previous_response_id: Literal["auto"] | str | None = Field(  # noqa: PYI051
+        default=None,
+        title="Previous response ID",
+    )
+    """The ID of a previous response to use as the starting point for a continued conversation.
+
+    When set to `'auto'`, the request automatically uses the most recent provider_response_id.
+    """
+
+    include_code_execution_outputs: bool | None = Field(
+        default=None,
+        title="Include code execution outputs",
+    )
+    """Whether to include the code execution results in the response."""
+
+    include_web_search_sources: bool | None = Field(
+        default=None,
+        title="Include web search sources",
+    )
+    """Whether to include the web search results in the response."""
+
+    include_file_search_results: bool | None = Field(
+        default=None,
+        title="Include file search results",
+    )
+    """Whether to include the file search results in the response."""
+
+    def get_model_settings(self) -> OpenAIResponsesModelSettings:
         """Get model settings in pydantic-ai format."""
-        from pydantic_ai.models.openai import OpenAIChatModelSettings
+        from pydantic_ai.models.openai import OpenAIResponsesModelSettings
 
         settings = {
+            # Base model settings
             "max_tokens": self.max_tokens,
             "temperature": self.temperature,
             "top_p": self.top_p,
@@ -753,6 +838,7 @@ class OpenAIModelConfig(BaseModelConfig):
             "stop_sequences": self.stop_sequences,
             "extra_headers": self.extra_headers,
             "extra_body": self.extra_body,
+            # OpenAI Chat settings
             "openai_reasoning_effort": self.reasoning_effort,
             "openai_logprobs": self.logprobs,
             "openai_top_logprobs": self.top_logprobs,
@@ -761,8 +847,18 @@ class OpenAIModelConfig(BaseModelConfig):
             "openai_prompt_cache_key": self.prompt_cache_key,
             "openai_prompt_cache_retention": self.prompt_cache_retention,
             "openai_prediction": self.prediction,
+            # Responses API specific settings
+            "openai_builtin_tools": self.builtin_tools,
+            "openai_reasoning_summary": self.reasoning_summary,
+            "openai_send_reasoning_ids": self.send_reasoning_ids,
+            "openai_truncation": self.truncation,
+            "openai_text_verbosity": self.text_verbosity,
+            "openai_previous_response_id": self.previous_response_id,
+            "openai_include_code_execution_outputs": self.include_code_execution_outputs,
+            "openai_include_web_search_sources": self.include_web_search_sources,
+            "openai_include_file_search_results": self.include_file_search_results,
         }
-        return OpenAIChatModelSettings(**{k: v for k, v in settings.items() if v is not None})  # type: ignore[typeddict-item, no-any-return]
+        return OpenAIResponsesModelSettings(**{k: v for k, v in settings.items() if v is not None})  # type: ignore[typeddict-item, no-any-return]
 
     def get_model(self) -> Any:
         from llmling_models import infer_model
