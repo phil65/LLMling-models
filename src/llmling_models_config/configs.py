@@ -1,3 +1,9 @@
+"""Model configuration.
+
+This is a lightweight config-only package for fast imports.
+For the actual models, use `from llmling_models import ...`.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -552,7 +558,7 @@ class TestModelConfig(BaseModelConfig):
 
     tool_args: dict[str, dict[str, Any]] | None = Field(
         default=None,
-        examples=[{"read_file": {"path": "/test/file.txt"}}],
+        examples=[{"read": {"path": "/test/file.txt"}}],
         title="Fixed tool arguments",
     )
     """Optional mapping of tool_name -> args to use instead of generated args."""

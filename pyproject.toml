@@ -299,6 +299,10 @@ python-platform = "all"
 default-groups = ["dev", "lint", "docs"]
 
 [tool.uv.build-backend]
+module-name = [
+  "llmling_models",
+  "llmling_models_config",
+]
 wheel-exclude = [
   ".mypy_cache/**",
   "__pycache__/**",

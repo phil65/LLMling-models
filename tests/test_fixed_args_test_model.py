@@ -6,8 +6,8 @@ from pydantic_ai import Agent, ToolDefinition
 from pydantic_ai.models.test import TestModel
 import pytest
 
-from llmling_models.configs import TestModelConfig
 from llmling_models.models import FixedArgsTestModel
+from llmling_models_config import TestModelConfig
 
 
 class TestFixedArgsTestModel:
