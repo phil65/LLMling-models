@@ -256,7 +256,7 @@ def _get_user_email(access_token: str) -> str | None:
             )
             if response.is_success:
                 data = response.json()
-                return data.get("email")
+                return data.get("email")  # type: ignore[no-any-return]
     except Exception:  # noqa: BLE001
         pass
     return None
@@ -316,7 +316,7 @@ def _discover_project(
                     if isinstance(project, str) and project:
                         return project
                     if isinstance(project, dict) and project.get("id"):
-                        return project["id"]
+                        return project["id"]  # type: ignore[no-any-return]
             except Exception:  # noqa: BLE001
                 # Try next endpoint
                 continue
@@ -383,7 +383,7 @@ def exchange_code_for_token(code: str, verifier: str) -> dict[str, str | int]:
             msg = f"Token exchange failed: {response.status_code} - {response.text}"
             raise RuntimeError(msg)
 
-        return response.json()
+        return response.json()  # type: ignore[no-any-return]
 
 
 def refresh_access_token(

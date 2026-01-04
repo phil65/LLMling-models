@@ -24,6 +24,7 @@ import time
 from typing import TYPE_CHECKING
 import webbrowser
 
+import anyenv
 import httpx
 
 from llmling_models.log import get_logger
@@ -241,15 +242,13 @@ def _start_callback_server() -> tuple[socketserver.TCPServer, threading.Thread]:
 def _get_user_email(access_token: str) -> str | None:
     """Get user email from access token."""
     try:
-        with httpx.Client(timeout=30.0) as client:
-            response = client.get(
-                "https://www.googleapis.com/oauth2/v1/userinfo",
-                params={"alt": "json"},
-                headers={"Authorization": f"Bearer {access_token}"},
-            )
-            if response.is_success:
-                data = response.json()
-                return data.get("email")
+        response = anyenv.get_json_sync(
+            "https://www.googleapis.com/oauth2/v1/userinfo",
+            params={"alt": "json"},
+            headers={"Authorization": f"Bearer {access_token}"},
+            return_type=dict,
+        )
+        return response.get("email")
     except Exception:  # noqa: BLE001
         pass
     return None
@@ -300,7 +299,7 @@ def _discover_project(
 
             # If we have an existing project, use it
             if data.get("cloudaicompanionProject"):
-                return data["cloudaicompanionProject"]
+                return data["cloudaicompanionProject"]  # type: ignore[no-any-return]
 
             # Otherwise, try to onboard with the FREE tier
             allowed_tiers = data.get("allowedTiers", [])
@@ -339,7 +338,7 @@ def _discover_project(
                     )
 
                     if onboard_data.get("done") and project_id:
-                        return project_id
+                        return project_id  # type: ignore[no-any-return]
 
                 # Wait before retrying
                 if attempt < max_attempts - 1:
@@ -410,7 +409,7 @@ def exchange_code_for_token(code: str, verifier: str) -> dict[str, str | int]:
             msg = f"Token exchange failed: {response.status_code} - {response.text}"
             raise RuntimeError(msg)
 
-        return response.json()
+        return response.json()  # type: ignore[no-any-return]
 
 
 def refresh_access_token(
