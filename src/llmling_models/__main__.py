@@ -125,6 +125,58 @@ def setup_anthropic_auth_parser(subparsers: Any) -> None:
     auth_parser.set_defaults(func=anthropic_auth_command)
 
 
+def setup_gemini_auth_parser(subparsers: Any) -> None:
+    """Set up parser for 'gemini-auth' command."""
+    auth_parser = subparsers.add_parser(
+        "gemini-auth",
+        help="Authenticate with Gemini CLI (Google Cloud Code Assist) using OAuth",
+    )
+
+    auth_parser.add_argument(
+        "--no-browser",
+        action="store_true",
+        help="Don't automatically open the browser",
+    )
+    auth_parser.add_argument(
+        "--logout",
+        action="store_true",
+        help="Remove stored token and log out",
+    )
+    auth_parser.add_argument(
+        "--status",
+        action="store_true",
+        help="Show current authentication status",
+    )
+
+    auth_parser.set_defaults(func=gemini_auth_command)
+
+
+def setup_antigravity_auth_parser(subparsers: Any) -> None:
+    """Set up parser for 'antigravity-auth' command."""
+    auth_parser = subparsers.add_parser(
+        "antigravity-auth",
+        help="Authenticate with Antigravity (Gemini 3, Claude, GPT-OSS) using OAuth",
+    )
+
+    auth_parser.add_argument(
+        "--no-browser",
+        action="store_true",
+        help="Don't automatically open the browser",
+    )
+    auth_parser.add_argument(
+        "--logout",
+        action="store_true",
+        help="Remove stored token and log out",
+    )
+    auth_parser.add_argument(
+        "--status",
+        action="store_true",
+        help="Show current authentication status",
+    )
+
+    auth_parser.set_defaults(func=antigravity_auth_command)
+
+
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description="LLMling-models CLI tool")
@@ -145,6 +197,8 @@ def parse_args() -> argparse.Namespace:
     setup_serve_parser(subparsers)
     setup_copilot_auth_parser(subparsers)
     setup_anthropic_auth_parser(subparsers)
+    setup_gemini_auth_parser(subparsers)
+    setup_antigravity_auth_parser(subparsers)
 
     return parser.parse_args()
 
@@ -391,6 +445,104 @@ def anthropic_auth_command(args: argparse.Namespace) -> None:
         store.save(token)
         print(f"\nToken saved to: {store.path}")
         print("You can now use Claude Max/Pro models with auth_method='oauth'")
+    except Exception:
+        logger.exception("Authentication failed")
+        sys.exit(1)
+
+
+def gemini_auth_command(args: argparse.Namespace) -> None:
+    """Authenticate with Gemini CLI (Google Cloud Code Assist)."""
+    import time
+
+    from llmling_models.auth.gemini_auth import (
+        GeminiTokenStore,
+        authenticate_gemini_cli,
+    )
+
+    store = GeminiTokenStore()
+
+    if args.logout:
+        store.clear()
+        print("Logged out. Token removed.")
+        return
+
+    if args.status:
+        token = store.load()
+        if token is None:
+            print("Not authenticated.")
+            print(f"Token path: {store.path}")
+            sys.exit(1)
+        elif token.is_expired():
+            print("Token expired. Run without --status to refresh.")
+            sys.exit(1)
+        else:
+            remaining = token.expires_at - time.time()
+            hours = int(remaining // 3600)
+            minutes = int((remaining % 3600) // 60)
+            print(f"Authenticated. Token expires in {hours}h {minutes}m.")
+            if token.email:
+                print(f"Email: {token.email}")
+            print(f"Project ID: {token.project_id}")
+            print(f"Token path: {store.path}")
+        return
+
+    try:
+        token = authenticate_gemini_cli(
+            verbose=True,
+            open_browser=not args.no_browser,
+        )
+        store.save(token)
+        print(f"\nToken saved to: {store.path}")
+        print("You can now use Gemini models with auth_method='oauth'")
+    except Exception:
+        logger.exception("Authentication failed")
+        sys.exit(1)
+
+
+def antigravity_auth_command(args: argparse.Namespace) -> None:
+    """Authenticate with Antigravity (Gemini 3, Claude, GPT-OSS)."""
+    import time
+
+    from llmling_models.auth.antigravity_auth import (
+        AntigravityTokenStore,
+        authenticate_antigravity,
+    )
+
+    store = AntigravityTokenStore()
+
+    if args.logout:
+        store.clear()
+        print("Logged out. Token removed.")
+        return
+
+    if args.status:
+        token = store.load()
+        if token is None:
+            print("Not authenticated.")
+            print(f"Token path: {store.path}")
+            sys.exit(1)
+        elif token.is_expired():
+            print("Token expired. Run without --status to refresh.")
+            sys.exit(1)
+        else:
+            remaining = token.expires_at - time.time()
+            hours = int(remaining // 3600)
+            minutes = int((remaining % 3600) // 60)
+            print(f"Authenticated. Token expires in {hours}h {minutes}m.")
+            if token.email:
+                print(f"Email: {token.email}")
+            print(f"Project ID: {token.project_id}")
+            print(f"Token path: {store.path}")
+        return
+
+    try:
+        token = authenticate_antigravity(
+            verbose=True,
+            open_browser=not args.no_browser,
+        )
+        store.save(token)
+        print(f"\nToken saved to: {store.path}")
+        print("You can now use Antigravity models (Gemini 3, Claude, GPT-OSS)")
     except Exception:
         logger.exception("Authentication failed")
         sys.exit(1)
