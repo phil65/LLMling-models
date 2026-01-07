@@ -106,11 +106,7 @@ def _infer_single_model(model: str | Model) -> Model:  # noqa: PLR0911
     if model.startswith("openai:"):
         return _get_openai_based_model(model)
     if model.startswith("zen:"):
-        from llmling_models.providers.zen_provider_factory import _create_zen_model
-
-        return _create_zen_model(model_name=model.removeprefix("zen:"))
-    if model.startswith("openai:"):
-        return _get_openai_based_model(model.removeprefix("openai:"))
+        return _get_openai_based_model(model)
     if model.startswith("anthropic-max:"):
         from pydantic_ai.models.anthropic import AnthropicModel
 
