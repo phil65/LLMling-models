@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib.util
 import logging
 import os
 from typing import TYPE_CHECKING, Any
@@ -28,11 +27,6 @@ def _get_openai_based_model(
 
     if ":" in model:
         provider_name, model_name = model.split(":", 1)
-    # For pyodide environments, use SimpleOpenAIModel
-    if not importlib.util.find_spec("openai"):
-        from llmling_models.models.pyodide_model import SimpleOpenAIModel
-
-        return SimpleOpenAIModel(model=model_name, api_key=api_key, base_url=base_url)
 
     # For regular environments and recognized providers, use the provider interface
     from pydantic_ai.models.openai import OpenAIResponsesModel
@@ -115,11 +109,6 @@ def _infer_single_model(model: str | Model) -> Model:  # noqa: PLR0911
         provider = AnthropicMaxProvider()
         model_name = model.removeprefix("anthropic-max:")
         return AnthropicModel(model_name=model_name, provider=provider)  # type: ignore[arg-type]
-
-    if model.startswith("simple-openai:"):
-        from llmling_models.models.pyodide_model import SimpleOpenAIModel
-
-        return SimpleOpenAIModel(model=model.removeprefix("simple-openai:"))
 
     if model.startswith("copilot:"):
         key = os.getenv("GITHUB_COPILOT_API_KEY")

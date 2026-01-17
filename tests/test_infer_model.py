@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 import pytest
 
 from llmling_models.models.helpers import infer_model
-from llmling_models.models.pyodide_model import SimpleOpenAIModel
 from llmling_models.providers import infer_provider
 from llmling_models.providers.copilot_provider import CopilotProvider
 from llmling_models.providers.lm_studio_provider import LMStudioProvider
@@ -19,20 +18,6 @@ if TYPE_CHECKING:
 # Set environment variables for testing
 # os.environ["OPENAI_API_KEY"] = "test_key"
 os.environ["GITHUB_COPILOT_API_KEY"] = "test_key"
-
-
-def test_direct_model_instance():
-    """Test that a model instance is passed through unchanged."""
-    simple_model = SimpleOpenAIModel(model="gpt-4")
-    result = infer_model(simple_model)
-    assert result is simple_model
-
-
-def test_simple_openai():
-    """Test creating a SimpleOpenAIModel."""
-    model = infer_model("simple-openai:gpt-4")
-    assert isinstance(model, SimpleOpenAIModel)
-    assert model.model == "gpt-4"
 
 
 def test_openai_model():

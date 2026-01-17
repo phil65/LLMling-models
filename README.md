@@ -357,7 +357,6 @@ model = infer_model("copilot:gpt-4o-mini")       # GitHub Copilot (requires toke
 model = infer_model("lm-studio:model-name")      # LM Studio local models
 
 # LLMling's special models
-model = infer_model("simple-openai:gpt-4")      # Simple HTTPX-based OpenAI client
 model = infer_model("input")                    # Interactive human input model
 model = infer_model("remote_model:ws://url")    # Remote model proxy
 model = infer_model("remote_input:ws://url")    # Remote human input
@@ -366,8 +365,6 @@ model = infer_model("import:module.path:Class") # Import model from Python path
 # Testing
 model = infer_model("test:Custom response")     # Test model with fixed output
 ```
-
-The function provides a fallback to a simple HTTPX-based OpenAI client in environments where the full OpenAI library is not available (like Pyodide/WebAssembly contexts).
 
 ### Environment Variable Configuration
 
