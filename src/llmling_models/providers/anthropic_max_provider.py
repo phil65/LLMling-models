@@ -44,6 +44,8 @@ class AnthropicMaxHTTPClient(AsyncHTTPClient):
     - Adds Authorization: Bearer <access_token> header
     - Adds required anthropic-beta headers for OAuth
     - Injects "You are Claude Code" system prompt (required for OAuth validation)
+    - Adds ?beta=true query parameter to match Claude Code
+    - Sets user-agent to identify as Claude Code CLI
     - Automatically refreshes expired tokens
     """
 
@@ -142,6 +144,18 @@ class AnthropicMaxHTTPClient(AsyncHTTPClient):
         if "x-api-key" in request.headers:
             del request.headers["x-api-key"]
 
+        # Set user-agent to identify as Claude Code CLI (required for OAuth validation)
+        # Anthropic checks this to ensure the token is being used by Claude Code
+        request.headers["user-agent"] = "claude-cli/2.1.2 (external, cli)"
+
+        # Add ?beta=true query parameter to match Claude Code endpoint
+        # This is critical - without it, Anthropic rejects OAuth tokens
+        url = str(request.url)
+        if "?" not in url:
+            url = f"{url}?beta=true"
+        elif "beta=true" not in url:
+            url = f"{url}&beta=true"
+
         # Merge beta headers with any existing ones
         existing_beta = request.headers.get("anthropic-beta", "")
         existing_list = [b.strip() for b in existing_beta.split(",") if b.strip()]
@@ -156,19 +170,28 @@ class AnthropicMaxHTTPClient(AsyncHTTPClient):
         # See: anthropic_spoof.txt in OpenCode
         if request.content:
             modified_body = self._inject_claude_code_system(request.content)
-            # Rebuild request with modified body and updated headers
+            # Rebuild request with modified URL, body and updated headers
             new_request = httpx.Request(
                 method=request.method,
-                url=request.url,
+                url=url,
                 headers=dict(request.headers),
                 content=modified_body,
             )
             new_request.headers["content-length"] = str(len(modified_body))
-            logger.debug("Sending request with OAuth authentication and Claude Code spoof")
+            logger.debug(
+                "Sending request with OAuth authentication and Claude Code spoof to %s",
+                url,
+            )
             return await super().send(new_request, *args, **kwargs)
 
-        logger.debug("Sending request with OAuth authentication")
-        return await super().send(request, *args, **kwargs)
+        # Rebuild request with modified URL even if no body
+        new_request = httpx.Request(
+            method=request.method,
+            url=url,
+            headers=dict(request.headers),
+        )
+        logger.debug("Sending request with OAuth authentication to %s", url)
+        return await super().send(new_request, *args, **kwargs)
 
 
 def _create_client(token_store: AnthropicTokenStore) -> AsyncAnthropic:

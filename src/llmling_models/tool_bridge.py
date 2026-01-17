@@ -1,39 +1,10 @@
 """MCP server bridge for exposing Python functions to Claude Code.
 
 This module provides a bridge that exposes Python functions as an MCP server
-using HTTP transport. This allows Claude Code (via ClaudeCodeModel) to use custom
-tools defined as simple Python functions.
+using HTTP transport. This allows Agents to use custom
+tools which have runtime access to our internals via Context objects.
 
 The bridge runs in-process and handles the MCP protocol automatically.
-
-Example:
-    ```python
-    from pydantic_ai import Agent
-    from llmling_models import ClaudeCodeModel
-    from llmling_models.tool_bridge import ToolBridge
-
-    # Define custom tools as simple functions
-    def greet(name: str) -> str:
-        '''Greet a person by name.'''
-        return f"Hello, {name}!"
-
-    def multiply(a: int, b: int) -> int:
-        '''Multiply two numbers.'''
-        return a * b
-
-    # Create bridge exposing the functions
-    async with ToolBridge(tools=[greet, multiply]) as bridge:
-        # Get MCP server config for Claude Code
-        mcp_tool = bridge.get_mcp_server_tool()
-
-        # Use with ClaudeCodeModel
-        model = ClaudeCodeModel()
-        agent = Agent(model=model)
-        result = await agent.run(
-            "Greet Alice and multiply 6 by 7",
-            builtin_tools=[mcp_tool],
-        )
-    ```
 """
 
 from __future__ import annotations
@@ -45,6 +16,7 @@ import inspect
 import socket
 from typing import TYPE_CHECKING, Any, Self, get_type_hints
 
+from pydantic import BaseModel
 from pydantic_ai import MCPServerTool
 
 
@@ -67,7 +39,6 @@ def _convert_to_tool_result(result: Any) -> ToolResult:
       (including str, list, ContentBlock, Image, Audio, File, primitives)
     """
     from fastmcp.tools.tool import ToolResult
-    from pydantic import BaseModel
 
     # Already a ToolResult - pass through
     if isinstance(result, ToolResult):
