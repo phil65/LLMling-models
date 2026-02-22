@@ -191,7 +191,7 @@ def exchange_code_for_token(code: str, verifier: str) -> AnthropicOAuthToken:
         RuntimeError: If token exchange fails
     """
     # Code may be in format "code#state"
-    auth_code = code.split("#")[0]
+    auth_code = code.split("#", maxsplit=1)[0]
 
     with httpx.Client(timeout=30.0) as client:
         response = client.post(

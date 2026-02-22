@@ -105,11 +105,7 @@ def _get_function_schema(func: Callable[..., Any]) -> dict[str, Any]:
         if param.default is inspect.Parameter.empty:
             required.append(name)
 
-    return {
-        "type": "object",
-        "properties": properties,
-        "required": required,
-    }
+    return {"type": "object", "properties": properties, "required": required}
 
 
 def _get_function_description(func: Callable[..., Any]) -> str:
