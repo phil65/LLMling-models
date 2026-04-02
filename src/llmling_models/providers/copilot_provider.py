@@ -28,6 +28,9 @@ class CopilotHTTPClient(AsyncHTTPClient):
 
     async def send(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         header = await self.token_manager.generate_headers()
+        # Remove conflicting auth headers that OpenAI client sets
+        request.headers.pop("x-api-key", None)
+        request.headers.pop("authorization", None)
         request.headers.update(header)
         return await super().send(request, *args, **kwargs)
 
