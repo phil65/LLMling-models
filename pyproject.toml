@@ -59,6 +59,7 @@ server = [
   "pyyaml>=6.0",
   "websockets>=12.0",
 ]
+anthropic-max = ["xxhash>=3.0.0"]
 tokenizers = ["tokenizers"]
 transformers = ["transformers"]
 

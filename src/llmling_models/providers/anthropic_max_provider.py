@@ -6,10 +6,13 @@ subscribers to use their subscription through the Anthropic API.
 IMPORTANT: When using OAuth tokens, the system prompt MUST include the text
 "You are Claude Code" to pass Anthropic's validation. This is enforced by
 the AnthropicMaxHTTPClient which injects this into the request body.
+
+Requires the `anthropic-max` extra: pip install llmling-models[anthropic-max]
 """
 
 from __future__ import annotations
 
+import hashlib
 from typing import TYPE_CHECKING, Any
 
 from anthropic import AsyncAnthropic
@@ -35,6 +38,61 @@ logger = get_logger(__name__)
 # Required system prompt prefix for OAuth validation
 # Anthropic checks for this to validate the token is being used by "Claude Code"
 CLAUDE_CODE_SYSTEM_PREFIX = "You are Claude Code, Anthropic's official CLI for Claude."
+
+# Version string to match Claude Code CLI
+CC_VERSION = "2.1.87"
+
+# CCH (checksum hash) constants
+_CCH_SEED_B64 = b"blJzasgGgx4="
+CCH_MASK = 0xFFFFF
+CCH_PLACEHOLDER = "cch=00000"
+
+# Fingerprint salt for billing header
+FINGERPRINT_SALT = "59cf53e54c78"
+
+
+def _compute_fingerprint(first_user_message: str) -> str:
+    """Compute fingerprint from first user message for billing header.
+
+    Takes chars at indices 4, 7, 20 from the message, combines with
+    a salt and version string, then SHA-256 hashes it.
+
+    Args:
+        first_user_message: The first user message content
+
+    Returns:
+        3-char hex fingerprint string
+    """
+    indices = [4, 7, 20]
+    chars = "".join(first_user_message[i] if i < len(first_user_message) else "0" for i in indices)
+    input_str = f"{FINGERPRINT_SALT}{chars}{CC_VERSION}"
+    return hashlib.sha256(input_str.encode()).hexdigest()[:3]
+
+
+def _compute_cch(body: bytes) -> str:
+    """Compute CCH checksum over request body using xxhash64.
+
+    Args:
+        body: Request body bytes
+
+    Returns:
+        5-char hex checksum string
+
+    Raises:
+        ImportError: If xxhash package is not installed
+    """
+    try:
+        import xxhash
+    except ImportError:
+        msg = (
+            "xxhash package required for Anthropic Max OAuth. "
+            "Install with: pip install llmling-models[anthropic-max]"
+        )
+        raise ImportError(msg) from None
+
+    seed = int.from_bytes(base64.b64decode(_CCH_SEED_B64), "big")
+    hash_value = xxhash.xxh64(body, seed=seed).intdigest()
+    return f"{hash_value & CCH_MASK:05x}"
 
 
 class AnthropicMaxHTTPClient(AsyncHTTPClient):
@@ -75,16 +133,19 @@ class AnthropicMaxHTTPClient(AsyncHTTPClient):
         return self._cached_token
 
     def _inject_claude_code_system(self, body: bytes) -> bytes:
-        """Inject 'Claude Code' system prompt if not present.
+        """Inject Claude Code system prompt and billing header.
 
-        Anthropic's OAuth validation requires the system prompt to contain
-        "You are Claude Code" as a SEPARATE text block (not concatenated).
+        Anthropic's OAuth validation requires:
+        1. System prompt containing "You are Claude Code" as a SEPARATE text block
+        2. A billing header block with version, fingerprint, and CCH placeholder
+
+        The CCH placeholder is later replaced with the actual checksum.
 
         Args:
             body: Original request body
 
         Returns:
-            Modified request body with Claude Code system prompt
+            Modified request body with Claude Code system prompt and billing header
         """
         import json
 
@@ -98,29 +159,67 @@ class AnthropicMaxHTTPClient(AsyncHTTPClient):
             return body
 
         system = data.get("system", "")
+        needs_claude_code = "Claude Code" not in str(system)
 
-        # Check if Claude Code is already mentioned
-        if "Claude Code" in str(system):
-            return body
+        # Build system blocks list
+        blocks: list[dict[str, Any]] = []
 
-        # Inject the required system prompt as a SEPARATE text block
-        # This is critical - concatenating strings doesn't work!
-        claude_code_block = {"type": "text", "text": CLAUDE_CODE_SYSTEM_PREFIX}
+        # 1. Billing header block (with CCH placeholder to be replaced later)
+        first_user_msg = self._extract_first_user_text(data.get("messages", []))
+        fingerprint = _compute_fingerprint(first_user_msg)
+        billing_text = (
+            f"x-anthropic-billing-header: cc_version={CC_VERSION}.{fingerprint}; "
+            f"cc_entrypoint=cli; {CCH_PLACEHOLDER};"
+        )
+        blocks.append({"type": "text", "text": billing_text})
 
-        if isinstance(system, str):
-            if system:
-                # Convert string to array with Claude Code as first block
-                data["system"] = [claude_code_block, {"type": "text", "text": system}]
-            else:
-                data["system"] = CLAUDE_CODE_SYSTEM_PREFIX
+        # 2. Claude Code system prompt
+        if needs_claude_code:
+            blocks.append({"type": "text", "text": CLAUDE_CODE_SYSTEM_PREFIX})
+
+        # 3. Existing system content
+        if isinstance(system, str) and system:
+            blocks.append({"type": "text", "text": system})
         elif isinstance(system, list):
-            # Prepend Claude Code block to existing list
-            data["system"] = [claude_code_block, *system]
-        else:
-            data["system"] = CLAUDE_CODE_SYSTEM_PREFIX
+            blocks.extend(system)
 
-        logger.debug("Injected Claude Code system prompt for OAuth validation")
+        data["system"] = blocks
+
+        logger.debug("Injected Claude Code system prompt and billing header")
         return json.dumps(data).encode()
+
+    @staticmethod
+    def _extract_first_user_text(messages: list[Any]) -> str:
+        """Extract text from the first user message."""
+        for msg in messages:
+            if not isinstance(msg, dict):
+                continue
+            if msg.get("role") != "user":
+                continue
+            content = msg.get("content", "")
+            if isinstance(content, str):
+                return content
+            if isinstance(content, list):
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        return block.get("text", "")
+        return ""
+
+    @staticmethod
+    def _apply_cch(body: bytes) -> bytes:
+        """Compute CCH checksum and replace placeholder in body.
+
+        Args:
+            body: Request body containing CCH_PLACEHOLDER
+
+        Returns:
+            Body with placeholder replaced by actual checksum
+        """
+        body_str = body.decode()
+        if CCH_PLACEHOLDER not in body_str:
+            return body
+        cch = _compute_cch(body)
+        return body_str.replace(CCH_PLACEHOLDER, f"cch={cch}").encode()
 
     async def send(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         """Send request with OAuth headers and system prompt injected.
@@ -146,7 +245,8 @@ class AnthropicMaxHTTPClient(AsyncHTTPClient):
 
         # Set user-agent to identify as Claude Code CLI (required for OAuth validation)
         # Anthropic checks this to ensure the token is being used by Claude Code
-        request.headers["user-agent"] = "claude-cli/2.1.2 (external, cli)"
+        request.headers["user-agent"] = f"claude-cli/{CC_VERSION} (external, cli)"
+        request.headers["x-app"] = "cli"
 
         # Add ?beta=true query parameter to match Claude Code endpoint
         # This is critical - without it, Anthropic rejects OAuth tokens
@@ -164,12 +264,12 @@ class AnthropicMaxHTTPClient(AsyncHTTPClient):
         all_betas = list(dict.fromkeys(OAUTH_BETA_HEADERS + existing_list))
         request.headers["anthropic-beta"] = ",".join(all_betas)
 
-        # Inject Claude Code system prompt into request body
-        # This is required because Anthropic validates OAuth tokens by checking
-        # if the system prompt contains "You are Claude Code" - yes, really! 🤣
-        # See: anthropic_spoof.txt in OpenCode
+        # Inject Claude Code system prompt and billing header into request body,
+        # then compute CCH checksum and replace placeholder.
         if request.content:
             modified_body = self._inject_claude_code_system(request.content)
+            # Compute CCH over the body (with placeholder) and replace it
+            modified_body = self._apply_cch(modified_body)
             # Rebuild request with modified URL, body and updated headers
             new_request = httpx.Request(
                 method=request.method,

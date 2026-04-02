@@ -42,9 +42,8 @@ OAUTH_REDIRECT_URI = "https://console.anthropic.com/oauth/code/callback"
 OAUTH_SCOPES = "org:create_api_key user:profile user:inference"
 
 # Beta headers required for OAuth authentication
-# Note: Claude Code primarily uses oauth-2025-04-20 and interleaved-thinking-2025-05-14
-# claude-code-20250219 is only sometimes included, so we omit it for better compatibility
 OAUTH_BETA_HEADERS = [
+    "claude-code-20250219",
     "oauth-2025-04-20",
     "interleaved-thinking-2025-05-14",
 ]
