@@ -39,8 +39,7 @@ def extract_conversation(messages: list[ModelMessage]) -> list[dict[str, str]]:
 
         for part in message.parts:
             if hasattr(part, "content"):
-                content += str(part.content)  # pyright: ignore
-
+                content += str(part.content)
         if content:
             history.append({"role": role, "content": content})
 
@@ -95,8 +94,7 @@ class RemoteInputModel(Model):
                     last_message = messages[-1]
                     for part in last_message.parts:
                         if hasattr(part, "content"):
-                            prompt += str(part.content)  # pyright: ignore
-
+                            prompt += str(part.content)
                 conversation = extract_conversation(messages[:-1])
 
                 # Log request data for debugging
@@ -143,8 +141,7 @@ class RemoteInputModel(Model):
                     last_message = messages[-1]
                     for part in last_message.parts:
                         if hasattr(part, "content"):
-                            prompt += str(part.content)  # pyright: ignore
-
+                            prompt += str(part.content)
                 conversation = extract_conversation(messages[:-1])
                 data = anyenv.dump_json({"prompt": prompt, "conversation": conversation})
 
@@ -201,8 +198,7 @@ class RemoteInputModel(Model):
                 last_message = messages[-1]
                 for part in last_message.parts:
                     if hasattr(part, "content"):
-                        prompt += str(part.content)  # pyright: ignore
-
+                        prompt += str(part.content)
             conversation = extract_conversation(messages[:-1])
             data = anyenv.dump_json({"prompt": prompt, "conversation": conversation})
             await websocket.send(data)

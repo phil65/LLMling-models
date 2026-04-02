@@ -162,7 +162,7 @@ class ModelServer:
                                         })
                                 else:
                                     # Handle Iterable[str]
-                                    for chunk in chunks:  # pyright: ignore
+                                    for chunk in chunks:
                                         if chunk:  # Only send non-empty chunks
                                             await websocket.send_json({
                                                 "chunk": chunk,

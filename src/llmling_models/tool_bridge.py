@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable
 
     from fastmcp import Context, FastMCP
-    from fastmcp.tools.tool import ToolResult
+    from fastmcp.tools import ToolResult
     from uvicorn import Server
 
 
@@ -38,7 +38,7 @@ def _convert_to_tool_result(result: Any) -> ToolResult:
     - Other types: Pass to ToolResult(content=...) which handles conversion internally
       (including str, list, ContentBlock, Image, Audio, File, primitives)
     """
-    from fastmcp.tools.tool import ToolResult
+    from fastmcp.tools import ToolResult
 
     # Already a ToolResult - pass through
     if isinstance(result, ToolResult):
