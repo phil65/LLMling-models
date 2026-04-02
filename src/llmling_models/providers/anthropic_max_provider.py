@@ -12,6 +12,7 @@ Requires the `anthropic-max` extra: pip install llmling-models[anthropic-max]
 
 from __future__ import annotations
 
+import base64
 import hashlib
 from typing import TYPE_CHECKING, Any
 
@@ -202,7 +203,7 @@ class AnthropicMaxHTTPClient(AsyncHTTPClient):
             if isinstance(content, list):
                 for block in content:
                     if isinstance(block, dict) and block.get("type") == "text":
-                        return block.get("text", "")
+                        return str(block.get("text", ""))
         return ""
 
     @staticmethod

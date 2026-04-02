@@ -1,19 +1,43 @@
-"""GitHub Copilot authentication helper."""
+"""GitHub Copilot authentication helper.
+
+Supports both github.com and GitHub Enterprise via device code flow.
+After login, exchanges the GitHub access token for a Copilot API token.
+
+Based on the pi-mono implementation by badlogic.
+"""
 
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 import sys
 import time
 from typing import NamedTuple
 
+import anyenv
 import httpx
 
 from llmling_models.log import get_logger
 
 
 logger = get_logger(__name__)
+
+CLIENT_ID = "Iv1.b507a08c87ecfe98"
+
+COPILOT_HEADERS = {
+    "User-Agent": "GitHubCopilotChat/0.35.0",
+    "Editor-Version": "vscode/1.107.0",
+    "Editor-Plugin-Version": "copilot-chat/0.35.0",
+    "Copilot-Integration-Id": "vscode-chat",
+}
+
+# Polling interval multipliers for device code flow
+_INITIAL_POLL_MULTIPLIER = 1.2
+_SLOW_DOWN_POLL_MULTIPLIER = 1.4
+
+# Default token storage location
+DEFAULT_TOKEN_PATH = Path.home() / ".config" / "llmling-models" / "copilot_oauth.json"
 
 
 class CopilotAuthResult(NamedTuple):
@@ -25,40 +49,180 @@ class CopilotAuthResult(NamedTuple):
     refresh_token: str | None = None
 
 
-def authenticate_copilot(verbose: bool = True) -> CopilotAuthResult:
-    """Authenticate with GitHub Copilot and return the access token.
+def _normalize_domain(input_str: str) -> str | None:
+    """Normalize a domain input to just the hostname."""
+    trimmed = input_str.strip()
+    if not trimmed:
+        return None
+    try:
+        from urllib.parse import urlparse
+
+        url = trimmed if "://" in trimmed else f"https://{trimmed}"
+        return urlparse(url).hostname
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _get_urls(domain: str) -> dict[str, str]:
+    """Get OAuth URLs for a GitHub domain."""
+    return {
+        "device_code": f"https://{domain}/login/device/code",
+        "access_token": f"https://{domain}/login/oauth/access_token",
+        "copilot_token": f"https://api.{domain}/copilot_internal/v2/token",
+    }
+
+
+def _get_base_url_from_token(token: str) -> str | None:
+    """Extract API base URL from Copilot token's proxy-ep field.
+
+    Token format: tid=...;exp=...;proxy-ep=proxy.individual.githubcopilot.com;...
+    Returns URL like https://api.individual.githubcopilot.com
+    """
+    import re
+
+    match = re.search(r"proxy-ep=([^;]+)", token)
+    if not match:
+        return None
+    proxy_host = match.group(1)
+    api_host = proxy_host.replace("proxy.", "api.", 1)
+    return f"https://{api_host}"
+
+
+def get_copilot_base_url(
+    token: str | None = None,
+    enterprise_domain: str | None = None,
+) -> str:
+    """Get the Copilot API base URL.
+
+    Prefers extracting from the token's proxy-ep field, falls back to
+    constructing from enterprise domain or default.
+    """
+    if token:
+        url = _get_base_url_from_token(token)
+        if url:
+            return url
+    if enterprise_domain:
+        return f"https://copilot-api.{enterprise_domain}"
+    return "https://api.individual.githubcopilot.com"
+
+
+def _start_device_flow(client: httpx.Client, domain: str) -> dict[str, str | int]:
+    """Start the device code flow and return device code info."""
+    urls = _get_urls(domain)
+    resp = client.post(
+        urls["device_code"],
+        headers={
+            "Accept": "application/json",
+            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": "GitHubCopilotChat/0.35.0",
+        },
+        data={"client_id": CLIENT_ID, "scope": "read:user"},
+    )
+    resp.raise_for_status()
+    return anyenv.load_json(resp.text, return_type=dict)
+
+
+def _poll_for_github_token(
+    client: httpx.Client,
+    domain: str,
+    device_code: str,
+    interval_seconds: float,
+    expires_in: float,
+) -> str:
+    """Poll for GitHub access token after device code flow."""
+    urls = _get_urls(domain)
+    deadline = time.time() + expires_in
+    interval_ms = max(1000, interval_seconds * 1000)
+    multiplier = _INITIAL_POLL_MULTIPLIER
+
+    while time.time() < deadline:
+        remaining_ms = (deadline - time.time()) * 1000
+        wait_ms = min(interval_ms * multiplier, remaining_ms)
+        time.sleep(wait_ms / 1000)
+
+        resp = client.post(
+            urls["access_token"],
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/x-www-form-urlencoded",
+                "User-Agent": "GitHubCopilotChat/0.35.0",
+            },
+            data={
+                "client_id": CLIENT_ID,
+                "device_code": device_code,
+                "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+            },
+        )
+        resp.raise_for_status()
+        data = anyenv.load_json(resp.text, return_type=dict)
+
+        if "access_token" in data:
+            return str(data["access_token"])
+
+        error = data.get("error", "")
+        if error == "authorization_pending":
+            continue
+        if error == "slow_down":
+            new_interval = data.get("interval")
+            if isinstance(new_interval, int) and new_interval > 0:
+                interval_ms = new_interval * 1000
+            else:
+                interval_ms = max(1000, interval_ms + 5000)
+            multiplier = _SLOW_DOWN_POLL_MULTIPLIER
+            continue
+
+        description = data.get("error_description", error)
+        msg = f"Device flow failed: {description}"
+        raise RuntimeError(msg)
+
+    msg = "Device flow timed out"
+    raise RuntimeError(msg)
+
+
+def _get_copilot_token(
+    client: httpx.Client,
+    github_token: str,
+    domain: str,
+) -> dict[str, str | int]:
+    """Exchange GitHub access token for a Copilot API token."""
+    urls = _get_urls(domain)
+    resp = client.get(
+        urls["copilot_token"],
+        headers={
+            "Accept": "application/json",
+            "Authorization": f"Bearer {github_token}",
+            **COPILOT_HEADERS,
+        },
+    )
+    resp.raise_for_status()
+    return anyenv.load_json(resp.text, return_type=dict)
+
+
+def authenticate_copilot(
+    verbose: bool = True,
+    enterprise_domain: str | None = None,
+) -> dict[str, str | float | None]:
+    """Authenticate with GitHub Copilot via device code flow.
 
     Args:
         verbose: Whether to print authentication status messages
+        enterprise_domain: GitHub Enterprise domain (None for github.com)
 
     Returns:
-        The authentication result containing the access token
+        Dict with keys: github_token, copilot_token, base_url, expires_at,
+        enterprise_domain
     """
-    # Step 1: Get device code
-    if verbose:
-        print("Requesting GitHub device code...")
+    domain = enterprise_domain or "github.com"
 
     with httpx.Client(timeout=30.0) as client:
-        resp = client.post(
-            "https://github.com/login/device/code",
-            headers={
-                "accept": "application/json",
-                "editor-version": "Neovim/0.6.1",
-                "editor-plugin-version": "copilot.vim/1.16.0",
-                "content-type": "application/json",
-                "user-agent": "GithubCopilot/1.155.0",
-                "accept-encoding": "gzip,deflate,br",
-            },
-            content='{"client_id":"Iv1.b507a08c87ecfe98","scope":"read:user"}',
-        )
-        resp.raise_for_status()
+        # Step 1: Start device flow
+        if verbose:
+            print("Requesting GitHub device code...")
+        device_data = _start_device_flow(client, domain)
 
-        auth_data = resp.json()
-        device_code = auth_data["device_code"]
-        user_code = auth_data["user_code"]
-        verification_uri = auth_data["verification_uri"]
+        user_code = device_data["user_code"]
+        verification_uri = device_data["verification_uri"]
 
-        # Step 2: Prompt user to authenticate
         if verbose:
             print()
             print("To authenticate with GitHub Copilot, please:")
@@ -66,81 +230,137 @@ def authenticate_copilot(verbose: bool = True) -> CopilotAuthResult:
             print(f"2. Enter code:  {user_code}")
             print("\nWaiting for authentication...")
 
-        # Step 3: Poll for token
-        interval = auth_data.get("interval", 5)
-        while True:
-            time.sleep(interval)
+        # Step 2: Poll for GitHub access token
+        github_token = _poll_for_github_token(
+            client,
+            domain,
+            str(device_data["device_code"]),
+            int(device_data.get("interval", 5)),
+            int(device_data.get("expires_in", 900)),
+        )
 
-            try:
-                resp = client.post(
-                    "https://github.com/login/oauth/access_token",
-                    headers={
-                        "accept": "application/json",
-                        "editor-version": "Neovim/0.6.1",
-                        "editor-plugin-version": "copilot.vim/1.16.0",
-                        "content-type": "application/json",
-                        "user-agent": "GithubCopilot/1.155.0",
-                        "accept-encoding": "gzip,deflate,br",
-                    },
-                    content=(
-                        f'{{"client_id":"Iv1.b507a08c87ecfe98","device_code":"{device_code}",'
-                        f'"grant_type":"urn:ietf:params:oauth:grant-type:device_code"}}'
-                    ),
-                )
+        if verbose:
+            print("\nGitHub authentication successful!")
+            print("Exchanging for Copilot API token...")
 
-                resp.raise_for_status()
-                resp_data = resp.json()
+        # Step 3: Exchange for Copilot token
+        copilot_data = _get_copilot_token(client, github_token, domain)
+        copilot_token = str(copilot_data["token"])
+        expires_at = copilot_data["expires_at"]
 
-                # Check for errors
-                if "error" in resp_data:
-                    if resp_data["error"] == "authorization_pending":
-                        if verbose:
-                            print(".", end="", flush=True)
-                        continue
+        base_url = get_copilot_base_url(copilot_token, enterprise_domain)
 
-                    error_msg = resp_data.get("error_description", resp_data["error"])
-                    if verbose:
-                        print(f"\nAuthentication failed: {error_msg}")
-                    msg = f"Authentication failed: {error_msg}"
-                    raise RuntimeError(msg)
+        if verbose:
+            print(f"Copilot API base URL: {base_url}")
+            print("Authentication complete!")
 
-                # Extract token
-                access_token = resp_data.get("access_token")
-                if access_token:
-                    if verbose:
-                        print("\nAuthentication successful!")
-                    return CopilotAuthResult(
-                        token=access_token,
-                        token_type=resp_data.get("token_type", "bearer"),
-                        scope=resp_data.get("scope", ""),
-                        refresh_token=resp_data.get("refresh_token"),
-                    )
-
-            except httpx.HTTPError as e:
-                if verbose:
-                    print(f"\nError during authentication: {e}")
-                msg = f"Error during authentication: {e}"
-                raise RuntimeError(msg) from e
+    return {
+        "github_token": github_token,
+        "copilot_token": copilot_token,
+        "base_url": base_url,
+        "expires_at": float(expires_at),
+        "enterprise_domain": enterprise_domain,
+    }
 
 
-def save_token(token: str, env_var: str = "GITHUB_COPILOT_TOKEN") -> None:
-    """Save the token to a file and print instructions.
+def refresh_copilot_token(
+    github_token: str,
+    enterprise_domain: str | None = None,
+) -> dict[str, str | float | None]:
+    """Refresh the Copilot API token using the stored GitHub token.
 
     Args:
-        token: The token to save
-        env_var: The environment variable name to suggest
-    """
-    env_file = ".env"
-    if (path := Path(env_file)).exists():
-        with path.open("a") as f:
-            f.write(f"\n# GitHub Copilot API Token\n{env_var}={token}\n")
-        print(f"Token saved to {env_file}")
+        github_token: The GitHub OAuth access token
+        enterprise_domain: GitHub Enterprise domain (None for github.com)
 
-    # Print instructions
-    print(f"\nTo use this token, set the environment variable {env_var}:")
-    print(f"  export {env_var}={token}")
-    print("\nOr add it to your .env file:")
-    print(f"  {env_var}={token}")
+    Returns:
+        Dict with copilot_token, base_url, expires_at
+    """
+    domain = enterprise_domain or "github.com"
+
+    with httpx.Client(timeout=30.0) as client:
+        copilot_data = _get_copilot_token(client, github_token, domain)
+
+    copilot_token = str(copilot_data["token"])
+    expires_at = copilot_data["expires_at"]
+    base_url = get_copilot_base_url(copilot_token, enterprise_domain)
+
+    return {
+        "copilot_token": copilot_token,
+        "base_url": base_url,
+        "expires_at": float(expires_at),
+    }
+
+
+class CopilotTokenStore:
+    """File-based token storage for Copilot OAuth."""
+
+    def __init__(self, path: Path = DEFAULT_TOKEN_PATH) -> None:
+        self.path = path
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+
+    def load(self) -> dict[str, str | float | None] | None:
+        """Load stored credentials."""
+        if not self.path.exists():
+            return None
+        try:
+            return anyenv.load_json(self.path.read_text(), return_type=dict)
+        except (anyenv.JsonLoadError, KeyError) as e:
+            logger.warning("Failed to load copilot token from %s: %s", self.path, e)
+            return None
+
+    def save(self, data: dict[str, str | float | None]) -> None:
+        """Save credentials."""
+        self.path.write_text(json.dumps(data, indent=2))
+        self.path.chmod(0o600)
+
+    def clear(self) -> None:
+        """Remove stored credentials."""
+        if self.path.exists():
+            self.path.unlink()
+
+
+def get_or_refresh_copilot_token(
+    store: CopilotTokenStore | None = None,
+) -> dict[str, str | float | None]:
+    """Get a valid Copilot token, refreshing if necessary.
+
+    The GitHub OAuth token doesn't expire, but the Copilot API token does.
+    This refreshes the Copilot token using the stored GitHub token.
+    """
+    if store is None:
+        store = CopilotTokenStore()
+
+    data = store.load()
+    if data is None:
+        msg = "No Copilot credentials found. Run 'llmling-models copilot-auth' to authenticate."
+        raise RuntimeError(msg)
+
+    # Check if Copilot token is expired
+    expires_at = data.get("expires_at", 0)
+    if isinstance(expires_at, (int, float)) and time.time() < expires_at - 300:
+        return data
+
+    # Refresh using stored GitHub token
+    github_token = data.get("github_token")
+    if not github_token:
+        msg = "Stored credentials missing GitHub token. Re-authenticate."
+        raise RuntimeError(msg)
+
+    logger.info("Copilot token expired, refreshing...")
+    enterprise = data.get("enterprise_domain")
+    refreshed = refresh_copilot_token(
+        str(github_token),
+        str(enterprise) if enterprise else None,
+    )
+
+    # Merge refreshed data back
+    data["copilot_token"] = refreshed["copilot_token"]
+    data["base_url"] = refreshed["base_url"]
+    data["expires_at"] = refreshed["expires_at"]
+    store.save(data)
+
+    return data
 
 
 def copilot_auth_main() -> None:
@@ -154,24 +374,71 @@ def copilot_auth_main() -> None:
         help="Suppress status messages",
     )
     parser.add_argument(
-        "--save",
-        action="store_true",
-        help="Save token to .env file if it exists",
+        "--enterprise",
+        default=None,
+        help="GitHub Enterprise domain (e.g. company.ghe.com)",
     )
     parser.add_argument(
-        "--env-var",
-        default="GITHUB_COPILOT_TOKEN",
-        help="Environment variable name to use (default: GITHUB_COPILOT_TOKEN)",
+        "--token-path",
+        type=Path,
+        default=DEFAULT_TOKEN_PATH,
+        help=f"Path to store token (default: {DEFAULT_TOKEN_PATH})",
+    )
+    parser.add_argument(
+        "--logout",
+        action="store_true",
+        help="Remove stored token and log out",
+    )
+    parser.add_argument(
+        "--status",
+        action="store_true",
+        help="Show current authentication status",
     )
 
     args = parser.parse_args()
+    store = CopilotTokenStore(path=args.token_path)
+
+    if args.logout:
+        store.clear()
+        print("Logged out. Token removed.")
+        return
+
+    if args.status:
+        data = store.load()
+        if data is None:
+            print("Not authenticated.")
+            sys.exit(1)
+        expires_at = data.get("expires_at", 0)
+        if isinstance(expires_at, (int, float)) and time.time() < expires_at:
+            remaining = expires_at - time.time()
+            hours = int(remaining // 3600)
+            minutes = int((remaining % 3600) // 60)
+            print(f"Authenticated. Copilot token expires in {hours}h {minutes}m.")
+        else:
+            print("Copilot token expired (will refresh automatically on use).")
+        print(f"Base URL: {data.get('base_url', 'unknown')}")
+        enterprise = data.get("enterprise_domain")
+        if enterprise:
+            print(f"Enterprise: {enterprise}")
+        print(f"Token path: {args.token_path}")
+        return
+
+    # Normalize enterprise domain
+    enterprise_domain = None
+    if args.enterprise:
+        enterprise_domain = _normalize_domain(args.enterprise)
+        if not enterprise_domain:
+            print(f"Invalid enterprise domain: {args.enterprise}", file=sys.stderr)
+            sys.exit(1)
 
     try:
-        result = authenticate_copilot(verbose=not args.silent)
-        print(f"\nToken: {result.token}")
-
-        if args.save:
-            save_token(result.token, args.env_var)
+        result = authenticate_copilot(
+            verbose=not args.silent,
+            enterprise_domain=enterprise_domain,
+        )
+        store.save(result)
+        print(f"\nToken saved to: {args.token_path}")
+        print("You can now use GitHub Copilot models.")
 
     except Exception:
         logger.exception("Authentication failed")

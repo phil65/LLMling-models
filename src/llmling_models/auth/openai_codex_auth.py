@@ -1,7 +1,8 @@
-"""Anthropic Claude Max/Pro OAuth authentication.
+"""OpenAI Codex (ChatGPT Plus/Pro) OAuth authentication.
 
-This module implements OAuth 2.0 PKCE authentication for Claude Max/Pro subscriptions,
-allowing users to use their subscription directly through the Anthropic API.
+This module implements OAuth 2.0 PKCE authentication for OpenAI Codex,
+allowing users with ChatGPT Plus/Pro subscriptions to use their
+subscription through the OpenAI API.
 
 Based on the pi-mono implementation by badlogic.
 """
@@ -20,8 +21,8 @@ import socketserver
 import sys
 import threading
 import time
-from typing import TYPE_CHECKING
-from urllib.parse import parse_qs, urlparse
+from typing import TYPE_CHECKING, Any
+from urllib.parse import parse_qs, urlencode, urlparse
 import webbrowser
 
 import anyenv
@@ -35,86 +36,100 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-# OAuth client ID registered with Anthropic
-CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+# OAuth client credentials
+CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
 
 # OAuth endpoints
-OAUTH_AUTHORIZE_URL = "https://claude.ai/oauth/authorize"
-OAUTH_TOKEN_URL = "https://platform.claude.com/v1/oauth/token"
-OAUTH_MANUAL_REDIRECT_URI = "https://platform.claude.com/oauth/code/callback"
+OAUTH_AUTHORIZE_URL = "https://auth.openai.com/oauth/authorize"
+OAUTH_TOKEN_URL = "https://auth.openai.com/oauth/token"
+OAUTH_REDIRECT_URI = "http://localhost:1455/auth/callback"
+OAUTH_REDIRECT_PORT = 1455
+OAUTH_SCOPE = "openid profile email offline_access"
 
-# Required scopes for API access
-OAUTH_SCOPES = (
-    "org:create_api_key user:profile user:inference "
-    "user:sessions:claude_code user:mcp_servers user:file_upload"
-)
-
-# Beta headers required for OAuth authentication
-OAUTH_BETA_HEADERS = [
-    "claude-code-20250219",
-    "oauth-2025-04-20",
-    "interleaved-thinking-2025-05-14",
-]
+# JWT claim path for extracting account ID
+JWT_CLAIM_PATH = "https://api.openai.com/auth"
 
 # Default token storage location
-DEFAULT_TOKEN_PATH = Path.home() / ".config" / "llmling-models" / "anthropic_oauth.json"
+DEFAULT_TOKEN_PATH = Path.home() / ".config" / "llmling-models" / "openai_codex_oauth.json"
 
 
 def generate_pkce() -> tuple[str, str]:
-    """Generate PKCE code verifier and challenge.
-
-    Returns:
-        Tuple of (verifier, challenge)
-    """
+    """Generate PKCE code verifier and challenge."""
     verifier = secrets.token_urlsafe(32)
     digest = hashlib.sha256(verifier.encode()).digest()
     challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
     return verifier, challenge
 
 
+def _decode_jwt(token: str) -> dict[str, Any] | None:
+    """Decode a JWT token payload without verification."""
+    try:
+        parts = token.split(".")
+        if len(parts) != 3:  # noqa: PLR2004
+            return None
+        payload = parts[1]
+        # Add padding
+        padding = 4 - len(payload) % 4
+        if padding != 4:  # noqa: PLR2004
+            payload += "=" * padding
+        decoded = base64.urlsafe_b64decode(payload)
+        return anyenv.load_json(decoded, return_type=dict)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _get_account_id(access_token: str) -> str | None:
+    """Extract ChatGPT account ID from JWT access token."""
+    payload = _decode_jwt(access_token)
+    if not payload:
+        return None
+    auth = payload.get(JWT_CLAIM_PATH, {})
+    account_id = auth.get("chatgpt_account_id")
+    return account_id if isinstance(account_id, str) and account_id else None
+
+
 @dataclass
-class AnthropicOAuthToken:
-    """Stored OAuth token data."""
+class OpenAICodexToken:
+    """Stored OAuth token data for OpenAI Codex."""
 
     access_token: str
     refresh_token: str
-    expires_at: float  # Unix timestamp
+    expires_at: float
+    account_id: str
 
-    def is_expired(self, buffer_seconds: int = 60) -> bool:
+    def is_expired(self, buffer_seconds: int = 300) -> bool:
         """Check if the token is expired or about to expire."""
         return time.time() >= (self.expires_at - buffer_seconds)
 
     def to_dict(self) -> dict[str, str | float]:
-        """Convert to dictionary for JSON serialization."""
         return {
             "access_token": self.access_token,
             "refresh_token": self.refresh_token,
             "expires_at": self.expires_at,
+            "account_id": self.account_id,
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, str | float]) -> Self:
-        """Create from dictionary."""
         return cls(
             access_token=str(data["access_token"]),
             refresh_token=str(data["refresh_token"]),
             expires_at=float(data["expires_at"]),
+            account_id=str(data["account_id"]),
         )
 
 
 @dataclass
-class AnthropicTokenStore:
-    """File-based token storage for Anthropic OAuth."""
+class OpenAICodexTokenStore:
+    """File-based token storage for OpenAI Codex OAuth."""
 
     path: Path = field(default_factory=lambda: DEFAULT_TOKEN_PATH)
-    _token: AnthropicOAuthToken | None = field(default=None, init=False, repr=False)
+    _token: OpenAICodexToken | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
-        """Ensure storage directory exists."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
-    def load(self) -> AnthropicOAuthToken | None:
-        """Load token from file."""
+    def load(self) -> OpenAICodexToken | None:
         if self._token is not None:
             return self._token
 
@@ -123,29 +138,26 @@ class AnthropicTokenStore:
 
         try:
             data = anyenv.load_json(self.path.read_text(), return_type=dict)
-            self._token = AnthropicOAuthToken.from_dict(data)
+            self._token = OpenAICodexToken.from_dict(data)
         except (anyenv.JsonLoadError, KeyError, TypeError) as e:
             logger.warning("Failed to load token from %s: %s", self.path, e)
             return None
         else:
             return self._token
 
-    def save(self, token: AnthropicOAuthToken) -> None:
-        """Save token to file."""
+    def save(self, token: OpenAICodexToken) -> None:
         self._token = token
         self.path.write_text(json.dumps(token.to_dict(), indent=2))
         self.path.chmod(0o600)
         logger.debug("Saved token to %s", self.path)
 
     def clear(self) -> None:
-        """Remove stored token."""
         self._token = None
         if self.path.exists():
             self.path.unlink()
             logger.debug("Removed token from %s", self.path)
 
-    def get_valid_token(self) -> AnthropicOAuthToken | None:
-        """Get token if it exists and is not expired."""
+    def get_valid_token(self) -> OpenAICodexToken | None:
         token = self.load()
         if token is None:
             return None
@@ -166,12 +178,13 @@ class _OAuthCallbackHandler(http.server.BaseHTTPRequestHandler):
         """Suppress default logging."""
 
     def do_GET(self) -> None:
-        """Handle GET request for OAuth callback."""
         parsed = urlparse(self.path)
 
-        if parsed.path != "/callback":
+        if parsed.path != "/auth/callback":
             self.send_response(404)
+            self.send_header("Content-Type", "text/html")
             self.end_headers()
+            self.wfile.write(b"<h1>Not Found</h1>")
             return
 
         params = parse_qs(parsed.query)
@@ -187,87 +200,98 @@ class _OAuthCallbackHandler(http.server.BaseHTTPRequestHandler):
             )
             return
 
-        if "code" in params and "state" in params:
-            _OAuthCallbackHandler.code = params["code"][0]
-            _OAuthCallbackHandler.state = params["state"][0]
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html")
-            self.end_headers()
-            self.wfile.write(
-                b"<h1>Authentication Successful</h1>"
-                b"<p>You can close this window and return to the terminal.</p>"
-            )
-        else:
+        state = params.get("state", [None])[0]
+        code = params.get("code", [None])[0]
+
+        if not code:
             self.send_response(400)
             self.send_header("Content-Type", "text/html")
             self.end_headers()
-            self.wfile.write(
-                b"<h1>Authentication Failed</h1><p>Missing code or state parameter.</p>"
-            )
+            self.wfile.write(b"<h1>Authentication Failed</h1><p>Missing authorization code.</p>")
+            return
+
+        _OAuthCallbackHandler.code = code
+        _OAuthCallbackHandler.state = state
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html")
+        self.end_headers()
+        self.wfile.write(
+            b"<h1>Authentication Successful</h1>"
+            b"<p>You can close this window and return to the terminal.</p>"
+        )
 
 
-def _start_callback_server() -> tuple[socketserver.TCPServer, threading.Thread, int]:
-    """Start local HTTP server for OAuth callback on a dynamic port.
-
-    Returns:
-        Tuple of (server, thread, port)
-    """
+def _start_callback_server() -> tuple[socketserver.TCPServer, threading.Thread]:
     _OAuthCallbackHandler.code = None
     _OAuthCallbackHandler.state = None
     _OAuthCallbackHandler.error = None
 
-    server = socketserver.TCPServer(("127.0.0.1", 0), _OAuthCallbackHandler)
-    port = server.server_address[1]
+    server = socketserver.TCPServer(("127.0.0.1", OAUTH_REDIRECT_PORT), _OAuthCallbackHandler)
     server.timeout = 300
 
     thread = threading.Thread(target=server.handle_request)
     thread.daemon = True
     thread.start()
 
-    return server, thread, port
+    return server, thread
 
 
-def build_authorization_url(verifier: str, challenge: str, redirect_uri: str) -> str:
+def _parse_authorization_input(user_input: str) -> dict[str, str]:
+    """Parse authorization input (code, code#state, or full URL)."""
+    value = user_input.strip()
+    if not value:
+        return {}
+
+    try:
+        parsed = urlparse(value)
+        params = parse_qs(parsed.query)
+        result: dict[str, str] = {}
+        if "code" in params:
+            result["code"] = params["code"][0]
+        if "state" in params:
+            result["state"] = params["state"][0]
+        if result:
+            return result
+    except Exception:  # noqa: BLE001
+        pass
+
+    if "#" in value:
+        parts = value.split("#", maxsplit=1)
+        return {"code": parts[0], "state": parts[1]}
+
+    return {"code": value}
+
+
+def build_authorization_url(verifier: str, challenge: str, state: str) -> str:
     """Build the OAuth authorization URL."""
     params = {
-        "code": "true",
-        "client_id": CLIENT_ID,
         "response_type": "code",
-        "redirect_uri": redirect_uri,
-        "scope": OAUTH_SCOPES,
+        "client_id": CLIENT_ID,
+        "redirect_uri": OAUTH_REDIRECT_URI,
+        "scope": OAUTH_SCOPE,
         "code_challenge": challenge,
         "code_challenge_method": "S256",
-        "state": verifier,
+        "state": state,
+        "id_token_add_organizations": "true",
+        "codex_cli_simplified_flow": "true",
+        "originator": "llmling",
     }
-    query = "&".join(f"{k}={v}" for k, v in params.items())
-    return f"{OAUTH_AUTHORIZE_URL}?{query}"
+    return f"{OAUTH_AUTHORIZE_URL}?{urlencode(params)}"
 
 
-def exchange_code_for_token(
-    code: str, state: str, verifier: str, redirect_uri: str
-) -> AnthropicOAuthToken:
-    """Exchange authorization code for access token.
-
-    Args:
-        code: The authorization code from callback
-        state: The OAuth state from callback
-        verifier: The PKCE code verifier
-        redirect_uri: The redirect URI used in the authorization request
-
-    Returns:
-        The OAuth token
-    """
+def exchange_code_for_token(code: str, verifier: str) -> OpenAICodexToken:
+    """Exchange authorization code for access token."""
     with httpx.Client(timeout=30.0) as client:
         response = client.post(
             OAUTH_TOKEN_URL,
-            json={
+            data={
                 "grant_type": "authorization_code",
                 "client_id": CLIENT_ID,
                 "code": code,
-                "state": state,
-                "redirect_uri": redirect_uri,
                 "code_verifier": verifier,
+                "redirect_uri": OAUTH_REDIRECT_URI,
             },
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
 
         if not response.is_success:
@@ -275,25 +299,38 @@ def exchange_code_for_token(
             raise RuntimeError(msg)
 
         data = response.json()
-        expires_at = time.time() + data["expires_in"] - 300
 
-        return AnthropicOAuthToken(
+        if not data.get("access_token") or not data.get("refresh_token"):
+            msg = f"Token response missing fields: {data}"
+            raise RuntimeError(msg)
+
+        expires_in = data.get("expires_in", 3600)
+        expires_at = time.time() + expires_in
+
+        account_id = _get_account_id(data["access_token"])
+        if not account_id:
+            msg = "Failed to extract account ID from access token"
+            raise RuntimeError(msg)
+
+        return OpenAICodexToken(
             access_token=data["access_token"],
             refresh_token=data["refresh_token"],
             expires_at=expires_at,
+            account_id=account_id,
         )
 
 
-def refresh_access_token(refresh_token: str) -> AnthropicOAuthToken:
+def refresh_access_token(refresh_token: str) -> OpenAICodexToken:
     """Refresh an expired access token."""
     with httpx.Client(timeout=30.0) as client:
         response = client.post(
             OAUTH_TOKEN_URL,
-            json={
+            data={
                 "grant_type": "refresh_token",
                 "refresh_token": refresh_token,
                 "client_id": CLIENT_ID,
             },
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
 
         if not response.is_success:
@@ -301,38 +338,50 @@ def refresh_access_token(refresh_token: str) -> AnthropicOAuthToken:
             raise RuntimeError(msg)
 
         data = response.json()
-        expires_at = time.time() + data["expires_in"] - 300
 
-        return AnthropicOAuthToken(
+        if not data.get("access_token") or not data.get("refresh_token"):
+            msg = f"Refresh response missing fields: {data}"
+            raise RuntimeError(msg)
+
+        expires_in = data.get("expires_in", 3600)
+        expires_at = time.time() + expires_in
+
+        account_id = _get_account_id(data["access_token"])
+        if not account_id:
+            msg = "Failed to extract account ID from refreshed token"
+            raise RuntimeError(msg)
+
+        return OpenAICodexToken(
             access_token=data["access_token"],
             refresh_token=data["refresh_token"],
             expires_at=expires_at,
+            account_id=account_id,
         )
 
 
-def authenticate_anthropic_max(
+def authenticate_openai_codex(
     verbose: bool = True,
     open_browser: bool = True,
-) -> AnthropicOAuthToken:
-    """Authenticate with Anthropic using OAuth for Claude Max/Pro.
+) -> OpenAICodexToken:
+    """Authenticate with OpenAI Codex using OAuth.
 
-    Uses a local callback server to automatically capture the authorization code.
-    Falls back to manual paste if the callback fails.
+    Uses a local callback server to capture the authorization code,
+    with fallback to manual paste.
     """
     verifier, challenge = generate_pkce()
+    state = secrets.token_hex(16)
 
     if verbose:
         print("Starting local server for OAuth callback...")
-    server, thread, port = _start_callback_server()
-    redirect_uri = f"http://localhost:{port}/callback"
+    server, thread = _start_callback_server()
 
     try:
-        auth_url = build_authorization_url(verifier, challenge, redirect_uri)
+        auth_url = build_authorization_url(verifier, challenge, state)
 
         if verbose:
-            print("\nTo authenticate with Claude Max/Pro:")
+            print("\nTo authenticate with ChatGPT Plus/Pro:")
             print(f"\n1. Visit: {auth_url}")
-            print("\n2. Sign in with your Anthropic account")
+            print("\n2. Sign in with your OpenAI account")
             print("3. The callback will be captured automatically")
             print()
 
@@ -350,10 +399,10 @@ def authenticate_anthropic_max(
             raise RuntimeError(msg)
 
         code = _OAuthCallbackHandler.code
-        state = _OAuthCallbackHandler.state
+        cb_state = _OAuthCallbackHandler.state
 
-        # Fall back to manual paste if callback wasn't received
-        if not code or not state:
+        # Fall back to manual paste
+        if not code:
             print("\nCallback not received. Paste the authorization code or full redirect URL:")
             try:
                 user_input = input("> ").strip()
@@ -362,31 +411,27 @@ def authenticate_anthropic_max(
                 msg = "Authentication cancelled by user"
                 raise RuntimeError(msg) from None
 
-            if not user_input:
-                msg = "No authorization code provided"
-                raise RuntimeError(msg)
-
-            # Parse input - could be code, code#state, or full URL
             parsed = _parse_authorization_input(user_input)
             code = parsed.get("code")
-            state = parsed.get("state", verifier)
+            cb_state = parsed.get("state", state)
 
-            if not code:
-                msg = "Could not extract authorization code from input"
-                raise RuntimeError(msg)
+        if not code:
+            msg = "No authorization code received"
+            raise RuntimeError(msg)
 
-        # Verify state
-        if state != verifier:
-            msg = "OAuth state mismatch - possible CSRF attack"
+        # Verify state if we got one back
+        if cb_state and cb_state != state:
+            msg = "OAuth state mismatch"
             raise RuntimeError(msg)
 
         if verbose:
             print("\nExchanging code for token...")
 
-        token = exchange_code_for_token(code, state, verifier, redirect_uri)
+        token = exchange_code_for_token(code, verifier)
 
         if verbose:
             print("Authentication successful!")
+            print(f"Account ID: {token.account_id}")
 
         return token
 
@@ -394,56 +439,19 @@ def authenticate_anthropic_max(
         server.server_close()
 
 
-def _parse_authorization_input(user_input: str) -> dict[str, str]:
-    """Parse authorization input which may be a code, code#state, or full URL."""
-    value = user_input.strip()
-    if not value:
-        return {}
-
-    # Try as URL
-    try:
-        parsed = urlparse(value)
-        params = parse_qs(parsed.query)
-        result: dict[str, str] = {}
-        if "code" in params:
-            result["code"] = params["code"][0]
-        if "state" in params:
-            result["state"] = params["state"][0]
-        if result:
-            return result
-    except Exception:  # noqa: BLE001
-        pass
-
-    # Try code#state format
-    if "#" in value:
-        parts = value.split("#", maxsplit=1)
-        return {"code": parts[0], "state": parts[1]}
-
-    # Try query string format
-    if "code=" in value:
-        params = parse_qs(value)
-        result = {}
-        if "code" in params:
-            result["code"] = params["code"][0]
-        if "state" in params:
-            result["state"] = params["state"][0]
-        if result:
-            return result
-
-    # Plain code
-    return {"code": value}
-
-
 def get_or_refresh_token(
-    store: AnthropicTokenStore | None = None,
-) -> AnthropicOAuthToken:
+    store: OpenAICodexTokenStore | None = None,
+) -> OpenAICodexToken:
     """Get a valid token, refreshing if necessary."""
     if store is None:
-        store = AnthropicTokenStore()
+        store = OpenAICodexTokenStore()
 
     token = store.load()
     if token is None:
-        msg = "No Anthropic OAuth token found. Run 'llmling-models anthropic-auth' to authenticate."
+        msg = (
+            "No OpenAI Codex OAuth token found. "
+            "Run 'llmling-models openai-codex-auth' to authenticate."
+        )
         raise RuntimeError(msg)
 
     if token.is_expired():
@@ -455,15 +463,18 @@ def get_or_refresh_token(
 
 
 async def get_or_refresh_token_async(
-    store: AnthropicTokenStore | None = None,
-) -> AnthropicOAuthToken:
+    store: OpenAICodexTokenStore | None = None,
+) -> OpenAICodexToken:
     """Async version of get_or_refresh_token."""
     if store is None:
-        store = AnthropicTokenStore()
+        store = OpenAICodexTokenStore()
 
     token = store.load()
     if token is None:
-        msg = "No Anthropic OAuth token found. Run 'llmling-models anthropic-auth' to authenticate."
+        msg = (
+            "No OpenAI Codex OAuth token found. "
+            "Run 'llmling-models openai-codex-auth' to authenticate."
+        )
         raise RuntimeError(msg)
 
     if token.is_expired():
@@ -471,11 +482,12 @@ async def get_or_refresh_token_async(
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
                 OAUTH_TOKEN_URL,
-                json={
+                data={
                     "grant_type": "refresh_token",
                     "refresh_token": token.refresh_token,
                     "client_id": CLIENT_ID,
                 },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
 
             if not response.is_success:
@@ -483,22 +495,32 @@ async def get_or_refresh_token_async(
                 raise RuntimeError(msg)
 
             data = response.json()
-            expires_at = time.time() + data["expires_in"] - 300
 
-            token = AnthropicOAuthToken(
+            if not data.get("access_token") or not data.get("refresh_token"):
+                msg = "Refresh response missing fields"
+                raise RuntimeError(msg)
+
+            expires_at = time.time() + data.get("expires_in", 3600)
+            account_id = _get_account_id(data["access_token"])
+            if not account_id:
+                msg = "Failed to extract account ID from refreshed token"
+                raise RuntimeError(msg)
+
+            token = OpenAICodexToken(
                 access_token=data["access_token"],
                 refresh_token=data["refresh_token"],
                 expires_at=expires_at,
+                account_id=account_id,
             )
             store.save(token)
 
     return token
 
 
-def anthropic_auth_main() -> None:
-    """Command-line entry point for Anthropic OAuth authentication."""
+def openai_codex_auth_main() -> None:
+    """Command-line entry point for OpenAI Codex OAuth authentication."""
     parser = argparse.ArgumentParser(
-        description="Authenticate with Anthropic Claude Max/Pro using OAuth."
+        description="Authenticate with OpenAI Codex (ChatGPT Plus/Pro) using OAuth."
     )
     parser.add_argument(
         "--no-browser",
@@ -523,7 +545,7 @@ def anthropic_auth_main() -> None:
     )
 
     args = parser.parse_args()
-    store = AnthropicTokenStore(path=args.token_path)
+    store = OpenAICodexTokenStore(path=args.token_path)
 
     if args.logout:
         store.clear()
@@ -544,17 +566,18 @@ def anthropic_auth_main() -> None:
             hours = int(remaining // 3600)
             minutes = int((remaining % 3600) // 60)
             print(f"Authenticated. Token expires in {hours}h {minutes}m.")
+            print(f"Account ID: {token.account_id}")
             print(f"Token path: {args.token_path}")
         return
 
     try:
-        token = authenticate_anthropic_max(
+        token = authenticate_openai_codex(
             verbose=True,
             open_browser=not args.no_browser,
         )
         store.save(token)
         print(f"\nToken saved to: {args.token_path}")
-        print("You can now use Claude Max/Pro models with auth_method='oauth'")
+        print("You can now use OpenAI Codex models with auth_method='oauth'")
     except Exception as e:
         logger.exception("Authentication failed")
         print(f"\nAuthentication failed: {e}", file=sys.stderr)
@@ -562,4 +585,4 @@ def anthropic_auth_main() -> None:
 
 
 if __name__ == "__main__":
-    anthropic_auth_main()
+    openai_codex_auth_main()

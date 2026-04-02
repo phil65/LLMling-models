@@ -15,13 +15,15 @@ from dataclasses import dataclass, field
 import hashlib
 import http.server
 import json
+import os
 from pathlib import Path
 import secrets
 import socketserver
 import sys
 import threading
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+from urllib.parse import parse_qs, urlparse
 import webbrowser
 
 import anyenv
@@ -36,7 +38,6 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 # OAuth client credentials (from Gemini CLI / Google Cloud Code Assist)
-# These are the same credentials used by the official Gemini CLI
 _CLIENT_ID = base64.b64decode(
     "NjgxMjU1ODA5Mzk1LW9vOGZ0Mm9wcmRybnA5ZTNhcWY2YXYzaG1kaWIxMzVqLmFwcHMuZ29vZ2xldXNlcmNvbnRlbnQuY29t"
 ).decode()
@@ -58,16 +59,16 @@ OAUTH_SCOPES = [
 # Google Cloud Code Assist endpoint
 CODE_ASSIST_ENDPOINT = "https://cloudcode-pa.googleapis.com"
 
+# Tier IDs as used by the Cloud Code API
+TIER_FREE = "free-tier"
+TIER_LEGACY = "legacy-tier"
+
 # Default token storage location
 DEFAULT_TOKEN_PATH = Path.home() / ".config" / "llmling-models" / "gemini_oauth.json"
 
 
 def generate_pkce() -> tuple[str, str]:
-    """Generate PKCE code verifier and challenge.
-
-    Returns:
-        Tuple of (verifier, challenge)
-    """
+    """Generate PKCE code verifier and challenge."""
     verifier = secrets.token_urlsafe(32)
     digest = hashlib.sha256(verifier.encode()).digest()
     challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
@@ -80,15 +81,12 @@ class GeminiOAuthToken:
 
     access_token: str
     refresh_token: str
-    expires_at: float  # Unix timestamp
+    expires_at: float
     project_id: str
     email: str | None = None
 
     def is_expired(self, buffer_seconds: int = 300) -> bool:
-        """Check if the token is expired or about to expire.
-
-        Uses a 5-minute buffer by default to ensure we refresh before expiry.
-        """
+        """Check if the token is expired or about to expire."""
         return time.time() >= (self.expires_at - buffer_seconds)
 
     def to_dict(self) -> dict[str, str | float | None]:
@@ -121,11 +119,9 @@ class GeminiTokenStore:
     _token: GeminiOAuthToken | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
-        """Ensure storage directory exists."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
     def load(self) -> GeminiOAuthToken | None:
-        """Load token from file."""
         if self._token is not None:
             return self._token
 
@@ -133,30 +129,27 @@ class GeminiTokenStore:
             return None
 
         try:
-            data = json.loads(self.path.read_text())
+            data = anyenv.load_json(self.path.read_text(), return_type=dict)
             self._token = GeminiOAuthToken.from_dict(data)
-        except (json.JSONDecodeError, KeyError, TypeError) as e:
+        except (anyenv.JsonLoadError, KeyError, TypeError) as e:
             logger.warning("Failed to load token from %s: %s", self.path, e)
             return None
         else:
             return self._token
 
     def save(self, token: GeminiOAuthToken) -> None:
-        """Save token to file."""
         self._token = token
         self.path.write_text(json.dumps(token.to_dict(), indent=2))
         self.path.chmod(0o600)
         logger.debug("Saved token to %s", self.path)
 
     def clear(self) -> None:
-        """Remove stored token."""
         self._token = None
         if self.path.exists():
             self.path.unlink()
             logger.debug("Removed token from %s", self.path)
 
     def get_valid_token(self) -> GeminiOAuthToken | None:
-        """Get token if it exists and is not expired."""
         token = self.load()
         if token is None:
             return None
@@ -177,60 +170,52 @@ class _OAuthCallbackHandler(http.server.BaseHTTPRequestHandler):
         """Suppress default logging."""
 
     def do_GET(self) -> None:
-        """Handle GET request for OAuth callback."""
-        from urllib.parse import parse_qs, urlparse
-
         parsed = urlparse(self.path)
 
-        if parsed.path == "/oauth2callback":
-            params = parse_qs(parsed.query)
-
-            if "error" in params:
-                _OAuthCallbackHandler.error = params["error"][0]
-                self.send_response(400)
-                self.send_header("Content-Type", "text/html")
-                self.end_headers()
-                self.wfile.write(
-                    f"<h1>Authentication Failed</h1><p>Error: {params['error'][0]}</p>"
-                    "<p>You can close this window.</p>".encode()
-                )
-                return
-
-            if "code" in params and "state" in params:
-                _OAuthCallbackHandler.code = params["code"][0]
-                _OAuthCallbackHandler.state = params["state"][0]
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html")
-                self.end_headers()
-                self.wfile.write(
-                    b"<h1>Authentication Successful</h1>"
-                    b"<p>You can close this window and return to the terminal.</p>"
-                )
-            else:
-                self.send_response(400)
-                self.send_header("Content-Type", "text/html")
-                self.end_headers()
-                self.wfile.write(
-                    b"<h1>Authentication Failed</h1><p>Missing code or state parameter.</p>"
-                )
-        else:
+        if parsed.path != "/oauth2callback":
             self.send_response(404)
             self.end_headers()
+            return
+
+        params = parse_qs(parsed.query)
+
+        if "error" in params:
+            _OAuthCallbackHandler.error = params["error"][0]
+            self.send_response(400)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(
+                f"<h1>Authentication Failed</h1><p>Error: {params['error'][0]}</p>"
+                "<p>You can close this window.</p>".encode()
+            )
+            return
+
+        if "code" in params and "state" in params:
+            _OAuthCallbackHandler.code = params["code"][0]
+            _OAuthCallbackHandler.state = params["state"][0]
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(
+                b"<h1>Authentication Successful</h1>"
+                b"<p>You can close this window and return to the terminal.</p>"
+            )
+        else:
+            self.send_response(400)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(
+                b"<h1>Authentication Failed</h1><p>Missing code or state parameter.</p>"
+            )
 
 
 def _start_callback_server() -> tuple[socketserver.TCPServer, threading.Thread]:
-    """Start local HTTP server for OAuth callback.
-
-    Returns:
-        Tuple of (server, thread)
-    """
-    # Reset handler state
     _OAuthCallbackHandler.code = None
     _OAuthCallbackHandler.state = None
     _OAuthCallbackHandler.error = None
 
     server = socketserver.TCPServer(("127.0.0.1", OAUTH_REDIRECT_PORT), _OAuthCallbackHandler)
-    server.timeout = 300  # 5 minute timeout
+    server.timeout = 300
 
     thread = threading.Thread(target=server.handle_request)
     thread.daemon = True
@@ -240,18 +225,65 @@ def _start_callback_server() -> tuple[socketserver.TCPServer, threading.Thread]:
 
 
 def _get_user_email(access_token: str) -> str | None:
-    """Get user email from access token."""
     try:
-        response = anyenv.get_json_sync(
-            "https://www.googleapis.com/oauth2/v1/userinfo",
-            params={"alt": "json"},
-            headers={"Authorization": f"Bearer {access_token}"},
-            return_type=dict,
-        )
-        return response.get("email")
+        with httpx.Client(timeout=30.0) as client:
+            response = client.get(
+                "https://www.googleapis.com/oauth2/v1/userinfo",
+                params={"alt": "json"},
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            if response.is_success:
+                data = anyenv.load_json(response.text, return_type=dict)
+                email: str | None = data.get("email")
+                return email
     except Exception:  # noqa: BLE001
         pass
     return None
+
+
+def _is_vpc_sc_affected(error_payload: dict[str, Any]) -> bool:
+    """Check if error indicates a VPC Service Controls affected user."""
+    details = error_payload.get("error", {}).get("details", [])
+    return any(d.get("reason") == "SECURITY_POLICY_VIOLATED" for d in details)
+
+
+def _get_default_tier(
+    allowed_tiers: list[dict[str, str | bool]] | None,
+) -> str:
+    """Get default tier ID from allowed tiers list."""
+    if not allowed_tiers:
+        return TIER_LEGACY
+    default = next((t for t in allowed_tiers if t.get("isDefault")), None)
+    return str(default.get("id", TIER_LEGACY)) if default else TIER_LEGACY
+
+
+def _poll_operation(
+    client: httpx.Client,
+    operation_name: str,
+    headers: dict[str, str],
+    verbose: bool = True,
+) -> dict[str, Any]:
+    """Poll a long-running operation until completion."""
+    attempt = 0
+    while True:
+        if attempt > 0:
+            if verbose:
+                print(f"Waiting for project provisioning (attempt {attempt + 1})...")
+            time.sleep(5)
+
+        response = client.get(
+            f"{CODE_ASSIST_ENDPOINT}/v1internal/{operation_name}",
+            headers=headers,
+        )
+        if not response.is_success:
+            msg = f"Failed to poll operation: {response.status_code}"
+            raise RuntimeError(msg)
+
+        data = anyenv.load_json(response.text, return_type=dict)
+        if data.get("done"):
+            return data
+
+        attempt += 1
 
 
 def _discover_project(
@@ -260,16 +292,16 @@ def _discover_project(
 ) -> str:
     """Discover or provision a Google Cloud project for the user.
 
-    Args:
-        access_token: Valid OAuth access token
-        verbose: Whether to print progress messages
-
-    Returns:
-        Project ID
-
-    Raises:
-        RuntimeError: If project discovery/provisioning fails
+    Handles:
+    - Existing projects (returns immediately)
+    - VPC-SC affected users (requires GOOGLE_CLOUD_PROJECT env var)
+    - Free tier onboarding with LRO polling
+    - Non-free tiers requiring explicit project ID
     """
+    env_project_id = os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get(
+        "GOOGLE_CLOUD_PROJECT_ID"
+    )
+
     headers = {
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json",
@@ -278,7 +310,6 @@ def _discover_project(
     }
 
     with httpx.Client(timeout=60.0) as client:
-        # Try to load existing project
         if verbose:
             print("Checking for existing Cloud Code Assist project...")
 
@@ -286,83 +317,105 @@ def _discover_project(
             f"{CODE_ASSIST_ENDPOINT}/v1internal:loadCodeAssist",
             headers=headers,
             json={
+                "cloudaicompanionProject": env_project_id,
                 "metadata": {
                     "ideType": "IDE_UNSPECIFIED",
                     "platform": "PLATFORM_UNSPECIFIED",
                     "pluginType": "GEMINI",
+                    "duetProject": env_project_id,
                 },
             },
         )
 
-        if response.is_success:
-            data = response.json()
+        if not response.is_success:
+            # Check for VPC-SC
+            try:
+                error_payload = response.json()
+            except Exception:  # noqa: BLE001
+                error_payload = {}
 
-            # If we have an existing project, use it
+            if _is_vpc_sc_affected(error_payload):
+                data = {"currentTier": {"id": "standard-tier"}}
+            else:
+                msg = f"loadCodeAssist failed: {response.status_code} - {response.text}"
+                raise RuntimeError(msg)
+        else:
+            data = anyenv.load_json(response.text, return_type=dict)
+
+        # User has an existing tier and project
+        if data.get("currentTier"):
             if data.get("cloudaicompanionProject"):
-                return data["cloudaicompanionProject"]  # type: ignore[no-any-return]
-
-            # Otherwise, try to onboard with the FREE tier
-            allowed_tiers = data.get("allowedTiers", [])
-            default_tier = next(
-                (t.get("id") for t in allowed_tiers if t.get("isDefault")),
-                allowed_tiers[0].get("id") if allowed_tiers else "FREE",
+                return str(data["cloudaicompanionProject"])
+            # Has tier but no managed project - need env var
+            if env_project_id:
+                return env_project_id
+            msg = (
+                "This account requires setting the GOOGLE_CLOUD_PROJECT or "
+                "GOOGLE_CLOUD_PROJECT_ID environment variable. "
+                "See https://goo.gle/gemini-cli-auth-docs#workspace-gca"
             )
-            tier_id = default_tier or "FREE"
+            raise RuntimeError(msg)
 
-            if verbose:
-                print("Provisioning Cloud Code Assist project (this may take a moment)...")
+        # Need onboarding - get default tier
+        tier_id = _get_default_tier(data.get("allowedTiers"))  # type: ignore[arg-type]
 
-            # Onboard with retries
-            max_attempts = 10
-            for attempt in range(max_attempts):
-                onboard_response = client.post(
-                    f"{CODE_ASSIST_ENDPOINT}/v1internal:onboardUser",
-                    headers=headers,
-                    json={
-                        "tierId": tier_id,
-                        "metadata": {
-                            "ideType": "IDE_UNSPECIFIED",
-                            "platform": "PLATFORM_UNSPECIFIED",
-                            "pluginType": "GEMINI",
-                        },
-                    },
-                )
+        if tier_id != TIER_FREE and not env_project_id:
+            msg = (
+                "This account requires setting the GOOGLE_CLOUD_PROJECT or "
+                "GOOGLE_CLOUD_PROJECT_ID environment variable. "
+                "See https://goo.gle/gemini-cli-auth-docs#workspace-gca"
+            )
+            raise RuntimeError(msg)
 
-                if onboard_response.is_success:
-                    onboard_data = onboard_response.json()
-                    project_id = (
-                        onboard_data
-                        .get("response", {})
-                        .get("cloudaicompanionProject", {})
-                        .get("id")
-                    )
+        if verbose:
+            print("Provisioning Cloud Code Assist project (this may take a moment)...")
 
-                    if onboard_data.get("done") and project_id:
-                        return project_id  # type: ignore[no-any-return]
+        onboard_body: dict[str, Any] = {
+            "tierId": tier_id,
+            "metadata": {
+                "ideType": "IDE_UNSPECIFIED",
+                "platform": "PLATFORM_UNSPECIFIED",
+                "pluginType": "GEMINI",
+            },
+        }
 
-                # Wait before retrying
-                if attempt < max_attempts - 1:
-                    if verbose:
-                        print(f"Waiting for project provisioning (attempt {attempt + 2}/10)...")
-                    time.sleep(3)
+        if tier_id != TIER_FREE and env_project_id:
+            onboard_body["cloudaicompanionProject"] = env_project_id
+            onboard_body["metadata"]["duetProject"] = env_project_id
+
+        onboard_response = client.post(
+            f"{CODE_ASSIST_ENDPOINT}/v1internal:onboardUser",
+            headers=headers,
+            json=onboard_body,
+        )
+
+        if not onboard_response.is_success:
+            msg = f"onboardUser failed: {onboard_response.status_code} - {onboard_response.text}"
+            raise RuntimeError(msg)
+
+        lro_data = onboard_response.json()
+
+        # Poll if not done yet
+        if not lro_data.get("done") and lro_data.get("name"):
+            lro_data = _poll_operation(client, lro_data["name"], headers, verbose)
+
+        project_id = lro_data.get("response", {}).get("cloudaicompanionProject", {}).get("id")
+        if project_id:
+            return str(project_id)
+
+        if env_project_id:
+            return env_project_id
 
     msg = (
         "Could not discover or provision a Google Cloud project. "
-        "Please ensure you have access to Google Cloud Code Assist (Gemini CLI)."
+        "Try setting the GOOGLE_CLOUD_PROJECT or GOOGLE_CLOUD_PROJECT_ID "
+        "environment variable. "
+        "See https://goo.gle/gemini-cli-auth-docs#workspace-gca"
     )
     raise RuntimeError(msg)
 
 
 def build_authorization_url(verifier: str, challenge: str) -> str:
-    """Build the OAuth authorization URL.
-
-    Args:
-        verifier: PKCE code verifier (used as state)
-        challenge: PKCE code challenge
-
-    Returns:
-        The authorization URL to open in browser
-    """
     params = {
         "client_id": _CLIENT_ID,
         "response_type": "code",
@@ -379,18 +432,6 @@ def build_authorization_url(verifier: str, challenge: str) -> str:
 
 
 def exchange_code_for_token(code: str, verifier: str) -> dict[str, str | int]:
-    """Exchange authorization code for access token.
-
-    Args:
-        code: The authorization code from callback
-        verifier: The PKCE code verifier
-
-    Returns:
-        Token response data
-
-    Raises:
-        RuntimeError: If token exchange fails
-    """
     with httpx.Client(timeout=30.0) as client:
         response = client.post(
             OAUTH_TOKEN_URL,
@@ -409,7 +450,9 @@ def exchange_code_for_token(code: str, verifier: str) -> dict[str, str | int]:
             msg = f"Token exchange failed: {response.status_code} - {response.text}"
             raise RuntimeError(msg)
 
-        return response.json()  # type: ignore[no-any-return]
+        data = response.json()
+        assert isinstance(data, dict)
+        return data
 
 
 def refresh_access_token(
@@ -417,19 +460,6 @@ def refresh_access_token(
     project_id: str,
     email: str | None = None,
 ) -> GeminiOAuthToken:
-    """Refresh an expired access token.
-
-    Args:
-        refresh_token: The refresh token
-        project_id: The project ID to preserve
-        email: The email to preserve
-
-    Returns:
-        New OAuth token
-
-    Raises:
-        RuntimeError: If refresh fails
-    """
     with httpx.Client(timeout=30.0) as client:
         response = client.post(
             OAUTH_TOKEN_URL,
@@ -447,7 +477,6 @@ def refresh_access_token(
             raise RuntimeError(msg)
 
         data = response.json()
-        # Calculate expiry (expires_in seconds - 5 min buffer)
         expires_at = time.time() + data["expires_in"] - 300
 
         return GeminiOAuthToken(
@@ -463,36 +492,14 @@ def authenticate_gemini_cli(
     verbose: bool = True,
     open_browser: bool = True,
 ) -> GeminiOAuthToken:
-    """Authenticate with Gemini CLI using OAuth.
-
-    This initiates the OAuth PKCE flow:
-    1. Starts a local HTTP server for the callback
-    2. Opens browser to Google authorization page
-    3. User authenticates and authorizes the application
-    4. Callback is captured automatically
-    5. Code is exchanged for access/refresh tokens
-    6. Project is discovered/provisioned
-
-    Args:
-        verbose: Whether to print status messages
-        open_browser: Whether to automatically open the browser
-
-    Returns:
-        The OAuth token with project info
-
-    Raises:
-        RuntimeError: If authentication fails
-    """
-    # Generate PKCE challenge
+    """Authenticate with Gemini CLI using OAuth."""
     verifier, challenge = generate_pkce()
 
-    # Start callback server
     if verbose:
         print("Starting local server for OAuth callback...")
     server, thread = _start_callback_server()
 
     try:
-        # Build authorization URL
         auth_url = build_authorization_url(verifier, challenge)
 
         if verbose:
@@ -507,12 +514,10 @@ def authenticate_gemini_cli(
                 print("Opening browser...")
             webbrowser.open(auth_url)
 
-        # Wait for callback
         if verbose:
             print("Waiting for OAuth callback...")
-        thread.join(timeout=300)  # 5 minute timeout
+        thread.join(timeout=300)
 
-        # Check for errors
         if _OAuthCallbackHandler.error:
             msg = f"OAuth error: {_OAuthCallbackHandler.error}"
             raise RuntimeError(msg)
@@ -521,12 +526,10 @@ def authenticate_gemini_cli(
             msg = "OAuth callback timed out or was not received"
             raise RuntimeError(msg)
 
-        # Verify state
         if _OAuthCallbackHandler.state != verifier:
             msg = "OAuth state mismatch - possible CSRF attack"
             raise RuntimeError(msg)
 
-        # Exchange code for token
         if verbose:
             print("\nExchanging authorization code for tokens...")
 
@@ -538,15 +541,12 @@ def authenticate_gemini_cli(
 
         access_token = token_data["access_token"]
 
-        # Get user email
         if verbose:
             print("Getting user info...")
         email = _get_user_email(str(access_token))
 
-        # Discover/provision project
         project_id = _discover_project(str(access_token), verbose=verbose)
 
-        # Calculate expiry (expires_in seconds - 5 min buffer)
         expires_at = time.time() + int(token_data["expires_in"]) - 300
 
         if verbose:
@@ -568,17 +568,6 @@ def authenticate_gemini_cli(
 
 
 def get_or_refresh_token(store: GeminiTokenStore | None = None) -> GeminiOAuthToken:
-    """Get a valid token, refreshing if necessary.
-
-    Args:
-        store: Token store to use (defaults to standard location)
-
-    Returns:
-        Valid OAuth token
-
-    Raises:
-        RuntimeError: If no token exists and authentication is needed
-    """
     if store is None:
         store = GeminiTokenStore()
 
@@ -598,17 +587,6 @@ def get_or_refresh_token(store: GeminiTokenStore | None = None) -> GeminiOAuthTo
 async def get_or_refresh_token_async(
     store: GeminiTokenStore | None = None,
 ) -> GeminiOAuthToken:
-    """Async version of get_or_refresh_token.
-
-    Args:
-        store: Token store to use (defaults to standard location)
-
-    Returns:
-        Valid OAuth token
-
-    Raises:
-        RuntimeError: If no token exists and authentication is needed
-    """
     if store is None:
         store = GeminiTokenStore()
 

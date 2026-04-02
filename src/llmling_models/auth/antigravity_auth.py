@@ -24,6 +24,7 @@ import time
 from typing import TYPE_CHECKING
 import webbrowser
 
+import anyenv
 import httpx
 
 from llmling_models.log import get_logger
@@ -139,9 +140,9 @@ class AntigravityTokenStore:
             return None
 
         try:
-            data = json.loads(self.path.read_text())
+            data = anyenv.load_json(self.path.read_text(), return_type=dict)
             self._token = AntigravityOAuthToken.from_dict(data)
-        except (json.JSONDecodeError, KeyError, TypeError) as e:
+        except (anyenv.JsonLoadError, KeyError, TypeError) as e:
             logger.warning("Failed to load token from %s: %s", self.path, e)
             return None
         else:

@@ -13,7 +13,7 @@ from typing import Any, cast
 from pydantic_ai.models import Model
 import yaml
 
-from llmling_models.auth.github_auth import authenticate_copilot, save_token
+from llmling_models.auth.github_auth import CopilotTokenStore, authenticate_copilot
 from llmling_models.log import get_logger
 from llmling_models.openai_server import ModelRegistry, OpenAIServer
 
@@ -86,14 +86,19 @@ def setup_copilot_auth_parser(subparsers: Any) -> None:
         help="Suppress status messages",
     )
     auth_parser.add_argument(
-        "--save",
-        action="store_true",
-        help="Save token to .env file if it exists",
+        "--enterprise",
+        default=None,
+        help="GitHub Enterprise domain (e.g. company.ghe.com)",
     )
     auth_parser.add_argument(
-        "--env-var",
-        default="GITHUB_COPILOT_TOKEN",
-        help="Environment variable name to use (default: GITHUB_COPILOT_TOKEN)",
+        "--logout",
+        action="store_true",
+        help="Remove stored token and log out",
+    )
+    auth_parser.add_argument(
+        "--status",
+        action="store_true",
+        help="Show current authentication status",
     )
 
     auth_parser.set_defaults(func=copilot_auth_command)
@@ -392,13 +397,43 @@ def serve_command(args: argparse.Namespace) -> None:
 
 def copilot_auth_command(args: argparse.Namespace) -> None:
     """Authenticate with GitHub Copilot."""
+    import time
+
+    store = CopilotTokenStore()
+
+    if args.logout:
+        store.clear()
+        print("Logged out. Token removed.")
+        return
+
+    if args.status:
+        data = store.load()
+        if data is None:
+            print("Not authenticated.")
+            sys.exit(1)
+        expires_at = data.get("expires_at", 0)
+        if isinstance(expires_at, (int, float)) and time.time() < expires_at:
+            remaining = expires_at - time.time()
+            hours = int(remaining // 3600)
+            minutes = int((remaining % 3600) // 60)
+            print(f"Authenticated. Copilot token expires in {hours}h {minutes}m.")
+        else:
+            print("Copilot token expired (will refresh automatically on use).")
+        print(f"Base URL: {data.get('base_url', 'unknown')}")
+        enterprise = data.get("enterprise_domain")
+        if enterprise:
+            print(f"Enterprise: {enterprise}")
+        print(f"Token path: {store.path}")
+        return
+
     try:
-        result = authenticate_copilot(verbose=not args.silent)
-        print(f"\nToken: {result.token}")
-
-        if args.save:
-            save_token(result.token, args.env_var)
-
+        result = authenticate_copilot(
+            verbose=not args.silent,
+            enterprise_domain=getattr(args, "enterprise", None),
+        )
+        store.save(result)
+        print(f"\nToken saved to: {store.path}")
+        print("You can now use GitHub Copilot models.")
     except Exception:
         logger.exception("Authentication failed")
         sys.exit(1)
