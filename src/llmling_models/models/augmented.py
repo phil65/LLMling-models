@@ -20,11 +20,7 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     from pydantic_ai import ModelMessage, ModelResponse, ModelSettings, RunContext
-    from pydantic_ai.models import (
-        KnownModelName,
-        ModelRequestParameters,
-        StreamedResponse,
-    )
+    from pydantic_ai.models import KnownModelName, ModelRequestParameters, StreamedResponse
 
 
 class PrePostPromptConfig(Schema):
@@ -88,8 +84,7 @@ class AugmentedModel(Model):
             case "post" if self.post_prompt:
                 model = self.post_prompt.model_instance
             case _:
-                msg = f"Unknown model key: {key}"
-                raise ValueError(msg)
+                raise ValueError(f"Unknown model key: {key}")
 
         self._initialized_models[key] = model
         return model

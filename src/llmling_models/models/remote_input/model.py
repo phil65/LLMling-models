@@ -18,12 +18,7 @@ from llmling_models.log import get_logger
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-    from pydantic_ai import (
-        ModelMessage,
-        ModelResponseStreamEvent,
-        ModelSettings,
-        RunContext,
-    )
+    from pydantic_ai import ModelMessage, ModelResponseStreamEvent, ModelSettings, RunContext
     from websockets import ClientConnection
 
 logger = get_logger(__name__)
@@ -39,7 +34,7 @@ def extract_conversation(messages: list[ModelMessage]) -> list[dict[str, str]]:
 
         for part in message.parts:
             if hasattr(part, "content"):
-                content += str(part.content)
+                content += str(part.content)  # pyright: ignore[reportAttributeAccessIssue]
         if content:
             history.append({"role": role, "content": content})
 
@@ -94,37 +89,24 @@ class RemoteInputModel(Model):
                     last_message = messages[-1]
                     for part in last_message.parts:
                         if hasattr(part, "content"):
-                            prompt += str(part.content)
+                            prompt += str(part.content)  # pyright: ignore[reportAttributeAccessIssue]
                 conversation = extract_conversation(messages[:-1])
-
                 # Log request data for debugging
                 request_data = {"prompt": prompt, "conversation": conversation}
                 logger.debug("Sending request data: %s", request_data)
-
                 # Make request
-                response = await client.post(
-                    f"{self.url}/v1/chat/completions",
-                    json=request_data,
-                    timeout=30.0,
-                )
+                url = f"{self.url}/v1/chat/completions"
+                response = await client.post(url, json=request_data, timeout=30.0)
                 response.raise_for_status()
-
                 response_data = response.json()
                 logger.debug("Received response: %s", response_data)
-
-                return ModelResponse(
-                    parts=[TextPart(response_data["content"])],
-                    timestamp=datetime.now(UTC),
-                    usage=RequestUsage(),
-                )
+                return ModelResponse(parts=[TextPart(response_data["content"])])
 
             except httpx.HTTPStatusError as e:
                 logger.exception("Error response: %s", e.response.text)
-                msg = f"HTTP error: {e}"
-                raise RuntimeError(msg) from e
+                raise RuntimeError(f"HTTP error: {e}") from e
             except httpx.HTTPError as e:
-                msg = f"HTTP error: {e}"
-                raise RuntimeError(msg) from e
+                raise RuntimeError(f"HTTP error: {e}") from e
 
     async def _request_websocket(self, messages: list[ModelMessage]) -> ModelResponse:
         """Make WebSocket request to remote operator."""
@@ -141,36 +123,26 @@ class RemoteInputModel(Model):
                     last_message = messages[-1]
                     for part in last_message.parts:
                         if hasattr(part, "content"):
-                            prompt += str(part.content)
+                            prompt += str(part.content)  # pyright: ignore[reportAttributeAccessIssue]
                 conversation = extract_conversation(messages[:-1])
                 data = anyenv.dump_json({"prompt": prompt, "conversation": conversation})
-
                 # Send request
                 await websocket.send(data)
-
                 # Accumulate response characters
                 response_text = ""
                 while True:
                     raw_data = await websocket.recv()
                     dct = anyenv.load_json(raw_data, return_type=dict)
                     if dct.get("error"):
-                        msg = f"Server error: {dct['error']}"
-                        raise RuntimeError(msg)
-
+                        raise RuntimeError(f"Server error: {dct['error']}")
                     if dct["done"]:
                         break
-
                     response_text += dct["chunk"]
 
-                return ModelResponse(
-                    parts=[TextPart(response_text)],
-                    timestamp=datetime.now(UTC),
-                    usage=RequestUsage(),
-                )
+                return ModelResponse(parts=[TextPart(response_text)])
 
             except (websockets.ConnectionClosed, ValueError, KeyError) as e:
-                msg = f"WebSocket error: {e}"
-                raise RuntimeError(msg) from e
+                raise RuntimeError(f"WebSocket error: {e}") from e
 
     @asynccontextmanager
     async def request_stream(
@@ -182,8 +154,7 @@ class RemoteInputModel(Model):
     ) -> AsyncIterator[StreamedResponse]:
         """Stream responses from operator."""
         if self.protocol != "websocket":
-            msg = "Streaming is only supported with WebSocket protocol"
-            raise RuntimeError(msg)
+            raise RuntimeError("Streaming is only supported with WebSocket protocol")
 
         import anyenv
         import websockets
@@ -198,7 +169,7 @@ class RemoteInputModel(Model):
                 last_message = messages[-1]
                 for part in last_message.parts:
                     if hasattr(part, "content"):
-                        prompt += str(part.content)
+                        prompt += str(part.content)  # pyright: ignore[reportAttributeAccessIssue]
             conversation = extract_conversation(messages[:-1])
             data = anyenv.dump_json({"prompt": prompt, "conversation": conversation})
             await websocket.send(data)
@@ -209,8 +180,7 @@ class RemoteInputModel(Model):
             )
 
         except websockets.ConnectionClosed as e:
-            msg = f"WebSocket error: {e}"
-            raise RuntimeError(msg) from e
+            raise RuntimeError(f"WebSocket error: {e}") from e
         finally:
             await websocket.close()
 
@@ -253,8 +223,7 @@ class RemoteInputStreamedResponse(StreamedResponse):
                     data = anyenv.load_json(raw_data, return_type=dict)
 
                     if data.get("error"):
-                        msg = f"Server error: {data['error']}"
-                        raise RuntimeError(msg)
+                        raise RuntimeError(f"Server error: {data['error']}")
 
                     if data["done"]:
                         break
@@ -267,12 +236,10 @@ class RemoteInputStreamedResponse(StreamedResponse):
                         yield event
 
                 except (websockets.ConnectionClosed, ValueError, KeyError) as e:
-                    msg = f"Stream error: {e}"
-                    raise RuntimeError(msg) from e
+                    raise RuntimeError(f"Stream error: {e}") from e
 
         except Exception as e:
-            msg = f"Stream error: {e}"
-            raise RuntimeError(msg) from e
+            raise RuntimeError(f"Stream error: {e}") from e
 
     @property
     def timestamp(self) -> datetime:

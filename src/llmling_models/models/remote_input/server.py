@@ -48,10 +48,9 @@ def format_conversation(prompt: str, conversation: list[Message] | None = None) 
     """Format conversation for display to operator."""
     lines = []
 
-    if conversation:
-        for msg in conversation:
-            prefix = "👤" if msg.role == "user" else "🤖"
-            lines.append(f"{prefix} {msg.content}")
+    for msg in conversation or []:
+        prefix = "👤" if msg.role == "user" else "🤖"
+        lines.append(f"{prefix} {msg.content}")
 
     lines.append("\n>>> Current prompt:")
     lines.append(f"👤 {prompt}")
@@ -117,11 +116,9 @@ class ModelServer:
                     # Receive and parse request
                     raw_message = await websocket.receive_text()
                     request = CompletionRequest.model_validate_json(raw_message)
-
                     # Display to operator
                     print("\n" + "=" * 80)
                     print(format_conversation(request.prompt, request.conversation))
-
                     # Get response character by character
                     print("Type your response (press Enter when done):")
                     buffer = []

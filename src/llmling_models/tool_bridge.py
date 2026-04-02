@@ -43,31 +43,24 @@ def _convert_to_tool_result(result: Any) -> ToolResult:
     # Already a ToolResult - pass through
     if isinstance(result, ToolResult):
         return result
-
     # Dict - use as structured_content (FastMCP auto-populates content as JSON)
     if isinstance(result, dict):
         return ToolResult(structured_content=result)
-
     # Pydantic model - serialize to dict for structured_content
     if isinstance(result, BaseModel):
         return ToolResult(structured_content=result.model_dump(mode="json"))
-
     # All other types (str, list, ContentBlock, Image, None, primitives, etc.)
     # ToolResult's internal _convert_to_content handles these correctly
-    if result is None:
-        return ToolResult(content="")
-    return ToolResult(content=result)
+    return ToolResult(content=result or "")
 
 
 def _get_function_schema(func: Callable[..., Any]) -> dict[str, Any]:
     """Extract JSON schema from a function's signature and docstring."""
     sig = inspect.signature(func)
     hints = get_type_hints(func) if hasattr(func, "__annotations__") else {}
-
     # Build properties from parameters
     properties: dict[str, Any] = {}
     required: list[str] = []
-
     for name, param in sig.parameters.items():
         if name in ("self", "cls"):
             continue
@@ -110,8 +103,7 @@ def _get_function_schema(func: Callable[..., Any]) -> dict[str, Any]:
 
 def _get_function_description(func: Callable[..., Any]) -> str:
     """Extract description from function docstring."""
-    doc = inspect.getdoc(func)
-    if doc:
+    if doc := inspect.getdoc(func):
         # Return first line/paragraph
         return doc.split("\n\n")[0].strip()
     name = getattr(func, "__name__", "unknown")
@@ -229,10 +221,7 @@ class ToolBridge:
         Returns:
             MCPServerTool configured to connect to this bridge.
         """
-        return MCPServerTool(
-            id=self.config.server_name,
-            url=self.url,
-        )
+        return MCPServerTool(id=self.config.server_name, url=self.url)
 
     def _register_tools(self) -> None:
         """Register all functions with the FastMCP server."""
@@ -252,10 +241,8 @@ class ToolBridge:
         name = getattr(func, "__name__", "unknown")
         description = _get_function_description(func)
         parameters = _get_function_schema(func)
-
         # Store the function for invocation
         self._tool_funcs[name] = func
-
         # Create wrapper that bridges to our invocation
         bridge = self
 
@@ -263,11 +250,7 @@ class ToolBridge:
             """FastMCP tool that wraps a Python function."""
 
             def __init__(self) -> None:
-                super().__init__(
-                    name=name,
-                    description=description,
-                    parameters=parameters,
-                )
+                super().__init__(name=name, description=description, parameters=parameters)
 
             async def run(
                 self, arguments: dict[str, Any], context: Context | None = None
@@ -281,14 +264,11 @@ class ToolBridge:
     async def _invoke_tool(self, tool_name: str, arguments: dict[str, Any]) -> Any:
         """Invoke a tool function."""
         if tool_name not in self._tool_funcs:
-            msg = f"Tool {tool_name!r} not found"
-            raise KeyError(msg)
+            raise KeyError(f"Tool {tool_name!r} not found")
 
         func = self._tool_funcs[tool_name]
-
         # Call the function
         result = func(**arguments)
-
         # Handle async functions
         if inspect.isawaitable(result):
             result = await result
@@ -300,8 +280,7 @@ class ToolBridge:
         import uvicorn
 
         if not self._mcp:
-            msg = "MCP server not initialized"
-            raise RuntimeError(msg)
+            raise RuntimeError("MCP server not initialized")
 
         # Determine actual port (auto-select if 0)
         port = self.config.port
@@ -310,25 +289,14 @@ class ToolBridge:
                 s.bind((self.config.host, 0))
                 port = s.getsockname()[1]
         self._actual_port = port
-
         # Create the ASGI app
         app = self._mcp.http_app(transport=self.config.transport)  # type: ignore[arg-type]
-
         # Configure uvicorn
-        cfg = uvicorn.Config(
-            app=app,
-            host=self.config.host,
-            port=port,
-            log_level="warning",
-        )
+        cfg = uvicorn.Config(app=app, host=self.config.host, port=port, log_level="warning")
         self._server = uvicorn.Server(cfg)
-
         # Start server in background task
-        self._server_task = asyncio.create_task(
-            self._server.serve(),
-            name=f"tool-bridge-{self.config.server_name}",
-        )
-
+        name = f"tool-bridge-{self.config.server_name}"
+        self._server_task = asyncio.create_task(self._server.serve(), name=name)
         # Wait briefly for server to start
         await asyncio.sleep(0.1)
 

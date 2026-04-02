@@ -6,7 +6,7 @@ import contextlib
 from dataclasses import asdict
 from typing import TYPE_CHECKING, Any
 
-from pydantic_ai import ModelMessagesTypeAdapter, ModelResponse
+from pydantic_ai import ModelMessagesTypeAdapter
 from pydantic_ai.models import ModelRequestParameters
 
 from llmling_models.log import get_logger
@@ -60,10 +60,7 @@ class ModelServer:
             )
         token = auth.removeprefix("Bearer ")
         if token != self.api_key:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid API key",
-            )
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
 
     def _setup_routes(self) -> None:
         """Configure API routes."""
@@ -77,14 +74,8 @@ class ModelServer:
             """Handle completion requests via REST."""
             try:
                 self._verify_auth(auth)
-
                 # Create model parameters
-                model_params = ModelRequestParameters(
-                    function_tools=[],
-                    allow_text_output=True,
-                    output_tools=[],
-                )
-
+                model_params = ModelRequestParameters(allow_text_output=True)
                 # Get response
                 response = await self.model.request(
                     messages,
@@ -92,7 +83,7 @@ class ModelServer:
                     model_request_parameters=model_params,
                 )
                 content = (
-                    str(response.parts[0].content) if hasattr(response.parts[0], "content") else ""
+                    str(response.parts[0].content) if hasattr(response.parts[0], "content") else ""  # pyright: ignore[reportAttributeAccessIssue]
                 )
                 return {"content": content, "usage": asdict(response.usage)}
 
@@ -110,38 +101,29 @@ class ModelServer:
                 # Check auth
                 auth = websocket.headers.get("Authorization")
                 self._verify_auth(auth)
-
                 # Accept connection
                 await websocket.accept()
                 logger.debug("WebSocket connection accepted")
-
                 # Create model parameters
-                model_params = ModelRequestParameters(
-                    function_tools=[],
-                    allow_text_output=True,
-                    output_tools=[],
-                )
-
+                model_params = ModelRequestParameters(allow_text_output=True)
                 while True:
                     try:
                         data = await websocket.receive()
                         logger.debug("Received request data: %s", data)
-
-                        if data["type"] == "websocket.disconnect":
-                            break
-                        if data["type"] != "websocket.receive":
-                            continue
-
-                        if "bytes" in data:
-                            raw_messages = data["bytes"].decode("utf-8")
-                        elif "text" in data:
-                            raw_messages = data["text"]
-                        else:
-                            continue
+                        match data:
+                            case {"type": "websocket.disconnect"}:
+                                break
+                            case {"type": "websocket.receive"}:
+                                continue
+                            case {"bytes": bytes_}:
+                                raw_messages = bytes_.decode("utf-8")
+                            case {"text": text}:
+                                raw_messages = text
+                            case _:
+                                continue
 
                         messages = ModelMessagesTypeAdapter.validate_json(raw_messages)
                         logger.debug("Starting stream for messages: %s", messages)
-
                         # Use actual streaming from the model
                         async with self.model.request_stream(
                             messages,
@@ -149,32 +131,17 @@ class ModelServer:
                             model_request_parameters=model_params,
                         ) as stream:
                             logger.debug("Stream started")
-
                             # Stream chunks
                             async for _ in stream:
                                 chunks = stream.get()
-                                if isinstance(chunks, ModelResponse):
-                                    # Handle ModelResponse
-                                    if chunks.parts and hasattr(chunks.parts[0], "content"):
-                                        await websocket.send_json({
-                                            "chunk": str(chunks.parts[0].content),  # pyright: ignore[reportAttributeAccessIssue]
-                                            "done": False,
-                                        })
-                                else:
-                                    # Handle Iterable[str]
-                                    for chunk in chunks:
-                                        if chunk:  # Only send non-empty chunks
-                                            await websocket.send_json({
-                                                "chunk": chunk,
-                                                "done": False,
-                                            })
-
+                                if chunks.parts and hasattr(chunks.parts[0], "content"):
+                                    await websocket.send_json({
+                                        "chunk": str(chunks.parts[0].content),  # pyright: ignore[reportAttributeAccessIssue]
+                                        "done": False,
+                                    })
                             # Send completion with usage
-                            await websocket.send_json({
-                                "chunk": "",
-                                "done": True,
-                                "usage": asdict(stream.usage()),
-                            })
+                            usage = asdict(stream.usage())
+                            await websocket.send_json({"chunk": "", "done": True, "usage": usage})
 
                     except WebSocketDisconnect:
                         logger.info("WebSocket disconnected")
@@ -183,10 +150,7 @@ class ModelServer:
             except Exception as e:
                 logger.exception("Error in WebSocket connection")
                 with contextlib.suppress(WebSocketDisconnect):
-                    await websocket.send_json({
-                        "error": str(e),
-                        "done": True,
-                    })
+                    await websocket.send_json({"error": str(e), "done": True})
 
     def run(self, host: str = "0.0.0.0", port: int = 8000, **kwargs: Any) -> None:
         """Start the server."""

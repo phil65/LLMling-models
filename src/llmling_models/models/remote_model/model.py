@@ -9,12 +9,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from urllib.parse import urlparse
 
 import httpx
-from pydantic_ai import (
-    ModelMessagesTypeAdapter,
-    ModelResponse,
-    RequestUsage,
-    TextPart,
-)
+from pydantic_ai import ModelMessagesTypeAdapter, ModelResponse, RequestUsage, TextPart
 from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
 
 from llmling_models.log import get_logger
@@ -23,12 +18,7 @@ from llmling_models.log import get_logger
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-    from pydantic_ai import (
-        ModelMessage,
-        ModelResponseStreamEvent,
-        ModelSettings,
-        RunContext,
-    )
+    from pydantic_ai import ModelMessage, ModelResponseStreamEvent, ModelSettings, RunContext
     from websockets import ClientConnection
 
 logger = get_logger(__name__)
@@ -78,10 +68,8 @@ class RemoteProxyModel(Model):
             try:
                 # Serialize complete message history
                 payload = ModelMessagesTypeAdapter.dump_json(messages)
-
                 logger.debug("Sending request to %s", self.url)
                 logger.debug("Request payload: %s", payload)
-
                 response = await client.post(
                     f"{self.url}/v1/completion",
                     content=payload,
@@ -89,11 +77,9 @@ class RemoteProxyModel(Model):
                     timeout=30.0,
                 )
                 response.raise_for_status()
-
                 # Deserialize response
                 data = response.json()
                 logger.debug("Received response: %s", data)
-
                 model_response = ModelResponse(
                     parts=[TextPart(data["content"])],
                     timestamp=datetime.now(UTC),
@@ -115,7 +101,6 @@ class RemoteProxyModel(Model):
         import websockets
 
         headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
-
         async with websockets.connect(self.url, extra_headers=headers) as websocket:
             try:
                 # Serialize and send messages
@@ -126,19 +111,14 @@ class RemoteProxyModel(Model):
                 # Accumulate response chunks
                 chunks: list[str] = []
                 usage = RequestUsage()
-
                 while True:
                     raw_data = await websocket.recv()
                     data = anyenv.load_json(raw_data, return_type=dict)
                     logger.debug("Received WebSocket data: %s", data)
-
                     if data.get("error"):
-                        msg = f"Server error: {data['error']}"
-                        raise RuntimeError(msg)
-
+                        raise RuntimeError(f"Server error: {data['error']}")
                     if data.get("usage"):
                         usage = RequestUsage(**data["usage"])
-
                     chunk = data.get("chunk")
                     if chunk is not None:  # Include empty strings but not None
                         chunks.append(chunk)
@@ -148,14 +128,12 @@ class RemoteProxyModel(Model):
 
                 content = "".join(chunks)
                 if not content:
-                    msg = "Received empty response from server"
-                    raise RuntimeError(msg)
+                    raise RuntimeError("Received empty response from server")
                 ts = datetime.now(UTC)
                 return ModelResponse(parts=[TextPart(content)], timestamp=ts, usage=usage)
 
             except (websockets.ConnectionClosed, ValueError, KeyError) as e:
-                msg = f"WebSocket error: {e}"
-                raise RuntimeError(msg) from e
+                raise RuntimeError(f"WebSocket error: {e}") from e
 
     @asynccontextmanager
     async def request_stream(
@@ -167,8 +145,7 @@ class RemoteProxyModel(Model):
     ) -> AsyncIterator[StreamedResponse]:
         """Stream responses using WebSocket connection."""
         if self.protocol != "websocket":
-            msg = "Streaming is only supported with WebSocket protocol"
-            raise RuntimeError(msg)
+            raise RuntimeError("Streaming is only supported with WebSocket protocol")
 
         import websockets
 
@@ -229,8 +206,7 @@ class RemoteProxyStreamedResponse(StreamedResponse):
                     logger.debug("Stream received: %s", data)
 
                     if data.get("error"):
-                        msg = f"Server error: {data['error']}"
-                        raise RuntimeError(msg)
+                        raise RuntimeError(f"Server error: {data['error']}")
 
                     if data.get("usage"):
                         self._usage = RequestUsage(**data["usage"])
@@ -247,12 +223,10 @@ class RemoteProxyStreamedResponse(StreamedResponse):
                             yield event
 
                 except (websockets.ConnectionClosed, ValueError, KeyError) as e:
-                    msg = f"Stream error: {e}"
-                    raise RuntimeError(msg) from e
+                    raise RuntimeError(f"Stream error: {e}") from e
 
         except Exception as e:
-            msg = f"Stream error: {e}"
-            raise RuntimeError(msg) from e
+            raise RuntimeError(f"Stream error: {e}") from e
 
     @property
     def timestamp(self) -> datetime:
