@@ -25,6 +25,8 @@ import webbrowser
 import anyenv
 import httpx
 
+from llmling_models.auth.base import ProviderAuthBackend
+from llmling_models.auth.models import ProviderAuthAuthorization, ProviderAuthMethod
 from llmling_models.log import get_logger
 
 
@@ -293,6 +295,72 @@ def poe_auth_main() -> None:
     store.save(api_key)
     print(f"Poe API key saved to: {args.token_path}")
     print("You can now use Poe models.")
+
+
+class PoeAuthBackend(ProviderAuthBackend):
+    """Poe OAuth / API key auth backend."""
+
+    def __init__(self) -> None:
+        self._pending: dict[str, str] = {}  # state -> verifier
+
+    @property
+    def provider_id(self) -> str:
+        return "poe"
+
+    def methods(self) -> list[ProviderAuthMethod]:
+        return [
+            ProviderAuthMethod(type="oauth", label="Connect Poe (OAuth)"),
+            ProviderAuthMethod(type="api", label="Connect Poe (API key)"),
+        ]
+
+    async def authorize(self, method: int = 0) -> ProviderAuthAuthorization:
+        if method == 1:
+            # API key method
+            return ProviderAuthAuthorization(
+                url="https://poe.com/api_key",
+                instructions="Get your API key and enter it below",
+                method="code",
+            )
+        import secrets as _secrets
+
+        verifier, challenge = generate_pkce()
+        state = _secrets.token_hex(16)
+        # Use a fixed port for server-side flows
+        redirect_uri = f"{POE_REDIRECT_URI_BASE}:3000/callback"
+        auth_url = build_authorization_url(verifier, challenge, redirect_uri, state)
+        self._pending[state] = verifier
+        return ProviderAuthAuthorization(
+            url=auth_url,
+            instructions="Sign in with your Poe account",
+            method="auto",
+        )
+
+    async def callback(
+        self,
+        *,
+        code: str | None = None,
+        device_code: str | None = None,
+        verifier: str | None = None,
+    ) -> bool:
+        if not code:
+            msg = "Missing code/key for Poe"
+            raise ValueError(msg)
+        # If verifier is provided, it's an OAuth flow
+        if verifier:
+            redirect_uri = f"{POE_REDIRECT_URI_BASE}:3000/callback"
+            result = exchange_code_for_token(code, verifier, redirect_uri)
+            PoeTokenStore().save(result["api_key"], result.get("expires_in"))
+        else:
+            # Direct API key
+            if not validate_poe_key(code):
+                msg = "Invalid Poe API key"
+                raise ValueError(msg)
+            PoeTokenStore().save(code)
+        return True
+
+    async def remove_credentials(self) -> bool:
+        PoeTokenStore().clear()
+        return True
 
 
 if __name__ == "__main__":

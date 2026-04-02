@@ -16,6 +16,8 @@ import sys
 import anyenv
 import httpx
 
+from llmling_models.auth.base import ProviderAuthBackend
+from llmling_models.auth.models import ProviderAuthAuthorization, ProviderAuthMethod
 from llmling_models.log import get_logger
 
 
@@ -128,6 +130,42 @@ def zen_auth_main() -> None:
     store.save(api_key)
     print(f"API key saved to: {args.token_path}")
     print("You can now use OpenCode Zen models.")
+
+
+class ZenAuthBackend(ProviderAuthBackend):
+    """OpenCode Zen API key auth backend."""
+
+    @property
+    def provider_id(self) -> str:
+        return "zen"
+
+    def methods(self) -> list[ProviderAuthMethod]:
+        return [ProviderAuthMethod(type="api", label="Connect OpenCode Zen")]
+
+    async def authorize(self, method: int = 0) -> ProviderAuthAuthorization:
+        return ProviderAuthAuthorization(
+            url="https://opencode.ai/zen",
+            instructions="Get your API key and enter it below",
+            method="code",
+        )
+
+    async def callback(
+        self,
+        *,
+        code: str | None = None,
+        device_code: str | None = None,
+        verifier: str | None = None,
+    ) -> bool:
+        if not code:
+            raise ValueError("Missing API key for Zen")
+        if not validate_zen_key(code):
+            raise ValueError("Invalid Zen API key")
+        ZenTokenStore().save(code)
+        return True
+
+    async def remove_credentials(self) -> bool:
+        ZenTokenStore().clear()
+        return True
 
 
 if __name__ == "__main__":

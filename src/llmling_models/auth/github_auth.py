@@ -13,11 +13,13 @@ import json
 from pathlib import Path
 import sys
 import time
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 import anyenv
 import httpx
 
+from llmling_models.auth.base import ProviderAuthBackend
+from llmling_models.auth.models import ProviderAuthAuthorization, ProviderAuthMethod
 from llmling_models.log import get_logger
 
 
@@ -443,6 +445,93 @@ def copilot_auth_main() -> None:
     except Exception:
         logger.exception("Authentication failed")
         sys.exit(1)
+
+
+COPILOT_CLIENT_ID = "Iv1.b507a08c87ecfe98"
+COPILOT_HEADERS = {
+    "Accept": "application/json",
+    "Content-Type": "application/x-www-form-urlencoded",
+    "User-Agent": "GitHubCopilotChat/0.35.0",
+}
+
+
+class CopilotAuthBackend(ProviderAuthBackend):
+    """GitHub Copilot device-code auth backend."""
+
+    def __init__(self) -> None:
+        self._pending_device_codes: dict[str, str] = {}
+
+    @property
+    def provider_id(self) -> str:
+        return "copilot"
+
+    def methods(self) -> list[ProviderAuthMethod]:
+        return [ProviderAuthMethod(type="oauth", label="Connect GitHub Copilot")]
+
+    async def authorize(self, method: int = 0) -> ProviderAuthAuthorization:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                "https://github.com/login/device/code",
+                headers=COPILOT_HEADERS,
+                json={"client_id": COPILOT_CLIENT_ID, "scope": "read:user"},
+            )
+            resp.raise_for_status()
+            data: dict[str, Any] = resp.json()
+
+        device_code = data["device_code"]
+        user_code = data["user_code"]
+        verification_uri = data["verification_uri"]
+        self._pending_device_codes[device_code] = device_code
+
+        return ProviderAuthAuthorization(
+            url=verification_uri,
+            instructions=f"Enter code: {user_code}",
+            method="auto",
+        )
+
+    async def callback(
+        self,
+        *,
+        code: str | None = None,
+        device_code: str | None = None,
+        verifier: str | None = None,
+    ) -> bool:
+        if not device_code:
+            msg = "Missing device_code for Copilot OAuth"
+            raise ValueError(msg)
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                "https://github.com/login/oauth/access_token",
+                headers=COPILOT_HEADERS,
+                data={
+                    "client_id": COPILOT_CLIENT_ID,
+                    "device_code": device_code,
+                    "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+                },
+            )
+            data: dict[str, Any] = resp.json()
+
+        if "error" in data:
+            detail = data.get("error_description", data["error"])
+            raise ValueError(detail)
+
+        github_token = data.get("access_token")
+        if not github_token:
+            raise ValueError("No token received")
+
+        self._pending_device_codes.pop(device_code, None)
+
+        # Exchange GitHub token for Copilot API token and store
+        copilot_data = refresh_copilot_token(github_token)
+        store = CopilotTokenStore()
+        store.save({
+            "github_token": github_token,
+            "copilot_token": copilot_data["copilot_token"],
+            "base_url": copilot_data["base_url"],
+            "expires_at": copilot_data["expires_at"],
+            "enterprise_domain": None,
+        })
+        return True
 
 
 if __name__ == "__main__":

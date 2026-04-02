@@ -28,6 +28,8 @@ import webbrowser
 import anyenv
 import httpx
 
+from llmling_models.auth.base import ProviderAuthBackend
+from llmling_models.auth.models import ProviderAuthAuthorization, ProviderAuthMethod
 from llmling_models.log import get_logger
 
 
@@ -582,6 +584,53 @@ def openai_codex_auth_main() -> None:
         logger.exception("Authentication failed")
         print(f"\nAuthentication failed: {e}", file=sys.stderr)
         sys.exit(1)
+
+
+class OpenAICodexAuthBackend(ProviderAuthBackend):
+    """OpenAI Codex (ChatGPT Plus/Pro) OAuth backend."""
+
+    def __init__(self) -> None:
+        self._pending: dict[str, tuple[str, str]] = {}  # state -> (verifier, state)
+
+    @property
+    def provider_id(self) -> str:
+        return "openai-codex"
+
+    def methods(self) -> list[ProviderAuthMethod]:
+        return [ProviderAuthMethod(type="oauth", label="Connect ChatGPT Plus/Pro")]
+
+    async def authorize(self, method: int = 0) -> ProviderAuthAuthorization:
+        import secrets as _secrets
+
+        verifier, challenge = generate_pkce()
+        state = _secrets.token_hex(16)
+        auth_url = build_authorization_url(verifier, challenge, state)
+        self._pending[state] = (verifier, state)
+        return ProviderAuthAuthorization(
+            url=auth_url,
+            instructions="Sign in with your OpenAI account",
+            method="auto",
+        )
+
+    async def callback(
+        self,
+        *,
+        code: str | None = None,
+        device_code: str | None = None,
+        verifier: str | None = None,
+    ) -> bool:
+        if not code or not verifier:
+            msg = "Missing code or verifier for OpenAI Codex OAuth"
+            raise ValueError(msg)
+        # verifier here is the PKCE verifier stored during authorize
+        token = exchange_code_for_token(code, verifier)
+        store = OpenAICodexTokenStore()
+        store.save(token)
+        return True
+
+    async def remove_credentials(self) -> bool:
+        OpenAICodexTokenStore().clear()
+        return True
 
 
 if __name__ == "__main__":

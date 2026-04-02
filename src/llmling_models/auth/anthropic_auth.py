@@ -27,11 +27,19 @@ import webbrowser
 import anyenv
 import httpx
 
+from llmling_models.auth.base import ProviderAuthBackend
+from llmling_models.auth.models import (
+    OAuthAuthInfo,
+    ProviderAuthAuthorization,
+    ProviderAuthMethod,
+)
 from llmling_models.log import get_logger
 
 
 if TYPE_CHECKING:
     from typing import Self
+
+    from llmling_models.auth.models import AuthInfo
 
 logger = get_logger(__name__)
 
@@ -559,6 +567,62 @@ def anthropic_auth_main() -> None:
         logger.exception("Authentication failed")
         print(f"\nAuthentication failed: {e}", file=sys.stderr)
         sys.exit(1)
+
+
+class AnthropicAuthBackend(ProviderAuthBackend):
+    """Anthropic OAuth (PKCE) auth backend."""
+
+    def __init__(self) -> None:
+        self._pending_verifiers: dict[str, str] = {}
+
+    @property
+    def provider_id(self) -> str:
+        return "anthropic"
+
+    def methods(self) -> list[ProviderAuthMethod]:
+        return [ProviderAuthMethod(type="oauth", label="Connect Claude Max/Pro")]
+
+    async def authorize(self, method: int = 0) -> ProviderAuthAuthorization:
+        verifier, challenge = generate_pkce()
+        auth_url = build_authorization_url(verifier, challenge, OAUTH_MANUAL_REDIRECT_URI)
+        self._pending_verifiers[verifier] = verifier
+        return ProviderAuthAuthorization(
+            url=auth_url,
+            instructions="Sign in with your Anthropic account and copy the authorization code",
+            method="code",
+        )
+
+    async def callback(
+        self,
+        *,
+        code: str | None = None,
+        device_code: str | None = None,
+        verifier: str | None = None,
+    ) -> bool:
+        if not code or not verifier:
+            raise ValueError("Missing code or verifier for Anthropic OAuth")
+        token = exchange_code_for_token(code, verifier, verifier, OAUTH_MANUAL_REDIRECT_URI)
+        store = AnthropicTokenStore()
+        store.save(token)
+        self._pending_verifiers.pop(verifier, None)
+        return True
+
+    async def set_credentials(self, info: AuthInfo) -> bool:
+        if not isinstance(info, OAuthAuthInfo):
+            return False
+        store = AnthropicTokenStore()
+        token = AnthropicOAuthToken(
+            access_token=info.access,
+            refresh_token=info.refresh,
+            expires_at=info.expires,
+        )
+        store.save(token)
+        return True
+
+    async def remove_credentials(self) -> bool:
+        store = AnthropicTokenStore()
+        store.clear()
+        return True
 
 
 if __name__ == "__main__":

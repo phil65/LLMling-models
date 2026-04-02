@@ -29,6 +29,8 @@ import webbrowser
 import anyenv
 import httpx
 
+from llmling_models.auth.base import ProviderAuthBackend
+from llmling_models.auth.models import ProviderAuthAuthorization, ProviderAuthMethod
 from llmling_models.log import get_logger
 
 
@@ -695,6 +697,50 @@ def gemini_auth_main() -> None:
         logger.exception("Authentication failed")
         print(f"\nAuthentication failed: {e}", file=sys.stderr)
         sys.exit(1)
+
+
+class GeminiAuthBackend(ProviderAuthBackend):
+    """Google Gemini CLI (Cloud Code Assist) OAuth backend."""
+
+    def __init__(self) -> None:
+        self._pending_verifiers: dict[str, str] = {}
+
+    @property
+    def provider_id(self) -> str:
+        return "gemini"
+
+    def methods(self) -> list[ProviderAuthMethod]:
+        return [ProviderAuthMethod(type="oauth", label="Connect Gemini CLI")]
+
+    async def authorize(self, method: int = 0) -> ProviderAuthAuthorization:
+        verifier, challenge = generate_pkce()
+        auth_url = build_authorization_url(verifier, challenge)
+        self._pending_verifiers[verifier] = verifier
+        return ProviderAuthAuthorization(
+            url=auth_url,
+            instructions="Sign in with your Google account",
+            method="auto",
+        )
+
+    async def callback(
+        self,
+        *,
+        code: str | None = None,
+        device_code: str | None = None,
+        verifier: str | None = None,
+    ) -> bool:
+        if not code or not verifier:
+            msg = "Missing code or verifier for Gemini OAuth"
+            raise ValueError(msg)
+        exchange_code_for_token(code, verifier)
+        # Note: project discovery requires a separate step;
+        # for server-side flows the project_id should be set via credentials.
+        self._pending_verifiers.pop(verifier, None)
+        return True
+
+    async def remove_credentials(self) -> bool:
+        GeminiTokenStore().clear()
+        return True
 
 
 if __name__ == "__main__":
