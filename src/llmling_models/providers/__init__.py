@@ -42,9 +42,8 @@ def infer_provider(provider: str) -> Provider[Any]:  # noqa: PLR0911
         return AnthropicMaxProvider()
 
     if provider in ("zen", "zenmux"):
-        from pydantic_ai.providers.openai import OpenAIProvider
+        from llmling_models.providers.zen_provider import ZenProvider
 
-        api_key = os.environ.get("ZEN_API_KEY") or os.environ.get("ZENMUX_API_KEY") or ""
-        return OpenAIProvider(api_key=api_key, base_url="https://opencode.ai/zen/v1")
+        return ZenProvider()
 
     return _infer_provider(provider)
