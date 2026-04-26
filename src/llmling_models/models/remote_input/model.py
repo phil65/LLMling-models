@@ -131,7 +131,7 @@ class RemoteInputModel(Model):
                 # Accumulate response characters
                 response_text = ""
                 while True:
-                    raw_data = await websocket.recv()
+                    raw_data: str | bytes = await websocket.recv()
                     dct = anyenv.load_json(raw_data, return_type=dict)
                     if dct.get("error"):
                         raise RuntimeError(f"Server error: {dct['error']}")
@@ -219,7 +219,7 @@ class RemoteInputStreamedResponse(StreamedResponse):
         try:
             while True:
                 try:
-                    raw_data = await self.websocket.recv()
+                    raw_data: str | bytes = await self.websocket.recv()
                     data = anyenv.load_json(raw_data, return_type=dict)
 
                     if data.get("error"):

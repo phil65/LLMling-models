@@ -112,7 +112,7 @@ class RemoteProxyModel(Model):
                 chunks: list[str] = []
                 usage = RequestUsage()
                 while True:
-                    raw_data = await websocket.recv()
+                    raw_data: str | bytes = await websocket.recv()
                     data = anyenv.load_json(raw_data, return_type=dict)
                     logger.debug("Received WebSocket data: %s", data)
                     if data.get("error"):
@@ -201,7 +201,7 @@ class RemoteProxyStreamedResponse(StreamedResponse):
         try:
             while True:
                 try:
-                    raw_data = await self.websocket.recv()
+                    raw_data: str | bytes = await self.websocket.recv()
                     data = anyenv.load_json(raw_data, return_type=dict)
                     logger.debug("Stream received: %s", data)
 
