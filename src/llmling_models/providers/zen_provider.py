@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 ZEN_BASE_URL = "https://opencode.ai/zen/v1"
+GO_BASE_URL = "https://opencode.ai/zen/go/v1"
 
 
 class ZenHTTPClient(AsyncHTTPClient):
@@ -43,10 +44,15 @@ class ZenProvider(Provider[AsyncOpenAI]):
     """Provider for OpenCode Zen API."""
 
     def __init__(self, api_key: str | None = None) -> None:
-        api_key = api_key or os.environ.get("ZEN_API_KEY") or os.environ.get("ZENMUX_API_KEY")
+        api_key = (
+            api_key
+            or os.environ.get("OPENCODE_API_KEY")
+            or os.environ.get("ZEN_API_KEY")
+            or os.environ.get("ZENMUX_API_KEY")
+        )
         if not api_key:
             msg = (
-                "Set the `ZEN_API_KEY` environment variable or pass it via "
+                "Set the `OPENCODE_API_KEY` environment variable or pass it via "
                 "`ZenProvider(api_key=...)` to use the Zen provider."
             )
             raise ValueError(msg)
@@ -55,15 +61,11 @@ class ZenProvider(Provider[AsyncOpenAI]):
             project_id=secrets.token_hex(14),
             timeout=60.0,
         )
-        self._client = AsyncOpenAI(
-            api_key=api_key,
-            base_url=ZEN_BASE_URL,
-            http_client=http_client,
-        )
+        self._client = AsyncOpenAI(api_key=api_key, base_url=self.base_url, http_client=http_client)
 
     @property
     def name(self) -> str:
-        return "zen"
+        return "opencode"
 
     @property
     def base_url(self) -> str:
@@ -72,3 +74,54 @@ class ZenProvider(Provider[AsyncOpenAI]):
     @property
     def client(self) -> AsyncOpenAI:
         return self._client
+
+
+class OpencodeGoProvider(Provider[AsyncOpenAI]):
+    """Provider for OpenCode Go API."""
+
+    def __init__(self, api_key: str | None = None) -> None:
+        api_key = api_key or os.environ.get("OPENCODE_API_KEY")
+        if not api_key:
+            msg = (
+                "Set the `OPENCODE_API_KEY` environment variable or pass it via "
+                "`OpencodeGoProvider(api_key=...)` to use the Opencode Go provider."
+            )
+            raise ValueError(msg)
+        http_client = ZenHTTPClient(
+            session_id=secrets.token_hex(14),
+            project_id=secrets.token_hex(14),
+            timeout=60.0,
+        )
+        self._client = AsyncOpenAI(api_key=api_key, base_url=self.base_url, http_client=http_client)
+
+    @property
+    def name(self) -> str:
+        return "opencode-go"
+
+    @property
+    def base_url(self) -> str:
+        return GO_BASE_URL
+
+    @property
+    def client(self) -> AsyncOpenAI:
+        return self._client
+
+
+if __name__ == "__main__":
+    import asyncio
+
+    from pydantic_ai import ModelRequest
+    from pydantic_ai.models import ModelRequestParameters
+    from pydantic_ai.models.openai import OpenAIResponsesModel
+
+    provider = ZenProvider(
+        api_key="sk-iQmKk0zHGce746g7mzs4E34vBYfqQihpEOOn00rHQqtCvCZRtxJeRNvx2HGRhorZ"
+    )
+    model = OpenAIResponsesModel("gpt-5.1-codex", provider=provider)
+
+    async def main() -> None:
+        req = ModelRequest.user_text_prompt("Hello, world!")
+        result = await model.request([req], None, ModelRequestParameters())
+        print(result)
+
+    asyncio.run(main())

@@ -41,9 +41,13 @@ def infer_provider(provider: str) -> Provider[Any]:  # noqa: PLR0911
 
         return AnthropicMaxProvider()
 
-    if provider in ("zen", "zenmux"):
+    if provider in ("opencode", "zen", "zenmux"):
         from llmling_models.providers.zen_provider import ZenProvider
 
         return ZenProvider()
+    if provider in ("opencode-go",):
+        from llmling_models.providers.zen_provider import OpencodeGoProvider
+
+        return OpencodeGoProvider()
 
     return _infer_provider(provider)
