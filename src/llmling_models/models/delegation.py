@@ -16,7 +16,7 @@ from llmling_models.models.multi import MultiModel
 
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
+    from collections.abc import AsyncGenerator
 
     from pydantic_ai import ModelMessage, ModelResponse, ModelSettings, RunContext
     from pydantic_ai.models import ModelRequestParameters, StreamedResponse
@@ -150,7 +150,7 @@ class DelegationMultiModel(MultiModel):
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
         run_context: RunContext[Any] | None = None,
-    ) -> AsyncIterator[StreamedResponse]:
+    ) -> AsyncGenerator[StreamedResponse]:
         """Stream response using dynamically selected model."""
         # Extract the actual prompt
         prompt = self._get_last_prompt(messages)

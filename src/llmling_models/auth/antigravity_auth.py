@@ -114,10 +114,14 @@ class AntigravityOAuthToken:
     @classmethod
     def from_dict(cls, data: dict[str, str | float | None]) -> Self:
         """Create from dictionary."""
+        expires_at = data["expires_at"]
+        if expires_at is None:
+            msg = "Stored credentials are missing 'expires_at'"
+            raise ValueError(msg)
         return cls(
             access_token=str(data["access_token"]),
             refresh_token=str(data["refresh_token"]),
-            expires_at=float(data["expires_at"]),  # type: ignore[arg-type]
+            expires_at=float(expires_at),
             project_id=str(data["project_id"]),
             email=str(data["email"]) if data.get("email") else None,
         )

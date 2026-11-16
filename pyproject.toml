@@ -30,9 +30,10 @@ classifiers = [
 ]
 dependencies = [
   "anyenv[httpx]",
-  "pydantic",
   # Only add below (Copier)
-  "pydantic-ai-slim>=1.27.0",
+  "httpx2>=2.16.0",
+  "pydantic",
+  "pydantic-ai-slim>=2.68.0",
   "schemez>=0.0.1",
   "tokonomics>=0.4.0",
 ]
@@ -295,6 +296,10 @@ preview = true
 [tool.ty.environment]
 python-version = "3.13"
 python-platform = "all"
+
+[tool.ty.rules]
+# Pydantic discriminated unions narrow `type: str` to `Literal[...]` in subclasses
+incompatible-mutable-override = "ignore"
 
 [tool.uv]
 default-groups = ["dev", "lint", "docs"]

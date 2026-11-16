@@ -17,7 +17,7 @@ from llmling_models.models.helpers import infer_model
 logger = get_logger(__name__)
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
+    from collections.abc import AsyncGenerator
 
     from pydantic_ai import ModelMessage, ModelResponse, ModelSettings, RunContext
     from pydantic_ai.models import KnownModelName, ModelRequestParameters, StreamedResponse
@@ -44,7 +44,7 @@ class AugmentedModel(Model):
 
     def __init__(
         self,
-        main_model: KnownModelName | Model,
+        main_model: KnownModelName | str | Model,
         pre_prompt: PrePostPromptConfig | None = None,
         post_prompt: PrePostPromptConfig | None = None,
     ) -> None:
@@ -180,7 +180,7 @@ class AugmentedModel(Model):
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
         run_context: RunContext[Any] | None = None,
-    ) -> AsyncIterator[StreamedResponse]:
+    ) -> AsyncGenerator[StreamedResponse]:
         """Stream response with pre/post processing."""
         all_messages = messages.copy()
 

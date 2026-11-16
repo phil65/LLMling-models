@@ -12,11 +12,11 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic_ai import (
     BinaryContent,
-    BuiltinToolCallPart,
-    BuiltinToolReturnPart,
     ModelRequest,
     ModelResponse,
     ModelResponse as MsgResponse,
+    NativeToolCallPart,
+    NativeToolReturnPart,
     PartStartEvent,
     RequestUsage,
     SystemPromptPart,
@@ -42,7 +42,7 @@ from llmling_models.log import get_logger
 
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
+    from collections.abc import AsyncGenerator, AsyncIterator
 
     from claude_agent_sdk import ClaudeAgentOptions
     from pydantic_ai import (
@@ -52,8 +52,8 @@ if TYPE_CHECKING:
         ModelSettings,
         RunContext,
     )
-    from pydantic_ai.builtin_tools import AbstractBuiltinTool
     from pydantic_ai.models import ModelRequestParameters
+    from pydantic_ai.native_tools import AbstractNativeTool
 
 logger = get_logger(__name__)
 
@@ -105,34 +105,33 @@ def _extract_prompt(messages: list[ModelMessage]) -> str | list[dict[str, Any]]:
                             if isinstance(item, str):
                                 text_parts.append(item)
                                 content_parts.append({"type": "text", "text": item})
-                            elif isinstance(item, BinaryContent):
+                            elif isinstance(item, BinaryContent) and item.media_type:
                                 # Handle binary content (images and PDFs)
-                                if item.media_type:
-                                    if isinstance(item.data, bytes):
-                                        b64_data = base64.b64encode(item.data).decode()
-                                    else:
-                                        b64_data = item.data
+                                if isinstance(item.data, bytes):
+                                    b64_data = base64.b64encode(item.data).decode()
+                                else:
+                                    b64_data = item.data
 
-                                    if item.media_type.startswith("image/"):
-                                        has_images = True
-                                        content_parts.append({
-                                            "type": "image",
-                                            "source": {
-                                                "type": "base64",
-                                                "media_type": item.media_type,
-                                                "data": b64_data,
-                                            },
-                                        })
-                                    elif item.media_type == "application/pdf":
-                                        has_images = True  # triggers multimodal path
-                                        content_parts.append({
-                                            "type": "document",
-                                            "source": {
-                                                "type": "base64",
-                                                "media_type": "application/pdf",
-                                                "data": b64_data,
-                                            },
-                                        })
+                                if item.media_type.startswith("image/"):
+                                    has_images = True
+                                    content_parts.append({
+                                        "type": "image",
+                                        "source": {
+                                            "type": "base64",
+                                            "media_type": item.media_type,
+                                            "data": b64_data,
+                                        },
+                                    })
+                                elif item.media_type == "application/pdf":
+                                    has_images = True  # triggers multimodal path
+                                    content_parts.append({
+                                        "type": "document",
+                                        "source": {
+                                            "type": "base64",
+                                            "media_type": "application/pdf",
+                                            "data": b64_data,
+                                        },
+                                    })
                             # ImageUrl, AudioUrl, etc. - URLs not supported by SDK
 
         elif isinstance(message, MsgResponse):
@@ -247,7 +246,7 @@ class ClaudeCodeStreamedResponse(StreamedResponse):
                     elif isinstance(block, ToolUseBlock):
                         # Track tool name and emit builtin tool call
                         tool_use_names[block.id] = block.name
-                        part = BuiltinToolCallPart(
+                        part = NativeToolCallPart(
                             tool_name=block.name,
                             args=block.input,
                             tool_call_id=block.id,
@@ -267,7 +266,7 @@ class ClaudeCodeStreamedResponse(StreamedResponse):
                                 content = ""
                             else:
                                 content = json.dumps(block.content)
-                            return_part = BuiltinToolReturnPart(
+                            return_part = NativeToolReturnPart(
                                 tool_name=tool_name,
                                 content=content,
                                 tool_call_id=block.tool_use_id,
@@ -277,15 +276,14 @@ class ClaudeCodeStreamedResponse(StreamedResponse):
                             yield PartStartEvent(
                                 index=len(self._parts_manager._parts) - 1, part=return_part
                             )
-            elif isinstance(message, ResultMessage):
-                if message.usage:
-                    u = message.usage
-                    self._usage = RequestUsage(
-                        input_tokens=u.get("input_tokens", 0),
-                        output_tokens=u.get("output_tokens", 0),
-                        cache_read_tokens=u.get("cache_read_input_tokens", 0),
-                        cache_write_tokens=u.get("cache_creation_input_tokens", 0),
-                    )
+            elif isinstance(message, ResultMessage) and message.usage:
+                u = message.usage
+                self._usage = RequestUsage(
+                    input_tokens=u.get("input_tokens", 0),
+                    output_tokens=u.get("output_tokens", 0),
+                    cache_read_tokens=u.get("cache_read_input_tokens", 0),
+                    cache_write_tokens=u.get("cache_creation_input_tokens", 0),
+                )
 
     @property
     def timestamp(self) -> datetime:
@@ -363,7 +361,7 @@ class ClaudeCodeModel(Model):
         return "claude-code"
 
     @classmethod
-    def supported_builtin_tools(cls) -> frozenset[type[AbstractBuiltinTool]]:
+    def supported_native_tools(cls) -> frozenset[type[AbstractNativeTool]]:
         """Return the set of builtin tool types this model class can handle.
 
         Subclasses should override this to reflect their actual capabilities.
@@ -399,17 +397,21 @@ class ClaudeCodeModel(Model):
         Also handles MCPServerTool for connecting to external MCP servers.
         """
         from claude_agent_sdk import ClaudeAgentOptions
-        from claude_agent_sdk.types import McpHttpServerConfig, McpSSEServerConfig
-        from pydantic_ai.builtin_tools import MCPServerTool
+        from claude_agent_sdk.types import (
+            McpHttpServerConfig,
+            McpServerConfig,
+            McpSSEServerConfig,
+        )
+        from pydantic_ai.native_tools import MCPServerTool
 
         from llmling_models.builtin_tools import get_claude_code_tool_name
 
         # Collect tools and MCP servers from builtin_tools parameter
         allowed_tools: list[str] = []
-        mcp_servers: dict[str, McpSSEServerConfig | McpHttpServerConfig] = {}
+        mcp_servers: dict[str, McpServerConfig] = {}
 
-        if model_request_parameters and model_request_parameters.builtin_tools:
-            for tool in model_request_parameters.builtin_tools:
+        if model_request_parameters and model_request_parameters.native_tools:
+            for tool in model_request_parameters.native_tools:
                 # Handle MCPServerTool - convert to SDK mcp_servers format
                 if isinstance(tool, MCPServerTool) and tool.url:
                     url = tool.url
@@ -445,7 +447,7 @@ class ClaudeCodeModel(Model):
             max_turns=self._max_turns,
             max_thinking_tokens=self._max_thinking_tokens,
             tools=allowed_tools,  # Empty list = no tools, non-empty = only those tools
-            mcp_servers=mcp_servers,  # type: ignore[arg-type]  # Subset of McpServerConfig
+            mcp_servers=mcp_servers,
             include_partial_messages=self._include_partial_messages,
             # Disable loading external settings by default for predictable behavior
             setting_sources=[],
@@ -500,8 +502,8 @@ class ClaudeCodeModel(Model):
                 all_messages.append(message)  # noqa: PERF401
 
         # Now process collected messages
-        # Claude Code executes tools internally. We use BuiltinToolCallPart and
-        # BuiltinToolReturnPart to represent these - pydantic-ai recognizes these
+        # Claude Code executes tools internally. We use NativeToolCallPart and
+        # NativeToolReturnPart to represent these - pydantic-ai recognizes these
         # as provider-handled tools and won't try to execute them itself.
         # Track tool use IDs to match results with their calls
         tool_use_names: dict[str, str] = {}
@@ -519,9 +521,9 @@ class ClaudeCodeModel(Model):
                     elif isinstance(block, ToolUseBlock):
                         # Track tool name for matching with results
                         tool_use_names[block.id] = block.name
-                        # Emit as BuiltinToolCallPart - pydantic-ai won't try to execute
+                        # Emit as NativeToolCallPart - pydantic-ai won't try to execute
                         parts.append(
-                            BuiltinToolCallPart(
+                            NativeToolCallPart(
                                 tool_name=block.name,
                                 args=block.input,
                                 tool_call_id=block.id,
@@ -545,7 +547,7 @@ class ClaudeCodeModel(Model):
                                 # List of content blocks - convert to string
                                 content = json.dumps(block.content)
                             parts.append(
-                                BuiltinToolReturnPart(
+                                NativeToolReturnPart(
                                     tool_name=tool_name,
                                     content=content,
                                     tool_call_id=block.tool_use_id,
@@ -553,15 +555,14 @@ class ClaudeCodeModel(Model):
                                 )
                             )
 
-            elif isinstance(message, ResultMessage):
-                if message.usage:
-                    u = message.usage
-                    usage = RequestUsage(
-                        input_tokens=u.get("input_tokens", 0),
-                        output_tokens=u.get("output_tokens", 0),
-                        cache_read_tokens=u.get("cache_read_input_tokens", 0),
-                        cache_write_tokens=u.get("cache_creation_input_tokens", 0),
-                    )
+            elif isinstance(message, ResultMessage) and message.usage:
+                u = message.usage
+                usage = RequestUsage(
+                    input_tokens=u.get("input_tokens", 0),
+                    output_tokens=u.get("output_tokens", 0),
+                    cache_read_tokens=u.get("cache_read_input_tokens", 0),
+                    cache_write_tokens=u.get("cache_creation_input_tokens", 0),
+                )
         now = datetime.now(UTC)
         return ModelResponse(parts=parts, usage=usage, model_name=model_name, timestamp=now)
 
@@ -572,7 +573,7 @@ class ClaudeCodeModel(Model):
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
         run_context: RunContext[Any] | None = None,
-    ) -> AsyncIterator[StreamedResponse]:
+    ) -> AsyncGenerator[StreamedResponse]:
         """Stream responses from Claude Code.
 
         Uses an asyncio.Queue to decouple the Claude Agent SDK's task group
@@ -636,6 +637,7 @@ class ClaudeCodeModel(Model):
 
 if __name__ == "__main__":
     from pydantic_ai import Agent
+    from pydantic_ai.capabilities import NativeTool
 
     async def test() -> None:
         model = ClaudeCodeModel(model="haiku", permission_mode="bypassPermissions")
@@ -646,7 +648,7 @@ if __name__ == "__main__":
         print("Testing Claude Code Model (streaming, with tools):")
         async with agent.run_stream(
             "What files are in the current directory?",
-            builtin_tools=[ClaudeCodeGlobTool(), ClaudeCodeReadTool()],
+            capabilities=[NativeTool(ClaudeCodeGlobTool()), NativeTool(ClaudeCodeReadTool())],
         ) as result:
             async for event in result.stream_text(delta=True):
                 print(event, end="", flush=True)

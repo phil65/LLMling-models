@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable
+from collections.abc import AsyncGenerator, Awaitable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -10,18 +10,19 @@ import inspect
 import sys
 from typing import TYPE_CHECKING, Any
 
-from pydantic import Field, ImportString
 from pydantic_ai import ModelResponse, RequestUsage, TextPart
 from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
-from schemez import Schema
 
 from llmling_models.log import get_logger
+from llmling_models.models.input_model.input_handlers import DefaultInputHandler
 
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     from pydantic_ai import ModelMessage, ModelResponseStreamEvent, ModelSettings, RunContext
+
+    from llmling_models.models.input_model.input_handlers import InputHandler
 
 
 logger = get_logger(__name__)
@@ -78,21 +79,20 @@ class InputStreamedResponse(StreamedResponse):
         return "input"
 
 
-class InputModel(Model, Schema):
+@dataclass
+class InputModel(Model):
     """Model that delegates responses to human input."""
 
-    prompt_template: str = Field(default="👤 Please respond to: {prompt}")
+    prompt_template: str = field(default="👤 Please respond to: {prompt}")
     """Template for showing the prompt to the human."""
 
-    show_system: bool = Field(default=True)
+    show_system: bool = field(default=True)
     """Whether to show system messages to the human."""
 
-    input_prompt: str = Field(default="Your response: ")
+    input_prompt: str = field(default="Your response: ")
     """Prompt to show when requesting input."""
 
-    handler: ImportString[Any] = Field(
-        default="llmling_models:DefaultInputHandler", validate_default=True
-    )
+    handler: InputHandler | type[InputHandler] = field(default=DefaultInputHandler)
     """Input handler class to use."""
 
     @property
@@ -143,7 +143,7 @@ class InputModel(Model, Schema):
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
         run_context: RunContext[Any] | None = None,
-    ) -> AsyncIterator[StreamedResponse]:
+    ) -> AsyncGenerator[StreamedResponse]:
         """Stream responses character by character."""
         # Format and display messages using handler
         handler = self.handler() if isinstance(self.handler, type) else self.handler

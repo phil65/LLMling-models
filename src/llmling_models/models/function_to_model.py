@@ -116,7 +116,9 @@ if __name__ == "__main__":
     agent = Agent(model=function_to_model(structured_response))
 
     async def main() -> None:
-        async for event in agent.run_stream_events(str(dict(a="test")), output_type=Response):
-            print(event)
+        prompt = str(dict(a="test"))
+        async with agent.run_stream_events(prompt, output_type=Response) as events:
+            async for event in events:
+                print(event)
 
     asyncio.run(main())

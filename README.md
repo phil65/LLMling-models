@@ -40,7 +40,7 @@ from llmling_models import CodeModeToolset
 # Create toolsets with tools
 browser_toolset = FunctionToolset(tools=[webbrowser.open])
 
-# Wrap in CodeModeToolset  
+# Wrap in CodeModeToolset
 code_toolset = CodeModeToolset([browser_toolset])
 
 # Use with agent
@@ -64,14 +64,11 @@ from llmling_models import AugmentedModel
 
 model = AugmentedModel(
     main_model="openai:gpt-4",
-    pre_prompt={
-        "text": "Expand this question: {input}",
-        "model": "openai:gpt-3.5-turbo"
-    },
+    pre_prompt={"text": "Expand this question: {input}", "model": "openai:gpt-3.5-turbo"},
     post_prompt={
         "text": "Summarize this response concisely: {output}",
-        "model": "openai:gpt-3.5-turbo"
-    }
+        "model": "openai:gpt-3.5-turbo",
+    },
 )
 agent = Agent(model)
 
@@ -136,9 +133,7 @@ from pydantic_ai import Agent
 from llmling_models import UserSelectModel
 
 # Basic setup with model list
-model = UserSelectModel(
-    models=["openai:gpt-4o-mini", "openai:gpt-3.5-turbo", "anthropic:claude-3"]
-)
+model = UserSelectModel(models=["openai:gpt-4o-mini", "openai:gpt-3.5-turbo", "anthropic:claude-3"])
 
 agent = Agent(model)
 
@@ -159,7 +154,7 @@ from llmling_models import DelegationMultiModel
 delegation_model = DelegationMultiModel(
     selector_model="openai:gpt-4-turbo",
     models=["openai:gpt-4", "openai:gpt-3.5-turbo"],
-    selection_prompt="Pick gpt-4 for complex tasks, gpt-3.5-turbo for simple queries."
+    selection_prompt="Pick gpt-4 for complex tasks, gpt-3.5-turbo for simple queries.",
 )
 
 # Advanced setup with model descriptions
@@ -169,9 +164,9 @@ delegation_model = DelegationMultiModel(
     model_descriptions={
         "openai:gpt-4": "Complex reasoning, math problems, and coding tasks",
         "anthropic:claude-2": "Long-form analysis and research synthesis",
-        "openai:gpt-3.5-turbo": "Simple queries, chat, and basic information"
+        "openai:gpt-3.5-turbo": "Simple queries, chat, and basic information",
     },
-    selection_prompt="Select the most appropriate model for the task."
+    selection_prompt="Select the most appropriate model for the task.",
 )
 
 agent = Agent(delegation_model)
@@ -192,16 +187,10 @@ from pydantic_ai import Agent
 from llmling_models import RemoteInputModel
 
 # Basic setup with WebSocket (preferred for streaming)
-model = RemoteInputModel(
-    url="ws://operator:8000/v1/chat/stream",
-    api_key="your-api-key"
-)
+model = RemoteInputModel(url="ws://operator:8000/v1/chat/stream", api_key="your-api-key")
 
 # Or use REST API
-model = RemoteInputModel(
-    url="http://operator:8000/v1/chat",
-    api_key="your-api-key"
-)
+model = RemoteInputModel(url="http://operator:8000/v1/chat", api_key="your-api-key")
 
 agent = Agent(model)
 
@@ -251,10 +240,7 @@ Features:
 For development, you might want to run the server locally:
 
 ```python
-server = ModelServer(
-    model="openai:gpt-4",
-    api_key="dev-key"
-)
+server = ModelServer(model="openai:gpt-4", api_key="dev-key")
 server.run(host="localhost", port=8000)
 ```
 
@@ -265,12 +251,12 @@ server = ModelServer(
     model="openai:gpt-4",
     api_key="your-secure-key",  # Make sure to use a strong key
     title="Production GPT-4 Server",
-    description="Serves GPT-4 model for production use"
+    description="Serves GPT-4 model for production use",
 )
 server.run(
     host="0.0.0.0",  # Accept connections from anywhere
     port=8000,
-    workers=4  # Multiple workers for better performance
+    workers=4,  # Multiple workers for better performance
 )
 ```
 
@@ -331,13 +317,13 @@ from llmling_models.providers import infer_provider
 
 # Get provider by name
 provider = infer_provider("openrouter")  # Returns OpenRouterProvider instance
-provider = infer_provider("grok")        # Returns GrokProvider instance
+provider = infer_provider("grok")  # Returns GrokProvider instance
 provider = infer_provider("perplexity")  # Returns PerplexityProvider instance
-provider = infer_provider("copilot")     # Returns CopilotProvider instance
-provider = infer_provider("lm-studio")   # Returns LMStudioProvider instance
+provider = infer_provider("copilot")  # Returns CopilotProvider instance
+provider = infer_provider("lm-studio")  # Returns LMStudioProvider instance
 
 # Still works with standard providers too
-provider = infer_provider("openai")      # Returns pydantic_ai's OpenAIProvider
+provider = infer_provider("openai")  # Returns pydantic_ai's OpenAIProvider
 ```
 
 ## Extended infer_model Function
@@ -348,22 +334,22 @@ LLMling-models provides an extended `infer_model` function that resolves various
 from llmling_models import infer_model
 
 # Provider prefixes (requires appropriate API keys as env vars)
-model = infer_model("openai:gpt-4o")             # OpenAI models
-model = infer_model("openrouter:anthropic/opus") # OpenRouter (requires OPENROUTER_API_KEY)
-model = infer_model("grok:grok-2-1212")          # Grok/X.AI (requires X_AI_API_KEY)
-model = infer_model("perplexity:sonar-medium")   # Perplexity (requires PERPLEXITY_API_KEY)
-model = infer_model("deepseek:deepseek-chat")    # DeepSeek (requires DEEPSEEK_API_KEY)
-model = infer_model("copilot:gpt-4o-mini")       # GitHub Copilot (requires token management)
-model = infer_model("lm-studio:model-name")      # LM Studio local models
+model = infer_model("openai:gpt-4o")  # OpenAI models
+model = infer_model("openrouter:anthropic/opus")  # OpenRouter (requires OPENROUTER_API_KEY)
+model = infer_model("grok:grok-2-1212")  # Grok/X.AI (requires X_AI_API_KEY)
+model = infer_model("perplexity:sonar-medium")  # Perplexity (requires PERPLEXITY_API_KEY)
+model = infer_model("deepseek:deepseek-chat")  # DeepSeek (requires DEEPSEEK_API_KEY)
+model = infer_model("copilot:gpt-4o-mini")  # GitHub Copilot (requires token management)
+model = infer_model("lm-studio:model-name")  # LM Studio local models
 
 # LLMling's special models
-model = infer_model("input")                    # Interactive human input model
-model = infer_model("remote_model:ws://url")    # Remote model proxy
-model = infer_model("remote_input:ws://url")    # Remote human input
-model = infer_model("import:module.path:Class") # Import model from Python path
+model = infer_model("input")  # Interactive human input model
+model = infer_model("remote_model:ws://url")  # Remote model proxy
+model = infer_model("remote_input:ws://url")  # Remote human input
+model = infer_model("import:module.path:Class")  # Import model from Python path
 
 # Testing
-model = infer_model("test:Custom response")     # Test model with fixed output
+model = infer_model("test:Custom response")  # Test model with fixed output
 ```
 
 ### Environment Variable Configuration

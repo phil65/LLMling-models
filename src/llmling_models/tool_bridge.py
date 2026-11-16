@@ -14,18 +14,22 @@ from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, field
 import inspect
 import socket
-from typing import TYPE_CHECKING, Any, Self, get_type_hints
+from typing import TYPE_CHECKING, Any, Literal, Self, get_type_hints
 
 from pydantic import BaseModel
 from pydantic_ai import MCPServerTool
 
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Callable
+    from collections.abc import AsyncGenerator, Callable
 
     from fastmcp import Context, FastMCP
     from fastmcp.tools import ToolResult
     from uvicorn import Server
+
+
+MCPTransport = Literal["http", "streamable-http", "sse"]
+"""Transports supported for serving the tool bridge."""
 
 
 def _convert_to_tool_result(result: Any) -> ToolResult:
@@ -120,7 +124,7 @@ class ToolBridgeConfig:
     port: int = 0
     """Port to bind to (0 = auto-select available port)."""
 
-    transport: str = "sse"
+    transport: MCPTransport = "sse"
     """Transport protocol: 'sse' or 'streamable-http'."""
 
     server_name: str = "pydantic-ai-tools"
@@ -142,7 +146,7 @@ class ToolBridge:
 
         async with ToolBridge(tools=[my_tool]) as bridge:
             mcp_tool = bridge.get_mcp_server_tool()
-            # Pass mcp_tool to agent's builtin_tools
+            # Pass NativeTool(mcp_tool) to the agent's capabilities
         ```
     """
 
@@ -290,7 +294,7 @@ class ToolBridge:
                 port = s.getsockname()[1]
         self._actual_port = port
         # Create the ASGI app
-        app = self._mcp.http_app(transport=self.config.transport)  # type: ignore[arg-type]
+        app = self._mcp.http_app(transport=self.config.transport)
         # Configure uvicorn
         cfg = uvicorn.Config(app=app, host=self.config.host, port=port, log_level="warning")
         self._server = uvicorn.Server(cfg)
@@ -307,9 +311,9 @@ async def create_tool_bridge(
     *,
     host: str = "127.0.0.1",
     port: int = 0,
-    transport: str = "sse",
+    transport: MCPTransport = "sse",
     server_name: str = "pydantic-ai-tools",
-) -> AsyncIterator[ToolBridge]:
+) -> AsyncGenerator[ToolBridge]:
     """Create and start a ToolBridge as a context manager.
 
     Args:

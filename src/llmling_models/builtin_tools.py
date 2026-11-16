@@ -1,10 +1,11 @@
-"""Builtin tools for Claude Code model.
+"""Native (builtin) tools for Claude Code model.
 
 These tools represent the provider-side tools available in Claude Code.
 They can be passed to the agent to configure which tools are available.
 
 Example:
     from pydantic_ai import Agent
+    from pydantic_ai.capabilities import NativeTool
     from llmling_models import ClaudeCodeModel
     from llmling_models.builtin_tools import (
         ClaudeCodeReadTool,
@@ -15,10 +16,10 @@ Example:
     model = ClaudeCodeModel()
     agent = Agent(
         model=model,
-        builtin_tools=[
-            ClaudeCodeReadTool(),
-            ClaudeCodeWriteTool(),
-            ClaudeCodeBashTool(),
+        capabilities=[
+            NativeTool(ClaudeCodeReadTool()),
+            NativeTool(ClaudeCodeWriteTool()),
+            NativeTool(ClaudeCodeBashTool()),
         ],
     )
 """
@@ -27,11 +28,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from pydantic_ai.builtin_tools import AbstractBuiltinTool
+from pydantic_ai.native_tools import AbstractNativeTool
 
 
 @dataclass(kw_only=True)
-class ClaudeCodeReadTool(AbstractBuiltinTool):
+class ClaudeCodeReadTool(AbstractNativeTool):
     """Read file contents via Claude Code.
 
     Allows Claude Code to read files from the filesystem.
@@ -42,7 +43,7 @@ class ClaudeCodeReadTool(AbstractBuiltinTool):
 
 
 @dataclass(kw_only=True)
-class ClaudeCodeWriteTool(AbstractBuiltinTool):
+class ClaudeCodeWriteTool(AbstractNativeTool):
     """Write file contents via Claude Code.
 
     Allows Claude Code to write files to the filesystem.
@@ -53,7 +54,7 @@ class ClaudeCodeWriteTool(AbstractBuiltinTool):
 
 
 @dataclass(kw_only=True)
-class ClaudeCodeEditTool(AbstractBuiltinTool):
+class ClaudeCodeEditTool(AbstractNativeTool):
     """Edit file contents via Claude Code.
 
     Allows Claude Code to make targeted edits to files.
@@ -64,7 +65,7 @@ class ClaudeCodeEditTool(AbstractBuiltinTool):
 
 
 @dataclass(kw_only=True)
-class ClaudeCodeBashTool(AbstractBuiltinTool):
+class ClaudeCodeBashTool(AbstractNativeTool):
     """Execute bash commands via Claude Code.
 
     Allows Claude Code to run shell commands.
@@ -75,7 +76,7 @@ class ClaudeCodeBashTool(AbstractBuiltinTool):
 
 
 @dataclass(kw_only=True)
-class ClaudeCodeGlobTool(AbstractBuiltinTool):
+class ClaudeCodeGlobTool(AbstractNativeTool):
     """Find files using glob patterns via Claude Code.
 
     Allows Claude Code to search for files by pattern.
@@ -86,7 +87,7 @@ class ClaudeCodeGlobTool(AbstractBuiltinTool):
 
 
 @dataclass(kw_only=True)
-class ClaudeCodeGrepTool(AbstractBuiltinTool):
+class ClaudeCodeGrepTool(AbstractNativeTool):
     """Search file contents via Claude Code.
 
     Allows Claude Code to search within files using regex.
@@ -97,7 +98,7 @@ class ClaudeCodeGrepTool(AbstractBuiltinTool):
 
 
 @dataclass(kw_only=True)
-class ClaudeCodeWebSearchTool(AbstractBuiltinTool):
+class ClaudeCodeWebSearchTool(AbstractNativeTool):
     """Search the web via Claude Code.
 
     Allows Claude Code to perform web searches.
@@ -108,7 +109,7 @@ class ClaudeCodeWebSearchTool(AbstractBuiltinTool):
 
 
 @dataclass(kw_only=True)
-class ClaudeCodeWebFetchTool(AbstractBuiltinTool):
+class ClaudeCodeWebFetchTool(AbstractNativeTool):
     """Fetch web content via Claude Code.
 
     Allows Claude Code to retrieve content from URLs.
@@ -119,7 +120,7 @@ class ClaudeCodeWebFetchTool(AbstractBuiltinTool):
 
 
 @dataclass(kw_only=True)
-class ClaudeCodeTaskTool(AbstractBuiltinTool):
+class ClaudeCodeTaskTool(AbstractNativeTool):
     """Spawn sub-agents via Claude Code.
 
     Allows Claude Code to delegate work to sub-agents.
@@ -130,7 +131,7 @@ class ClaudeCodeTaskTool(AbstractBuiltinTool):
 
 
 @dataclass(kw_only=True)
-class ClaudeCodeNotebookEditTool(AbstractBuiltinTool):
+class ClaudeCodeNotebookEditTool(AbstractNativeTool):
     """Edit Jupyter notebooks via Claude Code.
 
     Allows Claude Code to modify notebook cells.
@@ -141,7 +142,7 @@ class ClaudeCodeNotebookEditTool(AbstractBuiltinTool):
 
 
 # Mapping from builtin tool to Claude Code tool name
-BUILTIN_TOOL_NAMES: dict[type[AbstractBuiltinTool], str] = {
+BUILTIN_TOOL_NAMES: dict[type[AbstractNativeTool], str] = {
     ClaudeCodeReadTool: "Read",
     ClaudeCodeWriteTool: "Write",
     ClaudeCodeEditTool: "Edit",
@@ -155,12 +156,12 @@ BUILTIN_TOOL_NAMES: dict[type[AbstractBuiltinTool], str] = {
 }
 
 
-def get_claude_code_tool_name(tool: AbstractBuiltinTool) -> str | None:
+def get_claude_code_tool_name(tool: AbstractNativeTool) -> str | None:
     """Get the Claude Code tool name for a builtin tool."""
     return BUILTIN_TOOL_NAMES.get(type(tool))
 
 
-def claude_code_all_tools() -> list[AbstractBuiltinTool]:
+def claude_code_all_tools() -> list[AbstractNativeTool]:
     """Return all Claude Code builtin tools.
 
     Convenience function to enable all Claude Code tools at once.
@@ -187,7 +188,7 @@ def claude_code_all_tools() -> list[AbstractBuiltinTool]:
     ]
 
 
-def claude_code_read_only_tools() -> list[AbstractBuiltinTool]:
+def claude_code_read_only_tools() -> list[AbstractNativeTool]:
     """Return read-only Claude Code tools (no writes, edits, or bash).
 
     Convenience function for safe, read-only operations.

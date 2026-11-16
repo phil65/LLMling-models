@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from pydantic_ai.models.anthropic import AnthropicModelSettings
     from pydantic_ai.models.fallback import FallbackModel
     from pydantic_ai.models.function import FunctionModel
-    from pydantic_ai.models.gemini import GeminiModelSettings
+    from pydantic_ai.models.google import GoogleModelSettings
     from pydantic_ai.models.openai import OpenAIResponsesModelSettings
     from pydantic_ai.models.openrouter import OpenRouterModelSettings
 
@@ -1262,7 +1262,7 @@ class AnthropicModelConfig(BaseModelConfig):
             )
 
             provider = AnthropicMaxProvider()
-            return AnthropicModel(self.identifier, provider=provider)  # type: ignore[arg-type]
+            return AnthropicModel(self.identifier, provider=provider)
 
         from llmling_models import infer_model
 
@@ -1391,9 +1391,9 @@ class GeminiModelConfig(BaseModelConfig):
     )
     """User-defined metadata to break down billed charges."""
 
-    def get_model_settings(self) -> GeminiModelSettings:
+    def get_model_settings(self) -> GoogleModelSettings:
         """Get model settings in pydantic-ai format."""
-        from pydantic_ai.models.gemini import GeminiModelSettings
+        from pydantic_ai.models.google import GoogleModelSettings
 
         settings = {
             "max_tokens": self.max_tokens,
@@ -1408,11 +1408,11 @@ class GeminiModelConfig(BaseModelConfig):
             "stop_sequences": self.stop_sequences,
             "extra_headers": self.extra_headers,
             "extra_body": self.extra_body,
-            "gemini_safety_settings": self.safety_settings,
-            "gemini_thinking_config": self.thinking_config,
-            "gemini_labels": self.labels,
+            "google_safety_settings": self.safety_settings,
+            "google_thinking_config": self.thinking_config,
+            "google_labels": self.labels,
         }
-        return GeminiModelSettings(**{k: v for k, v in settings.items() if v is not None})  # type: ignore[typeddict-item, no-any-return]
+        return GoogleModelSettings(**{k: v for k, v in settings.items() if v is not None})  # type: ignore[typeddict-item, no-any-return]
 
     def get_model(self) -> Any:
         from llmling_models import infer_model

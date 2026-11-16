@@ -5,18 +5,23 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING, overload
 
+import httpx2
 from openai import AsyncOpenAI
-from pydantic_ai.models import cached_async_http_client
 from pydantic_ai.providers import Provider
 
 from llmling_models.log import get_logger
 
 
 if TYPE_CHECKING:
-    from httpx import AsyncClient as AsyncHTTPClient
+    from httpx2 import AsyncClient as AsyncHTTPClient
 
 
 logger = get_logger(__name__)
+
+
+def _create_http_client() -> httpx2.AsyncClient:
+    """Create a dedicated HTTP client with pydantic-ai's default timeouts."""
+    return httpx2.AsyncClient(timeout=httpx2.Timeout(timeout=600, connect=5))
 
 
 class MoondreamProvider(Provider[AsyncOpenAI]):
@@ -81,7 +86,7 @@ class MoondreamProvider(Provider[AsyncOpenAI]):
         else:
             if http_client is None:
                 # Create HTTP client with Moondream headers
-                http_client = cached_async_http_client()
+                http_client = _create_http_client()
 
                 # Add Moondream-specific headers
                 http_client.headers["HTTP-Referer"] = "https://llmling.dev"

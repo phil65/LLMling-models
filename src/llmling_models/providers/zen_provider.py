@@ -6,15 +6,16 @@ import os
 import secrets
 from typing import TYPE_CHECKING, Any
 
-from httpx import AsyncClient as AsyncHTTPClient
+from httpx2 import AsyncClient as AsyncHTTPClient
 from openai import AsyncOpenAI
+from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers import Provider
 
 from llmling_models.log import get_logger
 
 
 if TYPE_CHECKING:
-    from httpx import Request, Response
+    from httpx2 import Request, Response
 
 
 logger = get_logger(__name__)
@@ -112,12 +113,13 @@ if __name__ == "__main__":
 
     from pydantic_ai import ModelRequest
     from pydantic_ai.models import ModelRequestParameters
-    from pydantic_ai.models.openai import OpenAIResponsesModel
+    from pydantic_ai.models.openai import OpenAIChatModel
 
-    provider = ZenProvider(
+    provider = OpencodeGoProvider(
+        # provider = ZenProvider(
         api_key="sk-iQmKk0zHGce746g7mzs4E34vBYfqQihpEOOn00rHQqtCvCZRtxJeRNvx2HGRhorZ"
     )
-    model = OpenAIResponsesModel("gpt-5.1-codex", provider=provider)
+    model = OpenAIChatModel("kimi-k2.6", provider=provider)
 
     async def main() -> None:
         req = ModelRequest.user_text_prompt("Hello, world!")

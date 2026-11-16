@@ -17,10 +17,10 @@ def infer_provider(provider: str) -> Provider[Any]:  # noqa: PLR0911
 
         return CopilotProvider()
     if provider == "grok":
-        from pydantic_ai.providers.grok import GrokProvider
+        from pydantic_ai.providers.openai import OpenAIProvider
 
         api_key = os.environ.get("X_AI_API_KEY") or os.environ.get("GROK_API_KEY") or ""
-        return GrokProvider(api_key=api_key)
+        return OpenAIProvider(base_url="https://api.x.ai/v1", api_key=api_key)
     if provider == "perplexity":
         from pydantic_ai.providers.openai import OpenAIProvider
 

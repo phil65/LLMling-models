@@ -21,11 +21,13 @@ def format_part(  # noqa: PLR0911
             return response
         case messages.ToolCallPart(args=args, tool_name=tool_name):
             return f"Tool call: {tool_name}\nArgs: {args}"
+        case messages.ToolReturnPart(outcome="retried", tool_name=tool_name) as part:
+            return f"Retry needed for {tool_name}: {part.model_response_str(wrap_if_error=False)}"
         case messages.ToolReturnPart(tool_name=tool_name, content=content):
             return f"Tool {tool_name} returned: {content}"
-        case messages.RetryPromptPart(content=content) if isinstance(content, str):
+        case messages.RetryFeedbackPart(content=str() as content):
             return f"Retry needed: {content}"
-        case messages.RetryPromptPart(content=content):
+        case messages.RetryFeedbackPart(content=content):
             return f"Validation errors:\n{content}"
         case messages.UserPromptPart(content=content) if not isinstance(content, str):
             texts = []

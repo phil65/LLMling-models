@@ -16,7 +16,7 @@ from llmling_models.log import get_logger
 
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
+    from collections.abc import AsyncGenerator, AsyncIterator
 
     from pydantic_ai import ModelMessage, ModelResponseStreamEvent, ModelSettings, RunContext
     from websockets import ClientConnection
@@ -142,7 +142,7 @@ class RemoteProxyModel(Model):
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
         run_context: RunContext[Any] | None = None,
-    ) -> AsyncIterator[StreamedResponse]:
+    ) -> AsyncGenerator[StreamedResponse]:
         """Stream responses using WebSocket connection."""
         if self.protocol != "websocket":
             raise RuntimeError("Streaming is only supported with WebSocket protocol")

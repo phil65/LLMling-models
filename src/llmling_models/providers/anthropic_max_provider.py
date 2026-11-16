@@ -17,8 +17,9 @@ import hashlib
 from typing import TYPE_CHECKING, Any
 
 from anthropic import AsyncAnthropic
-from httpx import AsyncClient as AsyncHTTPClient
+from httpx2 import AsyncClient as AsyncHTTPClient
 from pydantic_ai.providers import Provider
+from pydantic_ai.providers.anthropic import AsyncAnthropicClient
 
 from llmling_models.auth.anthropic_auth import (
     OAUTH_BETA_HEADERS,
@@ -29,7 +30,7 @@ from llmling_models.log import get_logger
 
 
 if TYPE_CHECKING:
-    from httpx import Request, Response
+    from httpx2 import Request, Response
 
     from llmling_models.auth.anthropic_auth import AnthropicOAuthToken
 
@@ -233,7 +234,7 @@ class AnthropicMaxHTTPClient(AsyncHTTPClient):
         Returns:
             The HTTP response
         """
-        import httpx
+        import httpx2
 
         token = await self._get_token()
 
@@ -272,7 +273,7 @@ class AnthropicMaxHTTPClient(AsyncHTTPClient):
             # Compute CCH over the body (with placeholder) and replace it
             modified_body = self._apply_cch(modified_body)
             # Rebuild request with modified URL, body and updated headers
-            new_request = httpx.Request(
+            new_request = httpx2.Request(
                 method=request.method,
                 url=url,
                 headers=dict(request.headers),
@@ -286,7 +287,7 @@ class AnthropicMaxHTTPClient(AsyncHTTPClient):
             return await super().send(new_request, *args, **kwargs)
 
         # Rebuild request with modified URL even if no body
-        new_request = httpx.Request(
+        new_request = httpx2.Request(
             method=request.method,
             url=url,
             headers=dict(request.headers),
@@ -311,7 +312,7 @@ def _create_client(token_store: AnthropicTokenStore) -> AsyncAnthropic:
     )
 
 
-class AnthropicMaxProvider(Provider[AsyncAnthropic]):
+class AnthropicMaxProvider(Provider[AsyncAnthropicClient]):
     """Provider for Anthropic API using Claude Max/Pro OAuth authentication.
 
     This provider allows Claude Max/Pro subscribers to use their subscription
@@ -341,7 +342,7 @@ class AnthropicMaxProvider(Provider[AsyncAnthropic]):
             token_store: Custom token store (defaults to standard location)
         """
         self._token_store = token_store or AnthropicTokenStore()
-        self._client: AsyncAnthropic | None = None  # type: ignore[assignment]
+        self._lazy_client: AsyncAnthropic | None = None
 
     @property
     def name(self) -> str:
@@ -354,11 +355,11 @@ class AnthropicMaxProvider(Provider[AsyncAnthropic]):
         return "https://api.anthropic.com"
 
     @property
-    def client(self) -> AsyncAnthropic:
+    def client(self) -> AsyncAnthropicClient:
         """Get the Anthropic client with OAuth authentication."""
-        if self._client is None:
-            self._client = _create_client(self._token_store)
-        return self._client
+        if self._lazy_client is None:
+            self._lazy_client = _create_client(self._token_store)
+        return self._lazy_client
 
 
 if __name__ == "__main__":

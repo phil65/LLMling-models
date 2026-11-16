@@ -108,7 +108,7 @@ def _infer_single_model(model: str | Model) -> Model:  # noqa: PLR0911
 
         provider = AnthropicMaxProvider()
         model_name = model.removeprefix("anthropic-max:")
-        return AnthropicModel(model_name=model_name, provider=provider)  # type: ignore[arg-type]
+        return AnthropicModel(model_name=model_name, provider=provider)
 
     if model.startswith("copilot:"):
         key = os.getenv("GITHUB_COPILOT_API_KEY")

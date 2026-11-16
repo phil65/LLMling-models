@@ -104,7 +104,7 @@ class CodeModeToolset[AgentDepsT = None](AbstractToolset[AgentDepsT]):
             parameters_json_schema=CodeExecutionParams.model_json_schema(),
         )
         tool = ToolsetTool(
-            toolset=self,  # ty: ignore[invalid-argument-type]
+            toolset=self,
             tool_def=tool_def,
             max_retries=self.max_retries,
             args_validator=SchemaValidator(CodeExecutionParams.__pydantic_core_schema__),
@@ -162,8 +162,9 @@ class CodeModeToolset[AgentDepsT = None](AbstractToolset[AgentDepsT]):
 if __name__ == "__main__":
     import asyncio
 
-    from pydantic_ai import Agent, RunUsage
-    from pydantic_ai.mcp import MCPServerStdio
+    from fastmcp.client.transports import StdioTransport
+    from pydantic_ai import Agent, RunUsage, Tool
+    from pydantic_ai.mcp import MCPToolset
     from pydantic_ai.models.test import TestModel
     from pydantic_ai.toolsets.function import FunctionToolset
 
@@ -185,7 +186,7 @@ if __name__ == "__main__":
     async def main() -> None:
         # Test with function toolset (should work with unified approach)
         function_toolset = FunctionToolset(
-            tools=[get_todays_date, what_happened_on_date, complex_return_type]
+            tools=[Tool(get_todays_date), Tool(what_happened_on_date), Tool(complex_return_type)]
         )
         toolset = CodeModeToolset(toolsets=[function_toolset])
         print("✅ Testing unified approach with dynamic signature generation...")
@@ -221,7 +222,7 @@ if __name__ == "__main__":
             print(f"Function toolset result: {result}")
 
         print("\n🔧 Testing with MCP toolset...")
-        mcp_toolset = MCPServerStdio(command="uvx", args=["mcp-server-git"])
+        mcp_toolset = MCPToolset(StdioTransport(command="uvx", args=["mcp-server-git"]))
         toolset = CodeModeToolset(toolsets=[mcp_toolset])
         async with Agent(model="anthropic:claude-haiku-4-5", toolsets=[toolset]) as agent:
             result = await agent.run(

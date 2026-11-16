@@ -140,7 +140,7 @@ class ModelServer:
                                         "done": False,
                                     })
                             # Send completion with usage
-                            usage = asdict(stream.usage())
+                            usage = asdict(stream.usage)
                             await websocket.send_json({"chunk": "", "done": True, "usage": usage})
 
                     except WebSocketDisconnect:

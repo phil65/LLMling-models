@@ -2,20 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable
+from collections.abc import AsyncGenerator, Awaitable
 from contextlib import asynccontextmanager
 import inspect
 from typing import TYPE_CHECKING, Any
 
-from pydantic import Field, ImportString  # noqa: TC002
+from pydantic import Field, ImportString
 
 from llmling_models.log import get_logger
 from llmling_models.models.multi import MultiModel
 
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
-
     from pydantic_ai import ModelMessage, ModelResponse, ModelSettings, RunContext
     from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
 
@@ -75,7 +73,7 @@ class UserSelectModel(MultiModel):
             selection_prompt = self.input_prompt.format(max=len(self.available_models) - 1)
             input_method = handler.get_input
             if inspect.iscoroutinefunction(input_method):
-                selection = await input_method(selection_prompt)  # ty: ignore[invalid-await]
+                selection = await input_method(selection_prompt)
             else:
                 response_or_awaitable = input_method(selection_prompt)
                 if isinstance(response_or_awaitable, Awaitable):
@@ -83,7 +81,7 @@ class UserSelectModel(MultiModel):
                 else:
                     selection = response_or_awaitable
             try:
-                index = int(selection)  # ty: ignore[invalid-argument-type]
+                index = int(selection)
                 if 0 <= index < len(self.available_models):
                     selected_model = self.available_models[index]
                     logger.info("User selected model: %s", selected_model.model_name)
@@ -115,7 +113,7 @@ class UserSelectModel(MultiModel):
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
         run_context: RunContext[Any] | None = None,
-    ) -> AsyncIterator[StreamedResponse]:
+    ) -> AsyncGenerator[StreamedResponse]:
         """Stream response using user-selected model."""
         handler = self.handler() if isinstance(self.handler, type) else self.handler
         selected_model = await self._get_user_selection(messages, handler)
