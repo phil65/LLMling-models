@@ -7,7 +7,12 @@ from pydantic_ai.models.google import GoogleModel
 import pytest
 
 from llmling_models import infer_model
-from llmling_models_config.configs import AnthropicModelConfig, GeminiModelConfig
+from llmling_models_config.configs import (
+    AnthropicModelConfig,
+    GeminiModelConfig,
+    OpenAIModelConfig,
+    OpenRouterModelConfig,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -37,3 +42,11 @@ def test_google_api_prefixes(monkeypatch: pytest.MonkeyPatch, prefix: str) -> No
     model = infer_model(f"{prefix}:gemini-2.5-flash")
     assert isinstance(model, GoogleModel)
     assert model.model_name == "gemini-2.5-flash"
+
+
+def test_provider_configs_accept_unlisted_identifiers() -> None:
+    """Identifiers missing from tokonomics' known-model lists are still accepted."""
+    assert OpenAIModelConfig(identifier="gpt-4o").identifier == "gpt-4o"
+    assert OpenRouterModelConfig(identifier="openai/gpt-4o").identifier == "openai/gpt-4o"
+    assert AnthropicModelConfig(identifier="claude-future-9").identifier == "claude-future-9"
+    assert GeminiModelConfig(identifier="gemini-future-9").identifier == "gemini-future-9"

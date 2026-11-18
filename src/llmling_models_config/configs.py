@@ -593,7 +593,10 @@ class OpenAIModelConfig(BaseModelConfig):
     type: Literal["openai"] = Field(default="openai", init=False)
     """Type identifier for OpenAI model."""
 
-    identifier: OpenaiModelName = Field(examples=["gpt-4", "gpt-4-turbo"], title="Model identifier")
+    identifier: OpenaiModelName | str = Field(
+        examples=["gpt-4", "gpt-4-turbo"],
+        title="Model identifier",
+    )
     """String identifier for the model."""
 
     max_tokens: int | None = Field(
@@ -883,7 +886,7 @@ class OpenRouterModelConfig(BaseModelConfig):
     type: Literal["openrouter"] = Field(default="openrouter", init=False)
     """Type identifier for OpenRouter model."""
 
-    identifier: OpenrouterModelName = Field(
+    identifier: OpenrouterModelName | str = Field(
         examples=["anthropic/claude-3.5-sonnet", "openai/gpt-4-turbo"],
         title="Model identifier",
     )
@@ -1063,7 +1066,7 @@ class AnthropicModelConfig(BaseModelConfig):
     type: Literal["anthropic"] = Field(default="anthropic", init=False)
     """Type identifier for Anthropic model."""
 
-    identifier: AnthropicModelName = Field(
+    identifier: AnthropicModelName | str = Field(
         examples=["claude-3-opus", "claude-3-sonnet"],
         title="Model identifier",
     )
@@ -1277,7 +1280,7 @@ class GeminiModelConfig(BaseModelConfig):
     type: Literal["gemini"] = Field(default="gemini", init=False)
     """Type identifier for Gemini model."""
 
-    identifier: GeminiModelName = Field(
+    identifier: GeminiModelName | str = Field(
         examples=["gemini-2.0-flash", "gemini-1.5-pro"],
         title="Model identifier",
     )
