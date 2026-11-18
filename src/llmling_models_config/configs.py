@@ -1266,7 +1266,7 @@ class AnthropicModelConfig(BaseModelConfig):
 
         from llmling_models import infer_model
 
-        return infer_model(self.identifier)
+        return infer_model("anthropic:" + self.identifier)
 
 
 class GeminiModelConfig(BaseModelConfig):
