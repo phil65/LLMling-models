@@ -114,23 +114,6 @@ def _infer_single_model(model: str | Model) -> Model:  # noqa: PLR0911
         key = os.getenv("GITHUB_COPILOT_API_KEY")
         return _get_openai_based_model(model, base_url="https://api.githubcopilot.com", api_key=key)
 
-    if model.startswith("copilot:"):
-        from httpx import AsyncClient
-        from pydantic_ai.models.openai import OpenAIResponsesModel
-        from pydantic_ai.providers.openai import OpenAIProvider
-
-        token = os.getenv("GITHUB_COPILOT_API_KEY")
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "editor-version": "Neovim/0.9.0",
-            "Copilot-Integration-Id": "vscode-chat",
-        }
-        client = AsyncClient(headers=headers)
-        base_url = "https://api.githubcopilot.com"
-        prov = OpenAIProvider(base_url=base_url, api_key=token, http_client=client)
-        model_name = model.removeprefix("copilot:")
-        return OpenAIResponsesModel(model_name=model_name, provider=prov)
-
     if model == "input":
         from llmling_models import InputModel
 
