@@ -158,8 +158,11 @@ def _infer_single_model(model: str | Model) -> Model:  # noqa: PLR0911
         from pydantic_ai.models.test import TestModel
 
         return TestModel(custom_output_text=model.removeprefix("test:"))
-    if model.startswith("gemini:"):
-        model = model.replace("gemini:", "google-gla:")
+    # pydantic-ai v2 renamed google-gla -> google and google-vertex -> google-cloud
+    if model.startswith(("gemini:", "google-gla:")):
+        model = "google:" + model.split(":", maxsplit=1)[1]
+    elif model.startswith("google-vertex:"):
+        model = "google-cloud:" + model.removeprefix("google-vertex:")
     if model.startswith("claude-code:"):
         from llmling_models.models.claude_code_model import ClaudeCodeModel
 
