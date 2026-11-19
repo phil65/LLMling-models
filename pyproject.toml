@@ -82,9 +82,8 @@ docs = [
   # Only add below (Copier)
 ]
 lint = [
-  "mypy; python_version >= '3.14'",
-  "mypy[faster-cache]; python_version < '3.14'",
   "ruff",
+  "ty",
   "types-PyYAML",
   # Only add below (Copier)
 ]
@@ -113,14 +112,6 @@ allowed-commit-types = [
   "chore",
 ]
 docstring-style = "google"
-
-[tool.mypy]
-python_version = "3.13"
-pretty = true
-strict = true
-check_untyped_defs = true
-exclude = ["venv/", ".venv/"]
-plugins = ["pydantic.mypy"]
 
 [tool.pyright]
 venvPath = "."
@@ -159,7 +150,7 @@ target-version = "py313"
 future-annotations = true
 select = [
   "A",  # Flake8-builtins
-  # "ANN",  # Flake8-Annotations
+  "ANN",  # Flake8-Annotations (enforces complete annotations; ty does not)
   # "ASYNC",  # Flake8-Async
   # "ARG",  # # Flake8-Unused-Arguments
   "B",  # flake8-bugbear
@@ -219,6 +210,7 @@ select = [
   "YTT",  # flake8-2020
 ]
 ignore = [
+  "ANN401",  # Dynamically typed expressions (Any) are allowed
   "C408",  # Unnecessary {obj_type} call (rewrite as a literal)
   "B905",  # zip() without an explicit strict= parameter
   "C901",  # {name} is too complex ({complexity} > {max_complexity})
@@ -287,11 +279,17 @@ max-complexity = 15
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["E402", "I001"]
-"scripts/*" = ["INP001"]
-"*tests/*" = ["D100"]
+"scripts/*" = ["INP001", "ANN"]
+"*tests/*" = ["D100", "ANN"]  # tests need not be fully annotated
+"duties.py" = ["ANN"]  # tooling, not package code
+"examples/**/*.py" = ["ANN"]
 
 [tool.ruff.format]
 preview = true
+
+[tool.ty.src]
+# `ty check` (hooks, CI, editors) type-checks the package code only.
+include = ["src"]
 
 [tool.ty.environment]
 python-version = "3.13"

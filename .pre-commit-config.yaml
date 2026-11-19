@@ -49,15 +49,9 @@ repos:
         language: system
         types: [python]
         require_serial: true
-      - id: mypy
-        name: mypy
-        entry: uv run mypy --fixed-format-cache
-        language: system
-        types: [python]
-        require_serial: true
       - id: ty
         name: ty
-        entry: uv run ty check src/
+        entry: uv run ty check
         language: system
         types: [python]
         pass_filenames: false
