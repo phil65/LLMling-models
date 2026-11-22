@@ -168,11 +168,13 @@ def claude_code_all_tools() -> list[AbstractNativeTool]:
 
     Example:
         from pydantic_ai import Agent
+        from pydantic_ai.capabilities import NativeTool
         from llmling_models import ClaudeCodeModel
         from llmling_models.builtin_tools import claude_code_all_tools
 
         model = ClaudeCodeModel()
-        agent = Agent(model=model, builtin_tools=claude_code_all_tools())
+        tools = [NativeTool(tool) for tool in claude_code_all_tools()]
+        agent = Agent(model=model, capabilities=tools)
     """
     return [
         ClaudeCodeReadTool(),
@@ -194,7 +196,8 @@ def claude_code_read_only_tools() -> list[AbstractNativeTool]:
     Convenience function for safe, read-only operations.
 
     Example:
-        agent = Agent(model=model, builtin_tools=claude_code_read_only_tools())
+        tools = [NativeTool(tool) for tool in claude_code_read_only_tools()]
+        agent = Agent(model=model, capabilities=tools)
     """
     return [
         ClaudeCodeReadTool(),
