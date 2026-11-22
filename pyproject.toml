@@ -20,10 +20,8 @@ classifiers = [
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
-  "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
-  "Topic :: Documentation",
   "Topic :: Software Development",
   "Topic :: Utilities",
   "Typing :: Typed",
@@ -66,6 +64,7 @@ transformers = ["transformers"]
 
 [dependency-groups]
 dev = [
+  "deptry",
   "devtools",
   "openai",
   "pyreadline3",
@@ -243,6 +242,7 @@ ignore = [
   "PLR0912",  # Too many branches
   "PLR0913",  # Too many arguments to function call
   "PLR0915",  # Too many statements
+  "PLR0917",  # Too many positional arguments
   # "PLR2004", # Magic values instead of named consts
   "SLF001",  # Private member accessed
   "TRY003",  # Avoid specifying long messages outside the exception class
@@ -295,8 +295,14 @@ include = ["src"]
 python-version = "3.13"
 python-platform = "all"
 
+[tool.ty.analysis]
+# Optional dependencies that are not always installed, e.g. "numpy", "numpy.**".
+# Unresolved imports are errors otherwise, so broken imports are caught.
+allowed-unresolved-imports = []
+
 [tool.ty.rules]
-# Pydantic discriminated unions narrow `type: str` to `Literal[...]` in subclasses
+# Narrowing an overridden class attribute (e.g. pydantic discriminators,
+# `Config` attributes) is an intentional pattern.
 incompatible-mutable-override = "ignore"
 
 [tool.uv]
