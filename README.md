@@ -23,412 +23,295 @@
 [![Package status](https://codecov.io/gh/phil65/llmling-models/branch/main/graph/badge.svg)](https://codecov.io/gh/phil65/llmling-models/)
 [![PyUp](https://pyup.io/repos/github/phil65/llmling-models/shield.svg)](https://pyup.io/repos/github/phil65/llmling-models/)
 
-# llmling-models
-
-Collection of model wrappers and adapters for use with [AgentPool](https://github.com/phil65/agentpool), but should work with the underlying pydantic-ai API without issues.
-
-## CodeModeToolset
-
-The `CodeModeToolset` wraps other pydantic-ai toolsets and provides Python code execution with all their tools available as async functions. This approach is more effective than traditional tool calling because LLMs have extensive training on real-world code but limited exposure to synthetic tool-calling examples. When tools are presented as a programming API, LLMs can handle more complex scenarios, chain multiple operations efficiently without token overhead between calls, and leverage their code-writing strengths. (more info: [https://blog.cloudflare.com/code-mode/](https://blog.cloudflare.com/code-mode/))
-
-```python
-import webbrowser
-from pydantic_ai import Agent
-from pydantic_ai.toolsets.function import FunctionToolset
-from llmling_models import CodeModeToolset
-
-# Create toolsets with tools
-browser_toolset = FunctionToolset(tools=[webbrowser.open])
-
-# Wrap in CodeModeToolset
-code_toolset = CodeModeToolset([browser_toolset])
-
-# Use with agent
-agent = Agent(model="openai:gpt-4", toolsets=[code_toolset])
-
-async with agent:
-    result = await agent.run("Open google.com in a new tab using Python code")
-    # The LLM can now write: await open("https://google.com", new=2)
-```
-
-The toolset generates documentation for all available tools and handles the execution environment automatically.
-
-## Available Models
-
-### Augmented Model
-
-Enhances prompts through pre- and post-processing steps using auxiliary language models:
-
-```python
-from llmling_models import AugmentedModel
-
-model = AugmentedModel(
-    main_model="openai:gpt-4",
-    pre_prompt={"text": "Expand this question: {input}", "model": "openai:gpt-3.5-turbo"},
-    post_prompt={
-        "text": "Summarize this response concisely: {output}",
-        "model": "openai:gpt-3.5-turbo",
-    },
-)
-agent = Agent(model)
-
-# The question will be expanded before processing
-# and the response will be summarized afterward
-result = await agent.run("What is AI?")
-```
-
-### Input Model
-
-A model that delegates responses to human input, useful for testing, debugging, or creating hybrid human-AI workflows:
-
-```python
-from pydantic_ai import Agent
-from llmling_models import InputModel
-
-# Basic usage with default console input
-model = InputModel(
-    prompt_template="🤖 Question: {prompt}",
-    show_system=True,
-    input_prompt="Your answer: ",
-)
-
-# Create agent with system context
-agent = Agent(
-    model=model,
-    system_prompt="You are helping test an input model. Be concise.",
-)
-
-# Run interactive conversation
-result = await agent.run("What's your favorite color?")
-print(f"You responded: {result.output}")
-
-# Supports streaming input
-async with agent.run_stream("Tell me a story...") as response:
-    async for chunk in response.stream():
-        print(chunk, end="", flush=True)
-```
-
-Features:
-- Interactive console input for testing and debugging
-- Support for streaming input (character by character, but not "true" async with default handler)
-- Configurable message formatting
-- Custom input handlers for different input sources
-- System message display control
-- Full conversation context support
-
-This model is particularly useful for:
-- Testing complex prompt chains
-- Creating hybrid human-AI workflows
-- Debugging agent behavior
-- Collecting human feedback
-- Educational scenarios where human input is needed
-
-
-### User Select Model
-
-An interactive model that lets users manually choose which model to use for each prompt:
-
-```python
-from pydantic_ai import Agent
-from llmling_models import UserSelectModel
-
-# Basic setup with model list
-model = UserSelectModel(models=["openai:gpt-4o-mini", "openai:gpt-3.5-turbo", "anthropic:claude-3"])
-
-agent = Agent(model)
-
-# The user will be shown the prompt and available models,
-# and can choose which one to use for the response
-result = await agent.run("What is the meaning of life?")
-```
-
-#### Model Delegation
-
-Dynamically selects models based on given prompt. Uses a selector model to choose the most appropriate model for each task:
-
-```python
-from pydantic_ai import Agent
-from llmling_models import DelegationMultiModel
-
-# Basic setup with model list
-delegation_model = DelegationMultiModel(
-    selector_model="openai:gpt-4-turbo",
-    models=["openai:gpt-4", "openai:gpt-3.5-turbo"],
-    selection_prompt="Pick gpt-4 for complex tasks, gpt-3.5-turbo for simple queries.",
-)
-
-# Advanced setup with model descriptions
-delegation_model = DelegationMultiModel(
-    selector_model="openai:gpt-4-turbo",
-    models=["openai:gpt-4", "anthropic:claude-2", "openai:gpt-3.5-turbo"],
-    model_descriptions={
-        "openai:gpt-4": "Complex reasoning, math problems, and coding tasks",
-        "anthropic:claude-2": "Long-form analysis and research synthesis",
-        "openai:gpt-3.5-turbo": "Simple queries, chat, and basic information",
-    },
-    selection_prompt="Select the most appropriate model for the task.",
-)
-
-agent = Agent(delegation_model)
-
-# The selector model will analyze the prompt and choose the most suitable model
-result = await agent.run("Solve this complex mathematical proof...")
-```
-
-The cost-optimized model ensures you stay within budget while getting the best possible model for your needs, while the token-optimized model automatically handles varying input lengths by selecting models with appropriate context windows.
-
-
-### Remote Input Model
-
-A model that connects to a remote human operator, allowing distributed human-in-the-loop operations:
-
-```python
-from pydantic_ai import Agent
-from llmling_models import RemoteInputModel
-
-# Basic setup with WebSocket (preferred for streaming)
-model = RemoteInputModel(url="ws://operator:8000/v1/chat/stream", api_key="your-api-key")
-
-# Or use REST API
-model = RemoteInputModel(url="http://operator:8000/v1/chat", api_key="your-api-key")
-
-agent = Agent(model)
-
-# The request will be forwarded to the remote operator
-result = await agent.run("What's the meaning of life?")
-print(f"Remote operator responded: {result.output}")
-
-# Streaming also works with WebSocket protocol
-async with agent.run_stream("Tell me a story...") as response:
-    async for chunk in response.stream():
-        print(chunk, end="", flush=True)
-```
-
-
-Features:
-- Distributed human-in-the-loop operations
-- WebSocket support for real-time streaming
-- REST API for simpler setups
-- Full conversation context support
-- Secure authentication via API keys
-
-#### Setting up a Remote Model Server
-
-Setting up a remote model server is straightforward. You just need a pydantic-ai model and can start serving it:
-
-```python
-from llmling_models.remote_model.server import ModelServer
-
-# Create and start server
-server = ModelServer(
-    model="openai:gpt-4",
-    api_key="your-secret-key",  # Optional authentication
-)
-server.run(port=8000)
-```
-
-That's it! The server now accepts both REST and WebSocket connections and handles all the message protocol details for you.
-
-Features:
-- Simple setup - just provide a model
-- Optional API key authentication
-- Automatic handling of both REST and WebSocket protocols
-- Full pydantic-ai message protocol support
-- Usage statistics forwarding
-- Built-in error handling and logging
-
-For development, you might want to run the server locally:
-
-```python
-server = ModelServer(model="openai:gpt-4", api_key="dev-key")
-server.run(host="localhost", port=8000)
-```
-
-For production, you'll typically want to run it on a public server with proper authentication:
-
-```python
-server = ModelServer(
-    model="openai:gpt-4",
-    api_key="your-secure-key",  # Make sure to use a strong key
-    title="Production GPT-4 Server",
-    description="Serves GPT-4 model for production use",
-)
-server.run(
-    host="0.0.0.0",  # Accept connections from anywhere
-    port=8000,
-    workers=4,  # Multiple workers for better performance
-)
-```
-
-Both REST and WebSocket protocols are supported, with WebSocket being preferred for streaming capabilities. They also maintain the full pydantic-ai message protocol, ensuring compatibility with all features of the framework.
-
-
-
-All multi models are generically typed to follow pydantic best practices. Usefulness for that is debatable though. :P
-
-## Providers
-
-LLMling-models extends the capabilities of pydantic-ai with additional provider implementations that make it easy to connect to various LLM API services.
-
-### Available Providers
-
-The package includes the following provider implementations:
-
-
-#### GitHub Copilot Provider
-
-Connect to GitHub Copilot's API for code-focused tasks (requires token management):
-
-```python
-from pydantic_ai import Agent
-from pydantic_ai.models.openai import OpenAIModel
-from llmling_models.providers.copilot_provider import CopilotProvider
-
-# Requires tokonomics.CopilotTokenManager to handle token management
-provider = CopilotProvider()  # Uses tokonomics for authentication
-model = OpenAIModel("gpt-4o-mini", provider=provider)
-agent = Agent(model=model)
-result = await agent.run("Write a function to calculate Fibonacci numbers")
-```
-
-#### LM Studio Provider
-
-Connect to local LM Studio inference server for open-source models:
-
-```python
-from pydantic_ai import Agent
-from pydantic_ai.models.openai import OpenAIModel
-from llmling_models.providers.lm_studio_provider import LMStudioProvider
-
-provider = LMStudioProvider(base_url="http://localhost:11434/v1")
-model = OpenAIModel("model_name", provider=provider)  # Use model loaded in LM Studio
-agent = Agent(model=model)
-result = await agent.run("Tell me about yourself")
-```
-
-### Provider Utility Functions
-
-#### infer_provider
-
-The `infer_provider` function extends pydantic-ai's provider inference to include all LLMling-models providers:
-
-```python
-from llmling_models.providers import infer_provider
-
-# Get provider by name
-provider = infer_provider("openrouter")  # Returns OpenRouterProvider instance
-provider = infer_provider("grok")  # Returns GrokProvider instance
-provider = infer_provider("perplexity")  # Returns PerplexityProvider instance
-provider = infer_provider("copilot")  # Returns CopilotProvider instance
-provider = infer_provider("lm-studio")  # Returns LMStudioProvider instance
-
-# Still works with standard providers too
-provider = infer_provider("openai")  # Returns pydantic_ai's OpenAIProvider
-```
-
-## Extended infer_model Function
-
-LLMling-models provides an extended `infer_model` function that resolves various model notations to appropriate instances:
-
-```python
-from llmling_models import infer_model
-
-# Provider prefixes (requires appropriate API keys as env vars)
-model = infer_model("openai:gpt-4o")  # OpenAI models
-model = infer_model("openrouter:anthropic/opus")  # OpenRouter (requires OPENROUTER_API_KEY)
-model = infer_model("grok:grok-2-1212")  # Grok/X.AI (requires X_AI_API_KEY)
-model = infer_model("perplexity:sonar-medium")  # Perplexity (requires PERPLEXITY_API_KEY)
-model = infer_model("deepseek:deepseek-chat")  # DeepSeek (requires DEEPSEEK_API_KEY)
-model = infer_model("copilot:gpt-4o-mini")  # GitHub Copilot (requires token management)
-model = infer_model("lm-studio:model-name")  # LM Studio local models
-
-# LLMling's special models
-model = infer_model("input")  # Interactive human input model
-model = infer_model("remote_model:ws://url")  # Remote model proxy
-model = infer_model("remote_input:ws://url")  # Remote human input
-model = infer_model("import:module.path:Class")  # Import model from Python path
-
-# Testing
-model = infer_model("test:Custom response")  # Test model with fixed output
-```
-
-### Environment Variable Configuration
-
-For convenience, most providers support configuration via environment variables:
-
-| Provider    | Environment Variable    | Purpose                    |
-|-------------|-------------------------|----------------------------|
-| OpenRouter  | `OPENROUTER_API_KEY`    | API key for authentication |
-| Grok (X.AI) | `X_AI_API_KEY` or `GROK_API_KEY` | API key for authentication |
-| DeepSeek    | `DEEPSEEK_API_KEY`      | API key for authentication |
-| Perplexity  | `PERPLEXITY_API_KEY`    | API key for authentication |
-| Copilot     | Uses tokonomics token management | - |
-| LM Studio   | `LM_STUDIO_BASE_URL`    | Base URL for local server |
-| OpenAI      | `OPENAI_API_KEY`        | API key for authentication |
-```
-
-
-### Claude Code Model
-
-A model that delegates to the Claude Code CLI via the Claude Agent SDK, providing access to Claude with filesystem access, code execution, and other agentic capabilities:
-
-```python
-from pydantic_ai import Agent
-from llmling_models import ClaudeCodeModel, ClaudeCodeReadTool, ClaudeCodeGlobTool
-
-# Basic usage
-model = ClaudeCodeModel(model="sonnet")
-agent = Agent(model=model)
-
-# Without builtin tools, Claude has no tool access
-result = await agent.run("What is 2+2?")
-
-# With builtin tools, Claude can use them
-result = await agent.run(
-    "What files are in the current directory?",
-    builtin_tools=[ClaudeCodeGlobTool(), ClaudeCodeReadTool()],
-)
-```
-
-Available builtin tools:
-- `ClaudeCodeReadTool` - Read file contents
-- `ClaudeCodeWriteTool` - Write files
-- `ClaudeCodeEditTool` - Edit files
-- `ClaudeCodeBashTool` - Execute bash commands
-- `ClaudeCodeGlobTool` - Find files by pattern
-- `ClaudeCodeGrepTool` - Search file contents
-- `ClaudeCodeWebSearchTool` - Search the web
-- `ClaudeCodeWebFetchTool` - Fetch web content
-- `ClaudeCodeTaskTool` - Spawn subagents
-- `ClaudeCodeNotebookEditTool` - Edit Jupyter notebooks
-
-Convenience functions for batch tool access:
-```python
-from llmling_models import claude_code_all_tools, claude_code_read_only_tools
-
-# All tools
-agent = Agent(model=model, builtin_tools=claude_code_all_tools())
-
-# Read-only tools (no writes, edits, or bash)
-agent = Agent(model=model, builtin_tools=claude_code_read_only_tools())
-```
-
-Configuration options:
-```python
-model = ClaudeCodeModel(
-    model="opus",  # or "sonnet", "haiku", or full names like "claude-sonnet-4-5-20250929"
-    cwd="/path/to/workdir",  # Working directory
-    permission_mode="bypassPermissions",  # Tool permission handling
-    system_prompt="Custom system prompt",
-    max_turns=10,  # Max conversation turns
-    max_thinking_tokens=1000,  # For extended thinking
-)
-```
-
-Requires authentication via `claude login` (the CLI handles auth automatically).
+Extra [pydantic-ai](https://ai.pydantic.dev/) models, providers and toolsets: human-in-the-loop
+models, model routing, prompt augmentation, remote models, a Claude Code model, a "code mode"
+toolset and an extended `infer_model()`. Built for
+[AgentPool](https://github.com/phil65/agentpool), but everything works with plain pydantic-ai.
+
+**Documentation:** https://phil65.github.io/LLMling-models/
 
 ## Installation
 
 ```bash
 uv add llmling-models
 ```
+
+Optional extras:
+
+| Extra | Enables |
+|---|---|
+| `server` | OpenAI-compatible server and the `llmling-models` CLI |
+| `remote` | Remote model / remote input servers (FastAPI, websockets) |
+| `claude` | `ClaudeCodeModel` (claude-agent-sdk) |
+| `codemode` | fastmcp, for the MCP tool bridge (`llmling_models.tool_bridge`) |
+| `anthropic-max` | Anthropic Claude Max/Pro OAuth provider |
+| `default` | The full `pydantic-ai` package with all of its providers |
+
+## Quickstart
+
+```python
+from pydantic_ai import Agent
+from llmling_models import infer_model
+
+# Drop-in replacement for pydantic-ai's model inference, with extra prefixes
+model = infer_model("test:Hello from llmling-models")
+agent = Agent(model)
+result = agent.run_sync("Say hi")
+print(result.output)  # Hello from llmling-models
+```
+
+## Features
+
+- **Extended `infer_model()`**: extra prefixes (`openrouter:`, `grok:`, `deepseek:`,
+  `perplexity:`, `copilot:`, `lm-studio:`, `zen:`, `anthropic-max:`, `claude-code:`, `input`,
+  `remote_model:`, `remote_input:`, `import:`, `test:`) and comma-separated fallback chains.
+- **Models**: `InputModel`, `UserSelectModel`, `DelegationMultiModel`, `AugmentedModel`,
+  `RemoteInputModel`, `RemoteProxyModel`, `ClaudeCodeModel`, `function_to_model()`.
+- **Providers**: GitHub Copilot, LM Studio, Requesty, Moondream, OpenCode Zen, Anthropic Max OAuth.
+- **`CodeModeToolset`**: exposes tools as a Python API the model can script against.
+- **Config models**: `llmling_models_config` holds pydantic configs (`StringModelConfig`,
+  `OpenAIModelConfig`, `AnthropicModelConfig`, ...) with a `get_model()` factory.
+- **CLI**: OpenAI-compatible API server and OAuth logins.
+
+## Extended infer_model
+
+```python
+from llmling_models import infer_model
+
+model = infer_model("openai:gpt-4o")  # standard pydantic-ai ids still work
+model = infer_model("openrouter:anthropic/claude-sonnet-4.5")  # OPENROUTER_API_KEY
+model = infer_model("grok:grok-4")  # X_AI_API_KEY or GROK_API_KEY
+model = infer_model("deepseek:deepseek-chat")  # DEEPSEEK_API_KEY
+model = infer_model("perplexity:sonar")  # PERPLEXITY_API_KEY
+model = infer_model("copilot:gpt-4o-mini")  # GitHub Copilot token
+model = infer_model("lm-studio:model-name")  # local LM Studio server
+
+model = infer_model("input")  # human types the answer
+model = infer_model("remote_model:ws://host:8000/v1/completion/stream")
+model = infer_model("remote_input:ws://host:8000/v1/chat/stream")
+model = infer_model("import:my_package.models:MyModel")  # import a Model from a path
+model = infer_model("test:Custom response")  # TestModel with fixed output
+
+# Fallback chain: tries models in order
+model = infer_model("openai:gpt-4o,anthropic:claude-sonnet-4-5")
+```
+
+| Provider | Environment variable |
+|---|---|
+| OpenRouter | `OPENROUTER_API_KEY` |
+| Grok (X.AI) | `X_AI_API_KEY` or `GROK_API_KEY` |
+| DeepSeek | `DEEPSEEK_API_KEY` |
+| Perplexity | `PERPLEXITY_API_KEY` |
+| Copilot | `GITHUB_COPILOT_API_KEY` (or `llmling-models copilot-auth`) |
+| LM Studio | `LM_STUDIO_BASE_URL` (default `http://localhost:1234/v1`) |
+| Requesty | `REQUESTY_API_KEY` |
+| OpenCode Zen | `OPENCODE_API_KEY` |
+| OpenAI | `OPENAI_API_KEY` |
+
+## Models
+
+### Input Model
+
+Delegates responses to a human, for testing, debugging or hybrid human-AI workflows:
+
+```python
+from pydantic_ai import Agent
+from llmling_models import InputModel
+
+model = InputModel(
+    prompt_template="Question: {prompt}",
+    show_system=True,
+    input_prompt="Your answer: ",
+)
+agent = Agent(model=model, system_prompt="You are helping test an input model.")
+result = await agent.run("What's your favorite color?")
+print(result.output)
+```
+
+Custom input sources can be plugged in via the `handler` argument (see
+`llmling_models.models.input_model.input_handlers`).
+
+### User Select Model
+
+Lets the user pick which model answers each prompt:
+
+```python
+from pydantic_ai import Agent
+from llmling_models import UserSelectModel
+
+model = UserSelectModel(models=["openai:gpt-4o-mini", "anthropic:claude-haiku-4-5"])
+agent = Agent(model)
+result = await agent.run("What is the meaning of life?")
+```
+
+### Delegation Model
+
+A selector model picks the most suitable model for each prompt:
+
+```python
+from pydantic_ai import Agent
+from llmling_models import DelegationMultiModel
+
+model = DelegationMultiModel(
+    selector_model="openai:gpt-4o-mini",
+    models=["openai:gpt-4o", "openai:gpt-4o-mini"],
+    model_descriptions={
+        "openai:gpt-4o": "Complex reasoning, math and coding tasks",
+        "openai:gpt-4o-mini": "Simple queries and chat",
+    },
+    selection_prompt="Select the most appropriate model for the task.",
+)
+agent = Agent(model)
+result = await agent.run("Solve this complex mathematical proof...")
+```
+
+### Augmented Model
+
+Pre- and post-processes prompts with auxiliary models:
+
+```python
+from pydantic_ai import Agent
+from llmling_models.models import AugmentedModel
+from llmling_models.models.augmented import PrePostPromptConfig
+
+model = AugmentedModel(
+    main_model="openai:gpt-4o",
+    pre_prompt=PrePostPromptConfig(
+        text="Expand this question: {input}", model="openai:gpt-4o-mini"
+    ),
+    post_prompt=PrePostPromptConfig(
+        text="Summarize this response concisely: {output}", model="openai:gpt-4o-mini"
+    ),
+)
+agent = Agent(model)
+result = await agent.run("What is AI?")
+```
+
+### Remote Input and Remote Proxy Models
+
+Forward requests to a remote human operator (`RemoteInputModel`) or to a model served elsewhere
+(`RemoteProxyModel`), over WebSocket (streaming) or REST. Requires the `remote` extra.
+
+```python
+from pydantic_ai import Agent
+from llmling_models.models import RemoteInputModel
+
+model = RemoteInputModel(url="ws://operator:8000/v1/chat/stream", api_key="your-api-key")
+agent = Agent(model)
+result = await agent.run("What's the meaning of life?")
+```
+
+Serving a pydantic-ai model for `RemoteProxyModel`:
+
+```python
+from llmling_models.models.remote_model.server import ModelServer
+
+server = ModelServer(model="openai:gpt-4o-mini", api_key="your-secret-key")
+server.run(host="0.0.0.0", port=8000)
+```
+
+The matching operator server for `RemoteInputModel` lives in
+`llmling_models.models.remote_input.server`.
+
+### Claude Code Model
+
+Delegates to the Claude Code CLI via the Claude Agent SDK (`claude` extra; authenticate with
+`claude login`). Claude Code's own tools are enabled per agent as pydantic-ai native tools:
+
+```python
+from pydantic_ai import Agent
+from pydantic_ai.capabilities import NativeTool
+from llmling_models import ClaudeCodeGlobTool, ClaudeCodeModel, ClaudeCodeReadTool
+
+model = ClaudeCodeModel(model="sonnet", cwd="/path/to/project", max_turns=10)
+
+# Without native tools, Claude has no tool access
+agent = Agent(model)
+
+# With native tools
+agent = Agent(
+    model,
+    capabilities=[NativeTool(ClaudeCodeGlobTool()), NativeTool(ClaudeCodeReadTool())],
+)
+result = await agent.run("What files are in the current directory?")
+```
+
+Available tools: `ClaudeCodeReadTool`, `ClaudeCodeWriteTool`, `ClaudeCodeEditTool`,
+`ClaudeCodeBashTool`, `ClaudeCodeGlobTool`, `ClaudeCodeGrepTool`, `ClaudeCodeWebSearchTool`,
+`ClaudeCodeWebFetchTool`, `ClaudeCodeTaskTool`, `ClaudeCodeNotebookEditTool`.
+`claude_code_all_tools()` and `claude_code_read_only_tools()` return ready-made lists.
+
+## CodeModeToolset
+
+`CodeModeToolset` wraps other toolsets and exposes a single Python execution tool in which all
+wrapped tools are available as async functions. LLMs are good at writing code, so chaining several
+tool calls in one script is often more reliable and cheaper than classic tool calling
+([background](https://blog.cloudflare.com/code-mode/)).
+
+```python
+import webbrowser
+
+from pydantic_ai import Agent
+from pydantic_ai.toolsets.function import FunctionToolset
+from llmling_models import CodeModeToolset
+
+browser_toolset = FunctionToolset(tools=[webbrowser.open])
+code_toolset = CodeModeToolset(toolsets=[browser_toolset])
+
+agent = Agent(model="openai:gpt-4o-mini", toolsets=[code_toolset])
+async with agent:
+    result = await agent.run("Open google.com in a new tab")
+    # The model writes e.g.: await open("https://google.com", new=2)
+```
+
+## Providers
+
+pydantic-ai `Provider` implementations for OpenAI-compatible services:
+
+```python
+from pydantic_ai import Agent
+from pydantic_ai.models.openai import OpenAIChatModel
+from llmling_models.providers.lm_studio_provider import LMStudioProvider
+
+provider = LMStudioProvider(base_url="http://localhost:1234/v1")
+model = OpenAIChatModel("model-name", provider=provider)  # a model loaded in LM Studio
+agent = Agent(model)
+```
+
+`llmling_models.providers.infer_provider()` extends pydantic-ai's provider lookup with
+`copilot`, `grok`, `perplexity`, `lm-studio`, `requesty`, `anthropic-max`, `zen` and
+`opencode-go`, and falls back to pydantic-ai for everything else.
+
+## Model configs
+
+`llmling_models_config` is a lightweight package of pydantic models for declaring models in
+config files:
+
+```python
+from llmling_models_config import StringModelConfig
+
+config = StringModelConfig(identifier="openai:gpt-4o-mini", temperature=0.2)
+model = config.get_model()
+settings = config.get_model_settings()
+```
+
+## CLI
+
+With the `server` extra installed:
+
+```bash
+# OpenAI-compatible API server
+llmling-models serve --model gpt4=openai:gpt-4o --port 8000 --api-key secret
+llmling-models serve --config models.yml
+llmling-models serve --auto-discover
+
+# OAuth logins for subscription-based providers
+llmling-models copilot-auth
+llmling-models anthropic-auth
+llmling-models gemini-auth
+llmling-models antigravity-auth
+```
+
+## License
+
+MIT

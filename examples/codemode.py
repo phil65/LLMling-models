@@ -21,7 +21,7 @@ async def main():
     function_toolset = FunctionToolset(tools=[webbrowser.open])
 
     # Wrap it in CodeModeToolset
-    code_toolset = CodeModeToolset([function_toolset])
+    code_toolset = CodeModeToolset(toolsets=[function_toolset])
 
     print("Testing CodeModeToolset...")
     print("Available toolsets:", len(code_toolset.toolsets))
