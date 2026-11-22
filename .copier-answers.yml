@@ -15,7 +15,7 @@ python_minimum_version: '3.13'
 python_package_command_line_name: llmling-models
 python_package_distribution_name: llmling-models
 python_package_import_name: llmling_models
-repository_name: llmling-models
+repository_name: LLMling-models
 repository_namespace: phil65
 repository_provider: github.com
 
