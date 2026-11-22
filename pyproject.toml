@@ -29,9 +29,10 @@ classifiers = [
 dependencies = [
   "anyenv[httpx]",
   # Only add below (Copier)
+  "httpx>=0.28.0",
   "httpx2>=2.16.0",
   "pydantic",
-  "pydantic-ai-slim>=2.68.0",
+  "pydantic-ai-slim[openai]>=2.68.0",
   "schemez>=0.0.1",
   "tokonomics>=0.4.0",
 ]
@@ -47,7 +48,7 @@ Source = "https://github.com/phil65/llmling-models"
 llmling-models = "llmling_models.__main__:main_cli"
 
 [project.optional-dependencies]
-anthropic-max = ["xxhash>=3.0.0"]
+anthropic-max = ["anthropic>=1.15.0", "xxhash>=3.0.0"]
 claude = ["claude-agent-sdk>=0.1.16"]
 codemode = ["fastmcp>=2.0.0"]
 default = ["pydantic-ai"]
@@ -99,6 +100,12 @@ exclude_lines = [
   "except ImportError",
   'if __name__ == "__main__":',
 ]
+
+[tool.deptry.per_rule_ignores]
+# Shipped as extras for tokonomics' token counting, not imported here.
+DEP002 = ["tokenizers", "transformers"]
+# pydantic-core is always installed (and version-pinned) by pydantic.
+DEP003 = ["pydantic_core"]
 
 [tool.mknodes]
 allowed-commit-types = [
