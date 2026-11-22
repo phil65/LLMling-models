@@ -2,7 +2,7 @@
 
 [project]
 name = "llmling-models"
-version = "1.7.2"
+version = "1.7.3"
 description = "Extra pydantic-ai models, providers and toolsets (human-in-the-loop, model routing, Claude Code, code mode) for AgentPool"
 readme = "README.md"
 requires-python = ">=3.13"
