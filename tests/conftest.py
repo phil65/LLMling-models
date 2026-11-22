@@ -5,13 +5,18 @@ import os
 import pytest
 
 
-@pytest.fixture(autouse=True)
-def _dummy_openai_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Provide a placeholder OpenAI key when none is set.
+# Provider keys needed to *construct* models in tests (they never call the API).
+_PLACEHOLDER_KEYS = ("OPENAI_API_KEY", "OPENROUTER_API_KEY")
 
-    The tests only construct models and never call the API, but the OpenAI SDK and
-    pydantic-ai refuse to build a client without a key. CI runs without secrets
+
+@pytest.fixture(autouse=True)
+def _placeholder_api_keys(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Provide placeholder provider keys when none are set.
+
+    The tests only construct models and never call the API, but the provider SDKs
+    and pydantic-ai refuse to build a client without a key. CI runs without secrets
     (e.g. Dependabot PRs) would otherwise fail.
     """
-    if not os.environ.get("OPENAI_API_KEY"):
-        monkeypatch.setenv("OPENAI_API_KEY", "test-key-not-used")
+    for name in _PLACEHOLDER_KEYS:
+        if not os.environ.get(name):
+            monkeypatch.setenv(name, "test-key-not-used")
