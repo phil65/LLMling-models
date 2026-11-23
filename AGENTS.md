@@ -86,8 +86,8 @@ uv build
   ignores.
 - Optional third-party imports (fastapi, uvicorn, claude_agent_sdk, fastmcp, xxhash) are done
   lazily inside functions or in modules that are only imported on demand.
-- HTTP: provider SDK clients use `httpx2` (pydantic-ai v2 / openai / anthropic SDKs); the
-  auth modules and remote models use `httpx`.
+- HTTP: everything uses `httpx2` (pydantic-ai v2 / openai / anthropic SDKs expect httpx2
+  clients); don't import `httpx`.
 - Tests are plain pytest functions in `tests/test_*.py`; they don't hit the network.
 - Conventional commits (commitizen hook in pre-commit).
 

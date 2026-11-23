@@ -14,7 +14,7 @@ from pathlib import Path
 import sys
 
 import anyenv
-import httpx
+import httpx2
 
 from llmling_models.auth.base import ProviderAuthBackend
 from llmling_models.auth.models import ProviderAuthAuthorization, ProviderAuthMethod
@@ -59,7 +59,7 @@ class ZenTokenStore:
 
 def validate_zen_key(api_key: str) -> bool:
     """Validate a Zen API key by fetching models."""
-    with httpx.Client(timeout=15.0) as client:
+    with httpx2.Client(timeout=15.0) as client:
         resp = client.get(
             f"{ZEN_API_URL}/models",
             headers={"Authorization": f"Bearer {api_key}"},

@@ -23,7 +23,7 @@ from urllib.parse import parse_qs, urlencode, urlparse
 import webbrowser
 
 import anyenv
-import httpx
+import httpx2
 
 from llmling_models.auth.base import ProviderAuthBackend
 from llmling_models.auth.models import ProviderAuthAuthorization, ProviderAuthMethod
@@ -111,7 +111,7 @@ def exchange_code_for_token(
     Returns:
         Dict with 'api_key' and optionally 'expires_in'.
     """
-    with httpx.Client(timeout=30.0) as client:
+    with httpx2.Client(timeout=30.0) as client:
         resp = client.post(
             POE_TOKEN_URL,
             json={
@@ -137,7 +137,7 @@ def exchange_code_for_token(
 
 def validate_poe_key(api_key: str) -> bool:
     """Validate a Poe API key by fetching models."""
-    with httpx.Client(timeout=15.0) as client:
+    with httpx2.Client(timeout=15.0) as client:
         resp = client.get(
             f"{POE_API_URL}/models",
             headers={"Authorization": f"Bearer {api_key}"},
@@ -200,7 +200,7 @@ def authenticate_poe(*, manual_key: str | None = None) -> str:
             try:
                 redirect_uri = f"{POE_REDIRECT_URI_BASE}:{server.server_port}"
                 result = exchange_code_for_token(code, verifier, redirect_uri)
-            except (httpx.HTTPError, ValueError, anyenv.JsonLoadError) as exc:
+            except (httpx2.HTTPError, ValueError, anyenv.JsonLoadError) as exc:
                 error = str(exc)
 
             self.send_response(200)

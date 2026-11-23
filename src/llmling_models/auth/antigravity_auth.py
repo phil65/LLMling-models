@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING
 import webbrowser
 
 import anyenv
-import httpx
+import httpx2
 
 from llmling_models.auth.base import ProviderAuthBackend
 from llmling_models.auth.models import ProviderAuthAuthorization, ProviderAuthMethod
@@ -256,7 +256,7 @@ def _start_callback_server() -> tuple[socketserver.TCPServer, threading.Thread]:
 def _get_user_email(access_token: str) -> str | None:
     """Get user email from access token."""
     try:
-        with httpx.Client(timeout=30.0) as client:
+        with httpx2.Client(timeout=30.0) as client:
             response = client.get(
                 "https://www.googleapis.com/oauth2/v1/userinfo",
                 params={"alt": "json"},
@@ -300,7 +300,7 @@ def _discover_project(
     if verbose:
         print("Checking for existing project...")
 
-    with httpx.Client(timeout=60.0) as client:
+    with httpx2.Client(timeout=60.0) as client:
         # Try endpoints in order: prod first, then sandbox
         for endpoint in CODE_ASSIST_ENDPOINTS:
             try:
@@ -373,7 +373,7 @@ def exchange_code_for_token(code: str, verifier: str) -> dict[str, str | int]:
     Raises:
         RuntimeError: If token exchange fails
     """
-    with httpx.Client(timeout=30.0) as client:
+    with httpx2.Client(timeout=30.0) as client:
         response = client.post(
             OAUTH_TOKEN_URL,
             data={
@@ -412,7 +412,7 @@ def refresh_access_token(
     Raises:
         RuntimeError: If refresh fails
     """
-    with httpx.Client(timeout=30.0) as client:
+    with httpx2.Client(timeout=30.0) as client:
         response = client.post(
             OAUTH_TOKEN_URL,
             data={
@@ -609,7 +609,7 @@ async def get_or_refresh_token_async(
 
     if token.is_expired():
         logger.info("Token expired, refreshing...")
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx2.AsyncClient(timeout=30.0) as client:
             response = await client.post(
                 OAUTH_TOKEN_URL,
                 data={

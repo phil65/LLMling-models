@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Literal
 from urllib.parse import urlparse
 
-import httpx
+import httpx2
 from pydantic_ai import ModelMessagesTypeAdapter, ModelResponse, RequestUsage, TextPart
 from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
 
@@ -64,7 +64,7 @@ class RemoteProxyModel(Model):
     async def _request_rest(self, messages: list[ModelMessage]) -> ModelResponse:
         """Make REST request to remote model."""
         headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
-        async with httpx.AsyncClient(headers=headers) as client:
+        async with httpx2.AsyncClient(headers=headers) as client:
             try:
                 # Serialize complete message history
                 payload = ModelMessagesTypeAdapter.dump_json(messages)
@@ -85,11 +85,11 @@ class RemoteProxyModel(Model):
                     timestamp=datetime.now(UTC),
                     usage=RequestUsage(**data.get("usage", {})),
                 )
-            except httpx.HTTPStatusError as e:
+            except httpx2.HTTPStatusError as e:
                 logger.exception("Error response: %s", e.response.text)
                 msg = f"HTTP error: {e}"
                 raise RuntimeError(msg) from e
-            except httpx.HTTPError as e:
+            except httpx2.HTTPError as e:
                 msg = f"HTTP error: {e}"
                 raise RuntimeError(msg) from e
             else:

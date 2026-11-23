@@ -26,7 +26,7 @@ from urllib.parse import parse_qs, urlencode, urlparse
 import webbrowser
 
 import anyenv
-import httpx
+import httpx2
 
 from llmling_models.auth.base import ProviderAuthBackend
 from llmling_models.auth.models import ProviderAuthAuthorization, ProviderAuthMethod
@@ -283,7 +283,7 @@ def build_authorization_url(verifier: str, challenge: str, state: str) -> str:
 
 def exchange_code_for_token(code: str, verifier: str) -> OpenAICodexToken:
     """Exchange authorization code for access token."""
-    with httpx.Client(timeout=30.0) as client:
+    with httpx2.Client(timeout=30.0) as client:
         response = client.post(
             OAUTH_TOKEN_URL,
             data={
@@ -324,7 +324,7 @@ def exchange_code_for_token(code: str, verifier: str) -> OpenAICodexToken:
 
 def refresh_access_token(refresh_token: str) -> OpenAICodexToken:
     """Refresh an expired access token."""
-    with httpx.Client(timeout=30.0) as client:
+    with httpx2.Client(timeout=30.0) as client:
         response = client.post(
             OAUTH_TOKEN_URL,
             data={
@@ -481,7 +481,7 @@ async def get_or_refresh_token_async(
 
     if token.is_expired():
         logger.info("Token expired, refreshing...")
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx2.AsyncClient(timeout=30.0) as client:
             response = await client.post(
                 OAUTH_TOKEN_URL,
                 data={

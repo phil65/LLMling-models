@@ -25,7 +25,7 @@ from urllib.parse import parse_qs, urlparse
 import webbrowser
 
 import anyenv
-import httpx
+import httpx2
 
 from llmling_models.auth.base import ProviderAuthBackend
 from llmling_models.auth.models import (
@@ -265,7 +265,7 @@ def exchange_code_for_token(
     Returns:
         The OAuth token
     """
-    with httpx.Client(timeout=30.0) as client:
+    with httpx2.Client(timeout=30.0) as client:
         response = client.post(
             OAUTH_TOKEN_URL,
             json={
@@ -294,7 +294,7 @@ def exchange_code_for_token(
 
 def refresh_access_token(refresh_token: str) -> AnthropicOAuthToken:
     """Refresh an expired access token."""
-    with httpx.Client(timeout=30.0) as client:
+    with httpx2.Client(timeout=30.0) as client:
         response = client.post(
             OAUTH_TOKEN_URL,
             json={
@@ -476,7 +476,7 @@ async def get_or_refresh_token_async(
 
     if token.is_expired():
         logger.info("Token expired, refreshing...")
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx2.AsyncClient(timeout=30.0) as client:
             response = await client.post(
                 OAUTH_TOKEN_URL,
                 json={

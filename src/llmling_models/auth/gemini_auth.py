@@ -27,7 +27,7 @@ from urllib.parse import parse_qs, urlparse
 import webbrowser
 
 import anyenv
-import httpx
+import httpx2
 
 from llmling_models.auth.base import ProviderAuthBackend
 from llmling_models.auth.models import ProviderAuthAuthorization, ProviderAuthMethod
@@ -232,7 +232,7 @@ def _start_callback_server() -> tuple[socketserver.TCPServer, threading.Thread]:
 
 def _get_user_email(access_token: str) -> str | None:
     try:
-        with httpx.Client(timeout=30.0) as client:
+        with httpx2.Client(timeout=30.0) as client:
             response = client.get(
                 "https://www.googleapis.com/oauth2/v1/userinfo",
                 params={"alt": "json"},
@@ -264,7 +264,7 @@ def _get_default_tier(
 
 
 def _poll_operation(
-    client: httpx.Client,
+    client: httpx2.Client,
     operation_name: str,
     headers: dict[str, str],
     verbose: bool = True,
@@ -315,7 +315,7 @@ def _discover_project(
         "X-Goog-Api-Client": "gl-python/3.12",
     }
 
-    with httpx.Client(timeout=60.0) as client:
+    with httpx2.Client(timeout=60.0) as client:
         if verbose:
             print("Checking for existing Cloud Code Assist project...")
 
@@ -439,7 +439,7 @@ def build_authorization_url(verifier: str, challenge: str) -> str:
 
 
 def exchange_code_for_token(code: str, verifier: str) -> dict[str, str | int]:
-    with httpx.Client(timeout=30.0) as client:
+    with httpx2.Client(timeout=30.0) as client:
         response = client.post(
             OAUTH_TOKEN_URL,
             data={
@@ -467,7 +467,7 @@ def refresh_access_token(
     project_id: str,
     email: str | None = None,
 ) -> GeminiOAuthToken:
-    with httpx.Client(timeout=30.0) as client:
+    with httpx2.Client(timeout=30.0) as client:
         response = client.post(
             OAUTH_TOKEN_URL,
             data={
@@ -604,7 +604,7 @@ async def get_or_refresh_token_async(
 
     if token.is_expired():
         logger.info("Token expired, refreshing...")
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx2.AsyncClient(timeout=30.0) as client:
             response = await client.post(
                 OAUTH_TOKEN_URL,
                 data={

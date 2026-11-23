@@ -2,10 +2,10 @@ from __future__ import annotations  # noqa: INP001
 
 import time
 
-import httpx
+import httpx2
 
 
-resp = httpx.post(
+resp = httpx2.post(
     "https://github.com/login/device/code",
     headers={
         "accept": "application/json",
@@ -30,7 +30,7 @@ print(f"Please visit {verification_uri} and enter code {user_code} to authentica
 while True:
     time.sleep(5)
 
-    resp = httpx.post(
+    resp = httpx2.post(
         "https://github.com/login/oauth/access_token",
         headers={
             "accept": "application/json",

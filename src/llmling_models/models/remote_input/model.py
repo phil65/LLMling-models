@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Literal
 from urllib.parse import urlparse
 
-import httpx
+import httpx2
 from pydantic_ai import ModelResponse, RequestUsage, TextPart
 from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
 
@@ -81,7 +81,7 @@ class RemoteInputModel(Model):
     async def _request_rest(self, messages: list[ModelMessage]) -> ModelResponse:
         """Make REST request to remote operator."""
         headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
-        async with httpx.AsyncClient(headers=headers) as client:
+        async with httpx2.AsyncClient(headers=headers) as client:
             try:
                 # Get current prompt and history
                 prompt = ""
@@ -102,10 +102,10 @@ class RemoteInputModel(Model):
                 logger.debug("Received response: %s", response_data)
                 return ModelResponse(parts=[TextPart(response_data["content"])])
 
-            except httpx.HTTPStatusError as e:
+            except httpx2.HTTPStatusError as e:
                 logger.exception("Error response: %s", e.response.text)
                 raise RuntimeError(f"HTTP error: {e}") from e
-            except httpx.HTTPError as e:
+            except httpx2.HTTPError as e:
                 raise RuntimeError(f"HTTP error: {e}") from e
 
     async def _request_websocket(self, messages: list[ModelMessage]) -> ModelResponse:

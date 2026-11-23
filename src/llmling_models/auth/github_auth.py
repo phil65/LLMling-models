@@ -16,7 +16,7 @@ import time
 from typing import Any, NamedTuple
 
 import anyenv
-import httpx
+import httpx2
 
 from llmling_models.auth.base import ProviderAuthBackend
 from llmling_models.auth.models import ProviderAuthAuthorization, ProviderAuthMethod
@@ -108,7 +108,7 @@ def get_copilot_base_url(
     return "https://api.individual.githubcopilot.com"
 
 
-def _start_device_flow(client: httpx.Client, domain: str) -> dict[str, str | int]:
+def _start_device_flow(client: httpx2.Client, domain: str) -> dict[str, str | int]:
     """Start the device code flow and return device code info."""
     urls = _get_urls(domain)
     resp = client.post(
@@ -125,7 +125,7 @@ def _start_device_flow(client: httpx.Client, domain: str) -> dict[str, str | int
 
 
 def _poll_for_github_token(
-    client: httpx.Client,
+    client: httpx2.Client,
     domain: str,
     device_code: str,
     interval_seconds: float,
@@ -182,7 +182,7 @@ def _poll_for_github_token(
 
 
 def _get_copilot_token(
-    client: httpx.Client,
+    client: httpx2.Client,
     github_token: str,
     domain: str,
 ) -> dict[str, str | int]:
@@ -216,7 +216,7 @@ def authenticate_copilot(
     """
     domain = enterprise_domain or "github.com"
 
-    with httpx.Client(timeout=30.0) as client:
+    with httpx2.Client(timeout=30.0) as client:
         # Step 1: Start device flow
         if verbose:
             print("Requesting GitHub device code...")
@@ -280,7 +280,7 @@ def refresh_copilot_token(
     """
     domain = enterprise_domain or "github.com"
 
-    with httpx.Client(timeout=30.0) as client:
+    with httpx2.Client(timeout=30.0) as client:
         copilot_data = _get_copilot_token(client, github_token, domain)
 
     copilot_token = str(copilot_data["token"])
@@ -469,7 +469,7 @@ class CopilotAuthBackend(ProviderAuthBackend):
         return [ProviderAuthMethod(type="oauth", label="Connect GitHub Copilot")]
 
     async def authorize(self, method: int = 0) -> ProviderAuthAuthorization:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx2.AsyncClient(timeout=30.0) as client:
             resp = await client.post(
                 "https://github.com/login/device/code",
                 headers=COPILOT_HEADERS,
@@ -499,7 +499,7 @@ class CopilotAuthBackend(ProviderAuthBackend):
         if not device_code:
             msg = "Missing device_code for Copilot OAuth"
             raise ValueError(msg)
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx2.AsyncClient(timeout=30.0) as client:
             resp = await client.post(
                 "https://github.com/login/oauth/access_token",
                 headers=COPILOT_HEADERS,
