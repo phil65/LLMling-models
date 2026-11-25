@@ -91,6 +91,20 @@ uv build
 - Tests are plain pytest functions in `tests/test_*.py`; they don't hit the network.
 - Conventional commits (commitizen hook in pre-commit).
 
+## Specs
+
+OAuth flows and provider protocols mirrored from other tools (no public spec; the source is the
+reference implementation).
+
+| Spec | URL | Targets | Code | Update check |
+|---|---|---|---|---|
+| Anthropic Claude Pro/Max OAuth + Messages API as Claude Code | https://github.com/badlogic/pi-mono/blob/main/packages/ai/src/auth/oauth/anthropic.ts | mirrors Claude Code CLI 2.1.87 (`CC_VERSION` in `providers/anthropic_max_provider.py`; user-agent, billing header, betas); pi-mono port, commit unrecorded | `src/llmling_models/auth/anthropic_auth.py`, `src/llmling_models/providers/anthropic_max_provider.py` | https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md, pi-mono `anthropic.ts` history |
+| OpenAI Codex (ChatGPT Plus/Pro) OAuth | https://github.com/badlogic/pi-mono/blob/main/packages/ai/src/auth/oauth/openai-codex.ts | mirrors the Codex CLI login (`codex-rs/login`), version unknown; pi-mono port, commit unrecorded | `src/llmling_models/auth/openai_codex_auth.py` | https://github.com/openai/codex/tree/main/codex-rs/login, pi-mono `openai-codex.ts` history |
+| Gemini CLI OAuth (Cloud Code Assist) | https://github.com/badlogic/pi-mono/blob/ebc60aa825/packages/ai/src/utils/oauth/google-gemini-cli.ts | mirrors Gemini CLI, version unknown; pi-mono port (pi-mono removed it in `fe66edd943`, 2026-04-30; last version `ebc60aa825`) | `src/llmling_models/auth/gemini_auth.py` | https://github.com/google-gemini/gemini-cli/releases |
+| Google Antigravity OAuth | https://github.com/badlogic/pi-mono/blob/ebc60aa825/packages/ai/src/utils/oauth/google-antigravity.ts | mirrors Antigravity, version unknown; pi-mono port (removed upstream like Gemini CLI) | `src/llmling_models/auth/antigravity_auth.py` | none upstream any more; check against https://antigravity.google |
+| GitHub Copilot device flow + API | https://github.com/badlogic/pi-mono/blob/main/packages/ai/src/auth/oauth/github-copilot.ts | mirrors Copilot Chat 0.35.0 / VS Code 1.107.0 (headers in `auth/github_auth.py`) | `src/llmling_models/auth/github_auth.py`, `src/llmling_models/providers/copilot_provider.py` | pi-mono `github-copilot.ts` history |
+| Claude Agent SDK (Python) | https://github.com/anthropics/claude-agent-sdk-python | `claude-agent-sdk>=0.1.16` (`claude` extra; unpinned, tracks latest) | `src/llmling_models/models/claude_code_model.py`, `builtin_tools.py`, `tool_bridge.py` | https://github.com/anthropics/claude-agent-sdk-python/blob/main/CHANGELOG.md |
+
 ## Pitfalls
 
 - Copier-managed project (`.copier-answers.yml`, template `copier-phil65`). Don't hand-edit
