@@ -53,7 +53,7 @@ Homepage = "https://github.com/phil65/LLMling-models"
 Issues = "https://github.com/phil65/LLMling-models/issues"
 Source = "https://github.com/phil65/LLMling-models"
 "Spec: Claude Agent SDK" = "https://github.com/anthropics/claude-agent-sdk-python"
-"Spec: OAuth flows (pi-mono reference)" = "https://github.com/badlogic/pi-mono/tree/main/packages/ai/src/auth/oauth"
+"Spec: OAuth flows (pi reference)" = "https://github.com/earendil-works/pi/tree/main/packages/ai/src/auth/oauth"
 
 [project.scripts]
 llmling-models = "llmling_models.__main__:main_cli"

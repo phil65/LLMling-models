@@ -97,8 +97,8 @@ reference implementation).
 
 | Spec | URL | Targets | Code | Update check |
 |---|---|---|---|---|
-| OpenAI Codex (ChatGPT Plus/Pro) OAuth | https://github.com/badlogic/pi-mono/blob/main/packages/ai/src/auth/oauth/openai-codex.ts | mirrors the Codex CLI login (`codex-rs/login`), version unknown; pi-mono port, commit unrecorded | `src/llmling_models/auth/openai_codex_auth.py` | https://github.com/openai/codex/tree/main/codex-rs/login, pi-mono `openai-codex.ts` history |
-| GitHub Copilot device flow + API | https://github.com/badlogic/pi-mono/blob/main/packages/ai/src/auth/oauth/github-copilot.ts | mirrors Copilot Chat 0.35.0 / VS Code 1.107.0 (headers in `auth/github_auth.py`) | `src/llmling_models/auth/github_auth.py`, `src/llmling_models/providers/copilot_provider.py` | pi-mono `github-copilot.ts` history |
+| OpenAI Codex (ChatGPT Plus/Pro) OAuth | https://github.com/earendil-works/pi/blob/main/packages/ai/src/auth/oauth/openai-codex.ts | mirrors the Codex CLI login (`codex-rs/login`), version unknown; pi-mono port, commit unrecorded | `src/llmling_models/auth/openai_codex_auth.py` | https://github.com/openai/codex/tree/main/codex-rs/login, pi-mono `openai-codex.ts` history |
+| GitHub Copilot device flow + API | https://github.com/earendil-works/pi/blob/main/packages/ai/src/auth/oauth/github-copilot.ts | mirrors Copilot Chat 0.35.0 / VS Code 1.107.0 (headers in `auth/github_auth.py`) | `src/llmling_models/auth/github_auth.py`, `src/llmling_models/providers/copilot_provider.py` | pi-mono `github-copilot.ts` history |
 | Claude Agent SDK (Python) | https://github.com/anthropics/claude-agent-sdk-python | `claude-agent-sdk>=0.1.16` (`claude` extra; unpinned, tracks latest) | `src/llmling_models/models/claude_code_model.py`, `builtin_tools.py`, `tool_bridge.py` | https://github.com/anthropics/claude-agent-sdk-python/blob/main/CHANGELOG.md |
 
 ## Pitfalls

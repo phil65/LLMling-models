@@ -579,7 +579,7 @@ def openai_codex_auth_main() -> None:
         )
         store.save(token)
         print(f"\nToken saved to: {args.token_path}")
-        print("You can now use OpenAI Codex models with auth_method='oauth'")
+        print("The token can be used by clients of the Codex backend (ChatGPT plan).")
     except Exception as e:
         logger.exception("Authentication failed")
         print(f"\nAuthentication failed: {e}", file=sys.stderr)
