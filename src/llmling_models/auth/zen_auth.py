@@ -114,7 +114,7 @@ def zen_auth_main() -> None:
         print("Get your API key at: https://opencode.ai/zen")
         try:
             api_key = input("Enter your OpenCode Zen API key: ").strip()
-        except (KeyboardInterrupt, EOFError):
+        except KeyboardInterrupt, EOFError:
             print("\nCancelled.")
             sys.exit(1)
 

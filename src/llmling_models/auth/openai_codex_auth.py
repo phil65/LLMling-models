@@ -408,7 +408,7 @@ def authenticate_openai_codex(
             print("\nCallback not received. Paste the authorization code or full redirect URL:")
             try:
                 user_input = input("> ").strip()
-            except (KeyboardInterrupt, EOFError):
+            except KeyboardInterrupt, EOFError:
                 print("\nAuthentication cancelled.")
                 msg = "Authentication cancelled by user"
                 raise RuntimeError(msg) from None
