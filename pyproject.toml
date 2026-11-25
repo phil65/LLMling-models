@@ -5,7 +5,7 @@ name = "llmling-models"
 version = "1.8.1"
 description = "Extra pydantic-ai models, providers and toolsets (human-in-the-loop, model routing, Claude Code, code mode) for AgentPool"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [
@@ -30,7 +30,6 @@ classifiers = [
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
-  "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
   "Topic :: Software Development :: Libraries :: Python Modules",
@@ -134,7 +133,7 @@ docstring-style = "google"
 [tool.pyright]
 venvPath = "."
 venv = ".venv"
-pythonVersion = "3.13"
+pythonVersion = "3.14"
 pythonPlatform = "All"
 typeCheckingMode = "basic"
 deprecateTypingAliases = true
@@ -162,7 +161,7 @@ asyncio_mode = "auto"
 [tool.ruff]
 line-length = 100
 extend-exclude = ["docs"]
-target-version = "py313"
+target-version = "py314"
 
 [tool.ruff.lint]
 future-annotations = true
@@ -311,7 +310,7 @@ preview = true
 include = ["src"]
 
 [tool.ty.environment]
-python-version = "3.13"
+python-version = "3.14"
 python-platform = "all"
 
 [tool.ty.analysis]
