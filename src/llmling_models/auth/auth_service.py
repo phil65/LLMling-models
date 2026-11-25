@@ -66,14 +66,12 @@ class ProviderAuthService:
     @classmethod
     def create_default(cls) -> Self:
         """Create auth service with built-in providers."""
-        from llmling_models.auth.anthropic_auth import AnthropicAuthBackend
         from llmling_models.auth.github_auth import CopilotAuthBackend
         from llmling_models.auth.openai_codex_auth import OpenAICodexAuthBackend
         from llmling_models.auth.poe_auth import PoeAuthBackend
         from llmling_models.auth.zen_auth import ZenAuthBackend
 
         service = cls()
-        service.register(AnthropicAuthBackend())
         service.register(CopilotAuthBackend())
         service.register(OpenAICodexAuthBackend())
         service.register(PoeAuthBackend())

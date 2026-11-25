@@ -59,7 +59,6 @@ Source = "https://github.com/phil65/LLMling-models"
 llmling-models = "llmling_models.__main__:main_cli"
 
 [project.optional-dependencies]
-anthropic-max = ["anthropic>=1.15.0", "xxhash>=3.0.0"]
 claude = ["claude-agent-sdk>=0.1.16"]
 codemode = ["fastmcp>=2.0.0"]
 default = ["pydantic-ai"]

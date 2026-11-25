@@ -101,15 +101,6 @@ def _infer_single_model(model: str | Model) -> Model:  # noqa: PLR0911
         return _get_openai_based_model(model)
     if model.startswith("zen:"):
         return _get_openai_based_model(model)
-    if model.startswith("anthropic-max:"):
-        from pydantic_ai.models.anthropic import AnthropicModel
-
-        from llmling_models.providers.anthropic_max_provider import AnthropicMaxProvider
-
-        provider = AnthropicMaxProvider()
-        model_name = model.removeprefix("anthropic-max:")
-        return AnthropicModel(model_name=model_name, provider=provider)
-
     if model.startswith("copilot:"):
         key = os.getenv("GITHUB_COPILOT_API_KEY")
         return _get_openai_based_model(model, base_url="https://api.githubcopilot.com", api_key=key)
@@ -160,7 +151,7 @@ def _infer_single_model(model: str | Model) -> Model:  # noqa: PLR0911
 if __name__ == "__main__":
     from pydantic_ai import Agent
 
-    model = infer_model("anthropic-max:claude-haiku-4-5")
+    model = infer_model("anthropic:claude-haiku-4-5")
     agent = Agent(model=model)
     result = agent.run_sync("hello")
     print(result)

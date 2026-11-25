@@ -1072,13 +1072,6 @@ class AnthropicModelConfig(BaseModelConfig):
     )
     """String identifier for the model."""
 
-    auth_method: Literal["api_key", "oauth"] = Field(
-        default="api_key",
-        title="Authentication method",
-        description="Use 'oauth' for Claude Max/Pro subscription authentication",
-    )
-    """Authentication method: 'api_key' (default) or 'oauth' for Claude Max/Pro."""
-
     max_tokens: int | None = Field(
         default=None,
         ge=1,
@@ -1257,16 +1250,6 @@ class AnthropicModelConfig(BaseModelConfig):
         return AnthropicModelSettings(**{k: v for k, v in settings.items() if v is not None})  # type: ignore[typeddict-item, no-any-return]
 
     def get_model(self) -> Any:
-        if self.auth_method == "oauth":
-            from pydantic_ai.models.anthropic import AnthropicModel
-
-            from llmling_models.providers.anthropic_max_provider import (
-                AnthropicMaxProvider,
-            )
-
-            provider = AnthropicMaxProvider()
-            return AnthropicModel(self.identifier, provider=provider)
-
         from llmling_models import infer_model
 
         return infer_model("anthropic:" + self.identifier)

@@ -7,4 +7,4 @@ from llmling_models.auth import ProviderAuthService
 
 def test_default_backends():
     service = ProviderAuthService.create_default()
-    assert set(service.methods()) == {"anthropic", "copilot", "openai-codex", "poe", "zen"}
+    assert set(service.methods()) == {"copilot", "openai-codex", "poe", "zen"}

@@ -23,14 +23,14 @@ Two import packages live under `src/` (both built into one wheel, see
     `model.py` and a FastAPI `server.py`), `claude_code_model.py` (Claude Agent SDK),
     `function_to_model.py`, `test_model.py` (`FixedArgsTestModel`).
   - `models/helpers.py`: `infer_model()`, which resolves string ids. It handles custom
-    prefixes (`openrouter:`, `grok:`, `copilot:`, `lm-studio:`, `zen:`, `anthropic-max:`,
+    prefixes (`openrouter:`, `grok:`, `copilot:`, `lm-studio:`, `zen:`,
     `input`, `remote_model:`, `remote_input:`, `import:`, `test:`, `claude-code:`, ...) and
     falls back to pydantic-ai.
   - `providers/`: pydantic-ai `Provider` subclasses (Copilot, LM Studio, Requesty, Moondream,
-    Zen/opencode, Anthropic Max OAuth). `providers/__init__.py:infer_provider()` extends
+    Zen/opencode). `providers/__init__.py:infer_provider()` extends
     pydantic-ai's provider inference.
-  - `auth/`: OAuth/device-flow token handling per provider (`anthropic_auth.py`,
-    `github_auth.py`, `openai_codex_auth.py`, `poe_auth.py`, `zen_auth.py`).
+  - `auth/`: OAuth/device-flow token handling per provider (`github_auth.py`,
+    `openai_codex_auth.py`, `poe_auth.py`, `zen_auth.py`).
     `base.py`/`auth_service.py`/`models.py` define a common backend registry.
   - `builtin_tools.py`: `AbstractNativeTool` subclasses mapping to Claude Code tools (passed
     via `pydantic_ai.capabilities.NativeTool`).
@@ -39,7 +39,7 @@ Two import packages live under `src/` (both built into one wheel, see
   - `tool_bridge.py`: in-process MCP server exposing Python callables to Claude Code.
   - `openai_server/`: OpenAI-compatible FastAPI server (`server.py:OpenAIServer`,
     `model_registry.py:ModelRegistry`).
-  - `__main__.py`: argparse CLI `llmling-models` (`serve`, `copilot-auth`, `anthropic-auth`).
+  - `__main__.py`: argparse CLI `llmling-models` (`serve`, `copilot-auth`).
     Imports the server eagerly, needs the `server` extra.
   - `git_hooks/ai_commit_message.py`: pre-commit hook exposed via `.pre-commit-hooks.yaml`.
   - `formatting.py`, `utils.py`, `log.py`: helpers.
@@ -83,7 +83,7 @@ uv build
   line length 100, Google-style docstrings.
 - Type checking is ty only (no mypy). Use `# ty: ignore[rule]` sparingly; no mypy-style
   ignores.
-- Optional third-party imports (fastapi, uvicorn, claude_agent_sdk, fastmcp, xxhash) are done
+- Optional third-party imports (fastapi, uvicorn, claude_agent_sdk, fastmcp) are done
   lazily inside functions or in modules that are only imported on demand.
 - HTTP: everything uses `httpx2` (pydantic-ai v2 / openai / anthropic SDKs expect httpx2
   clients); don't import `httpx`.
@@ -97,7 +97,6 @@ reference implementation).
 
 | Spec | URL | Targets | Code | Update check |
 |---|---|---|---|---|
-| Anthropic Claude Pro/Max OAuth + Messages API as Claude Code | https://github.com/badlogic/pi-mono/blob/main/packages/ai/src/auth/oauth/anthropic.ts | mirrors Claude Code CLI 2.1.87 (`CC_VERSION` in `providers/anthropic_max_provider.py`; user-agent, billing header, betas); pi-mono port, commit unrecorded | `src/llmling_models/auth/anthropic_auth.py`, `src/llmling_models/providers/anthropic_max_provider.py` | https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md, pi-mono `anthropic.ts` history |
 | OpenAI Codex (ChatGPT Plus/Pro) OAuth | https://github.com/badlogic/pi-mono/blob/main/packages/ai/src/auth/oauth/openai-codex.ts | mirrors the Codex CLI login (`codex-rs/login`), version unknown; pi-mono port, commit unrecorded | `src/llmling_models/auth/openai_codex_auth.py` | https://github.com/openai/codex/tree/main/codex-rs/login, pi-mono `openai-codex.ts` history |
 | GitHub Copilot device flow + API | https://github.com/badlogic/pi-mono/blob/main/packages/ai/src/auth/oauth/github-copilot.ts | mirrors Copilot Chat 0.35.0 / VS Code 1.107.0 (headers in `auth/github_auth.py`) | `src/llmling_models/auth/github_auth.py`, `src/llmling_models/providers/copilot_provider.py` | pi-mono `github-copilot.ts` history |
 | Claude Agent SDK (Python) | https://github.com/anthropics/claude-agent-sdk-python | `claude-agent-sdk>=0.1.16` (`claude` extra; unpinned, tracks latest) | `src/llmling_models/models/claude_code_model.py`, `builtin_tools.py`, `tool_bridge.py` | https://github.com/anthropics/claude-agent-sdk-python/blob/main/CHANGELOG.md |
@@ -113,10 +112,14 @@ reference implementation).
 - `llmling_models` imports `pydantic_ai.models.openai` eagerly, hence the
   `pydantic-ai-slim[openai]` dependency.
 - Extras: `server`/`remote` (FastAPI), `claude` (claude-agent-sdk), `codemode` (fastmcp),
-  `anthropic-max` (anthropic, xxhash), `default` (full pydantic-ai).
+  `default` (full pydantic-ai).
 - Env vars: `OPENROUTER_API_KEY`, `X_AI_API_KEY`/`GROK_API_KEY`, `DEEPSEEK_API_KEY`,
   `PERPLEXITY_API_KEY`, `GITHUB_COPILOT_API_KEY`, `LM_STUDIO_BASE_URL`, `REQUESTY_API_KEY`,
   `OPENCODE_API_KEY`. OAuth tokens are stored on disk by the `auth/` token stores.
+- Anthropic Claude Pro/Max OAuth (`anthropic-max:`, `anthropic-auth`) was removed: Anthropic
+  does not permit third-party tools to log in with or route requests through Claude plan
+  credentials (https://code.claude.com/docs/en/legal-and-compliance). For a Claude plan use
+  `claude-code:` (`ClaudeCodeModel`, runs the unmodified Claude Code CLI).
 - Gemini CLI and Antigravity OAuth logins were removed: Google ended "Login with Google" for
   Gemini CLI on consumer tiers (2026-06-18) and the Antigravity terms forbid using Antigravity
   OAuth from third-party tools (account suspension). Use `GEMINI_API_KEY` / Vertex instead.

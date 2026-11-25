@@ -43,7 +43,6 @@ Optional extras:
 | `remote` | Remote model / remote input servers (FastAPI, websockets) |
 | `claude` | `ClaudeCodeModel` (claude-agent-sdk) |
 | `codemode` | fastmcp, for the MCP tool bridge (`llmling_models.tool_bridge`) |
-| `anthropic-max` | Anthropic Claude Max/Pro OAuth provider |
 | `default` | The full `pydantic-ai` package with all of its providers |
 
 ## Quickstart
@@ -62,11 +61,11 @@ print(result.output)  # Hello from llmling-models
 ## Features
 
 - **Extended `infer_model()`**: extra prefixes (`openrouter:`, `grok:`, `deepseek:`,
-  `perplexity:`, `copilot:`, `lm-studio:`, `zen:`, `anthropic-max:`, `claude-code:`, `input`,
+  `perplexity:`, `copilot:`, `lm-studio:`, `zen:`, `claude-code:`, `input`,
   `remote_model:`, `remote_input:`, `import:`, `test:`) and comma-separated fallback chains.
 - **Models**: `InputModel`, `UserSelectModel`, `DelegationMultiModel`, `AugmentedModel`,
   `RemoteInputModel`, `RemoteProxyModel`, `ClaudeCodeModel`, `function_to_model()`.
-- **Providers**: GitHub Copilot, LM Studio, Requesty, Moondream, OpenCode Zen, Anthropic Max OAuth.
+- **Providers**: GitHub Copilot, LM Studio, Requesty, Moondream, OpenCode Zen.
 - **`CodeModeToolset`**: exposes tools as a Python API the model can script against.
 - **Config models**: `llmling_models_config` holds pydantic configs (`StringModelConfig`,
   `OpenAIModelConfig`, `AnthropicModelConfig`, ...) with a `get_model()` factory.
@@ -278,7 +277,7 @@ agent = Agent(model)
 ```
 
 `llmling_models.providers.infer_provider()` extends pydantic-ai's provider lookup with
-`copilot`, `grok`, `perplexity`, `lm-studio`, `requesty`, `anthropic-max`, `zen` and
+`copilot`, `grok`, `perplexity`, `lm-studio`, `requesty`, `zen` and
 `opencode-go`, and falls back to pydantic-ai for everything else.
 
 ## Model configs
@@ -304,10 +303,14 @@ llmling-models serve --model gpt4=openai:gpt-4o --port 8000 --api-key secret
 llmling-models serve --config models.yml
 llmling-models serve --auto-discover
 
-# OAuth logins for subscription-based providers
+# GitHub Copilot device-flow login
 llmling-models copilot-auth
-llmling-models anthropic-auth
 ```
+
+To use a Claude Pro/Max subscription, use the `claude-code:` prefix (`ClaudeCodeModel`,
+`claude` extra): it runs the official Claude Code CLI, which is the supported way to use a
+Claude plan outside claude.ai. Anthropic does not permit other tools to log in with a Claude
+plan ([Claude Code legal and compliance](https://code.claude.com/docs/en/legal-and-compliance)).
 
 ## License
 
