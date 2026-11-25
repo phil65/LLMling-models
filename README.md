@@ -307,8 +307,6 @@ llmling-models serve --auto-discover
 # OAuth logins for subscription-based providers
 llmling-models copilot-auth
 llmling-models anthropic-auth
-llmling-models gemini-auth
-llmling-models antigravity-auth
 ```
 
 ## License

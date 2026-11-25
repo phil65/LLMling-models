@@ -30,9 +30,8 @@ Two import packages live under `src/` (both built into one wheel, see
     Zen/opencode, Anthropic Max OAuth). `providers/__init__.py:infer_provider()` extends
     pydantic-ai's provider inference.
   - `auth/`: OAuth/device-flow token handling per provider (`anthropic_auth.py`,
-    `github_auth.py`, `gemini_auth.py`, `antigravity_auth.py`, `openai_codex_auth.py`,
-    `poe_auth.py`, `zen_auth.py`). `base.py`/`auth_service.py`/`models.py` define a common
-    backend registry.
+    `github_auth.py`, `openai_codex_auth.py`, `poe_auth.py`, `zen_auth.py`).
+    `base.py`/`auth_service.py`/`models.py` define a common backend registry.
   - `builtin_tools.py`: `AbstractNativeTool` subclasses mapping to Claude Code tools (passed
     via `pydantic_ai.capabilities.NativeTool`).
   - `toolsets/codemode_toolset.py`: `CodeModeToolset`, wraps toolsets into one
@@ -40,8 +39,8 @@ Two import packages live under `src/` (both built into one wheel, see
   - `tool_bridge.py`: in-process MCP server exposing Python callables to Claude Code.
   - `openai_server/`: OpenAI-compatible FastAPI server (`server.py:OpenAIServer`,
     `model_registry.py:ModelRegistry`).
-  - `__main__.py`: argparse CLI `llmling-models` (`serve`, `copilot-auth`, `anthropic-auth`,
-    `gemini-auth`, `antigravity-auth`). Imports the server eagerly, needs the `server` extra.
+  - `__main__.py`: argparse CLI `llmling-models` (`serve`, `copilot-auth`, `anthropic-auth`).
+    Imports the server eagerly, needs the `server` extra.
   - `git_hooks/ai_commit_message.py`: pre-commit hook exposed via `.pre-commit-hooks.yaml`.
   - `formatting.py`, `utils.py`, `log.py`: helpers.
 - `src/llmling_models_config/configs.py`: discriminated-union config models
@@ -100,8 +99,6 @@ reference implementation).
 |---|---|---|---|---|
 | Anthropic Claude Pro/Max OAuth + Messages API as Claude Code | https://github.com/badlogic/pi-mono/blob/main/packages/ai/src/auth/oauth/anthropic.ts | mirrors Claude Code CLI 2.1.87 (`CC_VERSION` in `providers/anthropic_max_provider.py`; user-agent, billing header, betas); pi-mono port, commit unrecorded | `src/llmling_models/auth/anthropic_auth.py`, `src/llmling_models/providers/anthropic_max_provider.py` | https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md, pi-mono `anthropic.ts` history |
 | OpenAI Codex (ChatGPT Plus/Pro) OAuth | https://github.com/badlogic/pi-mono/blob/main/packages/ai/src/auth/oauth/openai-codex.ts | mirrors the Codex CLI login (`codex-rs/login`), version unknown; pi-mono port, commit unrecorded | `src/llmling_models/auth/openai_codex_auth.py` | https://github.com/openai/codex/tree/main/codex-rs/login, pi-mono `openai-codex.ts` history |
-| Gemini CLI OAuth (Cloud Code Assist) | https://github.com/badlogic/pi-mono/blob/ebc60aa825/packages/ai/src/utils/oauth/google-gemini-cli.ts | mirrors Gemini CLI, version unknown; pi-mono port (pi-mono removed it in `fe66edd943`, 2026-04-30; last version `ebc60aa825`) | `src/llmling_models/auth/gemini_auth.py` | https://github.com/google-gemini/gemini-cli/releases |
-| Google Antigravity OAuth | https://github.com/badlogic/pi-mono/blob/ebc60aa825/packages/ai/src/utils/oauth/google-antigravity.ts | mirrors Antigravity, version unknown; pi-mono port (removed upstream like Gemini CLI) | `src/llmling_models/auth/antigravity_auth.py` | none upstream any more; check against https://antigravity.google |
 | GitHub Copilot device flow + API | https://github.com/badlogic/pi-mono/blob/main/packages/ai/src/auth/oauth/github-copilot.ts | mirrors Copilot Chat 0.35.0 / VS Code 1.107.0 (headers in `auth/github_auth.py`) | `src/llmling_models/auth/github_auth.py`, `src/llmling_models/providers/copilot_provider.py` | pi-mono `github-copilot.ts` history |
 | Claude Agent SDK (Python) | https://github.com/anthropics/claude-agent-sdk-python | `claude-agent-sdk>=0.1.16` (`claude` extra; unpinned, tracks latest) | `src/llmling_models/models/claude_code_model.py`, `builtin_tools.py`, `tool_bridge.py` | https://github.com/anthropics/claude-agent-sdk-python/blob/main/CHANGELOG.md |
 
@@ -120,6 +117,9 @@ reference implementation).
 - Env vars: `OPENROUTER_API_KEY`, `X_AI_API_KEY`/`GROK_API_KEY`, `DEEPSEEK_API_KEY`,
   `PERPLEXITY_API_KEY`, `GITHUB_COPILOT_API_KEY`, `LM_STUDIO_BASE_URL`, `REQUESTY_API_KEY`,
   `OPENCODE_API_KEY`. OAuth tokens are stored on disk by the `auth/` token stores.
+- Gemini CLI and Antigravity OAuth logins were removed: Google ended "Login with Google" for
+  Gemini CLI on consumer tiers (2026-06-18) and the Antigravity terms forbid using Antigravity
+  OAuth from third-party tools (account suspension). Use `GEMINI_API_KEY` / Vertex instead.
 - `TestModelConfig` triggers a harmless pytest collection warning (name starts with `Test`).
 - The docs site is the mkdocs-mknodes default site: README.md is the index page, `docs/` is
   empty.
