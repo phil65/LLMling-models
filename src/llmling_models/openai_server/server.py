@@ -8,10 +8,9 @@ import time
 from typing import TYPE_CHECKING, Annotated, Any, cast
 
 import anyenv
-from fastapi import Depends, FastAPI, Header, HTTPException, Response
+from fastapi import Depends, FastAPI, Header, HTTPException, Response, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import create_model
 from pydantic_ai import (
     ModelSettings,
     PartDeltaEvent,
@@ -34,7 +33,6 @@ from llmling_models.openai_server.models import ChatCompletionRequest
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
-    from fastapi import WebSocket
     from pydantic_ai import ModelMessage
     from pydantic_ai.models import Model
 
@@ -136,7 +134,7 @@ class OpenAIServer:
             if request.max_tokens is not None:
                 settings_data["max_tokens"] = request.max_tokens
 
-            settings = create_model("ModelSettings", **settings_data)() if settings_data else None
+            settings = ModelSettings(**settings_data) if settings_data else None
 
             # Handle function/tool calls
             function_tools = []
@@ -346,9 +344,7 @@ class OpenAIServer:
                 if request.max_tokens is not None:
                     settings_data["max_tokens"] = request.max_tokens
 
-                settings = (
-                    create_model("ModelSettings", **settings_data)() if settings_data else None
-                )
+                settings = ModelSettings(**settings_data) if settings_data else None
 
                 # Handle function/tool calls
                 function_tools = []
