@@ -9,7 +9,6 @@ Get your API key at: https://opencode.ai/zen
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
 import sys
 
@@ -18,6 +17,7 @@ import httpx2
 
 from llmling_models.auth.base import ProviderAuthBackend
 from llmling_models.auth.models import ProviderAuthAuthorization, ProviderAuthMethod
+from llmling_models.auth.storage import write_private_json
 from llmling_models.log import get_logger
 
 
@@ -48,8 +48,7 @@ class ZenTokenStore:
 
     def save(self, api_key: str) -> None:
         """Save API key."""
-        self.path.write_text(json.dumps({"api_key": api_key}, indent=2))
-        self.path.chmod(0o600)
+        write_private_json(self.path, {"api_key": api_key})
 
     def clear(self) -> None:
         """Remove stored API key."""

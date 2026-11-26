@@ -9,7 +9,6 @@ Based on the pi-mono implementation by badlogic.
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
 import sys
 import time
@@ -20,6 +19,7 @@ import httpx2
 
 from llmling_models.auth.base import ProviderAuthBackend
 from llmling_models.auth.models import ProviderAuthAuthorization, ProviderAuthMethod
+from llmling_models.auth.storage import write_private_json
 from llmling_models.log import get_logger
 
 
@@ -313,8 +313,7 @@ class CopilotTokenStore:
 
     def save(self, data: dict[str, str | float | None]) -> None:
         """Save credentials."""
-        self.path.write_text(json.dumps(data, indent=2))
-        self.path.chmod(0o600)
+        write_private_json(self.path, data)
 
     def clear(self) -> None:
         """Remove stored credentials."""

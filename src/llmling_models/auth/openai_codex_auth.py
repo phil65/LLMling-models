@@ -10,11 +10,11 @@ Based on the pi-mono implementation by badlogic.
 from __future__ import annotations
 
 import argparse
+import asyncio
 import base64
 from dataclasses import dataclass, field
 import hashlib
 import http.server
-import json
 from pathlib import Path
 import secrets
 import socketserver
@@ -30,6 +30,7 @@ import httpx2
 
 from llmling_models.auth.base import ProviderAuthBackend
 from llmling_models.auth.models import ProviderAuthAuthorization, ProviderAuthMethod
+from llmling_models.auth.storage import file_lock, write_private_json
 from llmling_models.log import get_logger
 
 
@@ -127,12 +128,14 @@ class OpenAICodexTokenStore:
 
     path: Path = field(default_factory=lambda: DEFAULT_TOKEN_PATH)
     _token: OpenAICodexToken | None = field(default=None, init=False, repr=False)
+    _refresh_lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False, repr=False)
 
     def __post_init__(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
-    def load(self) -> OpenAICodexToken | None:
-        if self._token is not None:
+    def load(self, *, reload: bool = False) -> OpenAICodexToken | None:
+        """Return the token, from memory unless `reload` (then from the file)."""
+        if self._token is not None and not reload:
             return self._token
 
         if not self.path.exists():
@@ -149,8 +152,7 @@ class OpenAICodexTokenStore:
 
     def save(self, token: OpenAICodexToken) -> None:
         self._token = token
-        self.path.write_text(json.dumps(token.to_dict(), indent=2))
-        self.path.chmod(0o600)
+        write_private_json(self.path, token.to_dict())
         logger.debug("Saved token to %s", self.path)
 
     def clear(self) -> None:
@@ -322,43 +324,53 @@ def exchange_code_for_token(code: str, verifier: str) -> OpenAICodexToken:
         )
 
 
+def _token_from_refresh_response(response: httpx2.Response) -> OpenAICodexToken:
+    if not response.is_success:
+        msg = f"Token refresh failed: {response.status_code} - {response.text}"
+        raise RuntimeError(msg)
+
+    data = response.json()
+    if not data.get("access_token") or not data.get("refresh_token"):
+        msg = "Refresh response missing fields"
+        raise RuntimeError(msg)
+
+    expires_at = time.time() + data.get("expires_in", 3600)
+    account_id = _get_account_id(data["access_token"])
+    if not account_id:
+        msg = "Failed to extract account ID from refreshed token"
+        raise RuntimeError(msg)
+
+    return OpenAICodexToken(
+        access_token=data["access_token"],
+        refresh_token=data["refresh_token"],
+        expires_at=expires_at,
+        account_id=account_id,
+    )
+
+
+def _refresh_request_data(refresh_token: str) -> dict[str, str]:
+    return {"grant_type": "refresh_token", "refresh_token": refresh_token, "client_id": CLIENT_ID}
+
+
+_REFRESH_HEADERS = {"Content-Type": "application/x-www-form-urlencoded"}
+
+
 def refresh_access_token(refresh_token: str) -> OpenAICodexToken:
     """Refresh an expired access token."""
     with httpx2.Client(timeout=30.0) as client:
         response = client.post(
-            OAUTH_TOKEN_URL,
-            data={
-                "grant_type": "refresh_token",
-                "refresh_token": refresh_token,
-                "client_id": CLIENT_ID,
-            },
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            OAUTH_TOKEN_URL, data=_refresh_request_data(refresh_token), headers=_REFRESH_HEADERS
         )
+        return _token_from_refresh_response(response)
 
-        if not response.is_success:
-            msg = f"Token refresh failed: {response.status_code} - {response.text}"
-            raise RuntimeError(msg)
 
-        data = response.json()
-
-        if not data.get("access_token") or not data.get("refresh_token"):
-            msg = f"Refresh response missing fields: {data}"
-            raise RuntimeError(msg)
-
-        expires_in = data.get("expires_in", 3600)
-        expires_at = time.time() + expires_in
-
-        account_id = _get_account_id(data["access_token"])
-        if not account_id:
-            msg = "Failed to extract account ID from refreshed token"
-            raise RuntimeError(msg)
-
-        return OpenAICodexToken(
-            access_token=data["access_token"],
-            refresh_token=data["refresh_token"],
-            expires_at=expires_at,
-            account_id=account_id,
+async def refresh_access_token_async(refresh_token: str) -> OpenAICodexToken:
+    """Refresh an expired access token (async)."""
+    async with httpx2.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            OAUTH_TOKEN_URL, data=_refresh_request_data(refresh_token), headers=_REFRESH_HEADERS
         )
+        return _token_from_refresh_response(response)
 
 
 def authenticate_openai_codex(
@@ -441,26 +453,36 @@ def authenticate_openai_codex(
         server.server_close()
 
 
+_NO_TOKEN_MSG = (
+    "No OpenAI Codex OAuth token found. Run 'llmling-models openai-codex-auth' to authenticate."
+)
+
+
 def get_or_refresh_token(
     store: OpenAICodexTokenStore | None = None,
 ) -> OpenAICodexToken:
-    """Get a valid token, refreshing if necessary."""
+    """Get a valid token, refreshing if necessary.
+
+    Refresh tokens rotate: one refresh at a time across processes (a file lock), and a
+    token another process refreshed meanwhile is read from the file and used.
+    """
     if store is None:
         store = OpenAICodexTokenStore()
 
     token = store.load()
     if token is None:
-        msg = (
-            "No OpenAI Codex OAuth token found. "
-            "Run 'llmling-models openai-codex-auth' to authenticate."
-        )
-        raise RuntimeError(msg)
+        raise RuntimeError(_NO_TOKEN_MSG)
+    if not token.is_expired():
+        return token
 
-    if token.is_expired():
-        logger.info("Token expired, refreshing...")
-        token = refresh_access_token(token.refresh_token)
-        store.save(token)
-
+    with file_lock(store.path):
+        token = store.load(reload=True)
+        if token is None:
+            raise RuntimeError(_NO_TOKEN_MSG)
+        if token.is_expired():
+            logger.info("Token expired, refreshing...")
+            token = refresh_access_token(token.refresh_token)
+            store.save(token)
     return token
 
 
@@ -473,49 +495,23 @@ async def get_or_refresh_token_async(
 
     token = store.load()
     if token is None:
-        msg = (
-            "No OpenAI Codex OAuth token found. "
-            "Run 'llmling-models openai-codex-auth' to authenticate."
-        )
-        raise RuntimeError(msg)
+        raise RuntimeError(_NO_TOKEN_MSG)
+    if not token.is_expired():
+        return token
 
-    if token.is_expired():
-        logger.info("Token expired, refreshing...")
-        async with httpx2.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                OAUTH_TOKEN_URL,
-                data={
-                    "grant_type": "refresh_token",
-                    "refresh_token": token.refresh_token,
-                    "client_id": CLIENT_ID,
-                },
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-            )
-
-            if not response.is_success:
-                msg = f"Token refresh failed: {response.status_code} - {response.text}"
-                raise RuntimeError(msg)
-
-            data = response.json()
-
-            if not data.get("access_token") or not data.get("refresh_token"):
-                msg = "Refresh response missing fields"
-                raise RuntimeError(msg)
-
-            expires_at = time.time() + data.get("expires_in", 3600)
-            account_id = _get_account_id(data["access_token"])
-            if not account_id:
-                msg = "Failed to extract account ID from refreshed token"
-                raise RuntimeError(msg)
-
-            token = OpenAICodexToken(
-                access_token=data["access_token"],
-                refresh_token=data["refresh_token"],
-                expires_at=expires_at,
-                account_id=account_id,
-            )
-            store.save(token)
-
+    async with store._refresh_lock:  # one refresh per process, the file lock for the rest
+        lock = file_lock(store.path)
+        await asyncio.to_thread(lock.__enter__)
+        try:
+            token = store.load(reload=True)
+            if token is None:
+                raise RuntimeError(_NO_TOKEN_MSG)
+            if token.is_expired():
+                logger.info("Token expired, refreshing...")
+                token = await refresh_access_token_async(token.refresh_token)
+                store.save(token)
+        finally:
+            lock.__exit__(None, None, None)
     return token
 
 
