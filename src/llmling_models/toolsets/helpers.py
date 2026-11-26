@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 from typing import TYPE_CHECKING, Any
 
 from pydantic_ai import RunContext  # noqa: TC002
@@ -63,14 +64,16 @@ def create_tool_callable(
     if out_schema:
         out_schema = out_schema.get("properties", {}).get("result")
     function_schema = FunctionSchema.from_dict(schema_dict, output_schema=out_schema)
-    sig = function_schema.to_python_signature()
+    sig = _allow_positional(function_schema.to_python_signature())
 
     # Create the wrapper function
     async def tool_wrapper(*args: Any, **kwargs: Any) -> Any:
-        # Bind arguments to parameter names
+        # Bind arguments to parameter names; the tool's validator fills in the defaults.
         bound = sig.bind(*args, **kwargs)
-        bound.apply_defaults()
-        result = await toolset_tool.toolset.call_tool(tool_name, bound.arguments, ctx, toolset_tool)
+        # Validate like pydantic-ai's ToolManager does before call_tool (converts
+        # dicts to models, "3" to 3, rejects wrong arguments).
+        tool_args = toolset_tool.args_validator.validate_python(bound.arguments)
+        result = await toolset_tool.toolset.call_tool(tool_name, tool_args, ctx, toolset_tool)
 
         # If we dont know, stringify so that the model knows what to work with.
         if not isinstance(toolset_tool, FunctionToolsetTool) and not out_schema:
@@ -100,6 +103,30 @@ def create_tool_callable(
     tool_wrapper.__signature__ = sig  # type: ignore
 
     return tool_wrapper
+
+
+def _allow_positional(sig: inspect.Signature) -> inspect.Signature:
+    """Make the leading parameters positional-or-keyword (the generated ones are keyword-only).
+
+    A required parameter after one with a default stays keyword-only, as do all after it.
+    """
+    params = []
+    keyword_only = False
+    seen_default = False
+    for param in sig.parameters.values():
+        if param.kind is not inspect.Parameter.KEYWORD_ONLY:
+            params.append(param)
+            continue
+        has_default = param.default is not inspect.Parameter.empty
+        keyword_only = keyword_only or (seen_default and not has_default)
+        seen_default = seen_default or has_default
+        kind = (
+            inspect.Parameter.KEYWORD_ONLY
+            if keyword_only
+            else inspect.Parameter.POSITIONAL_OR_KEYWORD
+        )
+        params.append(param.replace(kind=kind))
+    return sig.replace(parameters=params)
 
 
 def _get_return_type(toolset_tool: ToolsetTool[Any]) -> type[Any] | None:

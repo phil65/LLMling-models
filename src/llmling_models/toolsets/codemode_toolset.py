@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import asyncio
+from dataclasses import dataclass, field
 import inspect
 import logging
 from typing import TYPE_CHECKING, Any, Self
@@ -64,6 +65,10 @@ class CodeModeToolset[AgentDepsT = None](AbstractToolset[AgentDepsT]):
 
     max_retries: int = 3
     """Maximum number of tool retries."""
+
+    _tools_cache: tuple[tuple[str, int], list[dict[str, ToolsetTool[Any]]]] | None = field(
+        default=None, init=False, repr=False
+    )
 
     @property
     def id(self) -> str | None:
@@ -148,14 +153,27 @@ class CodeModeToolset[AgentDepsT = None](AbstractToolset[AgentDepsT]):
         self.toolsets = [toolset.visit_and_replace(visitor) for toolset in self.toolsets]
         return self
 
+    async def _get_wrapped_tools(self, ctx: RunContext[Any]) -> list[dict[str, ToolsetTool[Any]]]:
+        """List the wrapped toolsets' tools, once per run step.
+
+        Listing an MCP toolset is a round trip; the listing made for the model request
+        is reused when the model's code runs in the same step.
+        """
+        key = (ctx.run_id, ctx.run_step) if ctx.run_id is not None else None
+        if key is not None and self._tools_cache is not None and self._tools_cache[0] == key:
+            return self._tools_cache[1]
+        tools = list(await asyncio.gather(*(ts.get_tools(ctx) for ts in self.toolsets)))
+        if key is not None:
+            self._tools_cache = (key, tools)
+        return tools
+
     async def _get_code_generator(self, ctx: RunContext[Any]) -> ToolsetCodeGenerator:
-        """Get cached toolset generator, creating it if needed."""
-        callables = []
-        for toolset in self.toolsets:
-            tools = await toolset.get_tools(ctx)
-            for tool_name, toolset_tool in tools.items():
-                callable_func = create_tool_callable(toolset_tool, tool_name, ctx)
-                callables.append(callable_func)
+        """Build the toolset code generator, its callables bound to `ctx`."""
+        callables = [
+            create_tool_callable(toolset_tool, tool_name, ctx)
+            for tools in await self._get_wrapped_tools(ctx)
+            for tool_name, toolset_tool in tools.items()
+        ]
         return ToolsetCodeGenerator.from_callables(callables, self.include_docstrings)
 
 
