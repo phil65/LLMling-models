@@ -74,7 +74,7 @@ uv build
 
 ## Conventions
 
-- Python >= 3.13, `from __future__ import annotations` everywhere; ruff with preview,
+- Python >= 3.14, no `from __future__ import annotations` (PEP 649; banned via ruff TID251); ruff with preview,
   line length 100, Google-style docstrings.
 - Type checking is ty only (no mypy). Use `# ty: ignore[rule]` sparingly; no mypy-style
   ignores.
