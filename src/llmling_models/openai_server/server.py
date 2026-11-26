@@ -11,17 +11,12 @@ import anyenv
 from fastapi import Depends, FastAPI, Header, HTTPException, Response, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic_ai import (
-    ModelSettings,
-    PartDeltaEvent,
-    PartStartEvent,
-    TextPart,
-    TextPartDelta,
-)
+from pydantic_ai import ModelSettings
 from pydantic_ai.models import ModelRequestParameters
 
 from llmling_models.log import get_logger
 from llmling_models.openai_server.helpers import (
+    StreamDeltaConverter,
     convert_tools,
     openai_to_pydantic_messages,
     pydantic_response_to_openai,
@@ -156,7 +151,14 @@ class OpenAIServer:
             # Check if streaming is requested
             if request.stream:
                 return StreamingResponse(
-                    self._stream_response(model, messages, settings, request_params, request.model),
+                    self._stream_response(
+                        model,
+                        messages,
+                        settings,
+                        request_params,
+                        request.model,
+                        allow_tools=bool(request.tools),
+                    ),
                     media_type="text/event-stream",
                 )
 
@@ -209,6 +211,7 @@ class OpenAIServer:
         settings: Any,
         request_params: ModelRequestParameters,
         model_name: str,
+        allow_tools: bool = True,
     ) -> AsyncGenerator[str]:
         """Stream response in OpenAI format."""
         response_id = f"chatcmpl-{int(time.time() * 1000)}"
@@ -235,50 +238,19 @@ class OpenAIServer:
                 yield f"data: {anyenv.dump_json(first_chunk)}\n\n"
 
                 # Process stream events
-                content_buffer = ""
+                converter = StreamDeltaConverter(allow_tools=allow_tools)
                 async for event in stream:
-                    if isinstance(event, PartStartEvent):
-                        if isinstance(event.part, TextPart):
-                            new_content = str(event.part.content)
-                            if new_content != content_buffer:
-                                delta = new_content[len(content_buffer) :]
-                                content_buffer = new_content
-
-                                if delta:
-                                    choice = {
-                                        "index": 0,
-                                        "delta": {"content": delta},
-                                        "finish_reason": None,
-                                    }
-                                    chunk_data = {
-                                        "id": response_id,
-                                        "object": "chat.completion.chunk",
-                                        "created": int(time.time()),
-                                        "model": model_name,
-                                        "choices": [choice],
-                                    }
-                                    yield f"data: {anyenv.dump_json(chunk_data)}\n\n"
-
-                    elif isinstance(event, PartDeltaEvent) and isinstance(
-                        event.delta, TextPartDelta
-                    ):
-                        delta = event.delta.content_delta
-                        content_buffer += delta
-
-                        if delta:
-                            choice = {
-                                "index": 0,
-                                "delta": {"content": delta},
-                                "finish_reason": None,
-                            }
-                            chunk_data = {
-                                "id": response_id,
-                                "object": "chat.completion.chunk",
-                                "created": int(time.time()),
-                                "model": model_name,
-                                "choices": [choice],
-                            }
-                            yield f"data: {anyenv.dump_json(chunk_data)}\n\n"
+                    if (delta := converter.convert(event)) is None:
+                        continue
+                    choice = {"index": 0, "delta": delta, "finish_reason": None}
+                    chunk_data = {
+                        "id": response_id,
+                        "object": "chat.completion.chunk",
+                        "created": int(time.time()),
+                        "model": model_name,
+                        "choices": [choice],
+                    }
+                    yield f"data: {anyenv.dump_json(chunk_data)}\n\n"
 
                 # Final chunk
                 final_chunk = {
@@ -286,7 +258,9 @@ class OpenAIServer:
                     "object": "chat.completion.chunk",
                     "created": int(time.time()),
                     "model": model_name,
-                    "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+                    "choices": [
+                        {"index": 0, "delta": {}, "finish_reason": converter.finish_reason}
+                    ],
                 }
                 yield f"data: {anyenv.dump_json(final_chunk)}\n\n"
                 yield "data: [DONE]\n\n"
@@ -389,51 +363,19 @@ class OpenAIServer:
                             await websocket.send_json(first_chunk)
 
                             # Process stream events
-                            content_buffer = ""
+                            converter = StreamDeltaConverter(allow_tools=bool(request.tools))
                             async for event in stream:
-                                if isinstance(event, PartStartEvent):
-                                    # Handle new part
-                                    if isinstance(event.part, TextPart):
-                                        new_content = str(event.part.content)
-                                        if new_content != content_buffer:
-                                            delta = new_content[len(content_buffer) :]
-                                            content_buffer = new_content
-
-                                            if delta:
-                                                choice = {
-                                                    "index": 0,
-                                                    "delta": {"content": delta},
-                                                    "finish_reason": None,
-                                                }
-                                                chunk_data = {
-                                                    "id": response_id,
-                                                    "object": "chat.completion.chunk",
-                                                    "created": int(time.time()),
-                                                    "model": request.model,
-                                                    "choices": [choice],
-                                                }
-                                                await websocket.send_json(chunk_data)
-
-                                elif isinstance(event, PartDeltaEvent) and isinstance(
-                                    event.delta, TextPartDelta
-                                ):
-                                    delta = event.delta.content_delta
-                                    content_buffer += delta
-
-                                    if delta:
-                                        choice = {
-                                            "index": 0,
-                                            "delta": {"content": delta},
-                                            "finish_reason": None,
-                                        }
-                                        chunk_data = {
-                                            "id": response_id,
-                                            "object": "chat.completion.chunk",
-                                            "created": int(time.time()),
-                                            "model": request.model,
-                                            "choices": [choice],
-                                        }
-                                        await websocket.send_json(chunk_data)
+                                if (delta := converter.convert(event)) is None:
+                                    continue
+                                choice = {"index": 0, "delta": delta, "finish_reason": None}
+                                chunk_data = {
+                                    "id": response_id,
+                                    "object": "chat.completion.chunk",
+                                    "created": int(time.time()),
+                                    "model": request.model,
+                                    "choices": [choice],
+                                }
+                                await websocket.send_json(chunk_data)
 
                             # Final chunk
                             final_chunk = {
@@ -441,7 +383,13 @@ class OpenAIServer:
                                 "object": "chat.completion.chunk",
                                 "created": int(time.time()),
                                 "model": request.model,
-                                "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+                                "choices": [
+                                    {
+                                        "index": 0,
+                                        "delta": {},
+                                        "finish_reason": converter.finish_reason,
+                                    }
+                                ],
                             }
                             await websocket.send_json(final_chunk)
                             await websocket.send_json({"done": True})

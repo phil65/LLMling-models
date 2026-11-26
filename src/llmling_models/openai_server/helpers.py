@@ -10,9 +10,13 @@ import anyenv
 from pydantic_ai import (
     ModelRequest,
     ModelResponse,
+    PartDeltaEvent,
+    PartStartEvent,
     SystemPromptPart,
     TextPart,
+    TextPartDelta,
     ToolCallPart,
+    ToolCallPartDelta,
     ToolReturnPart,
     UserPromptPart,
 )
@@ -31,7 +35,7 @@ from llmling_models.openai_server.models import (
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
-    from pydantic_ai import ModelMessage, ModelResponsePart
+    from pydantic_ai import ModelMessage, ModelResponsePart, ModelResponseStreamEvent
 
     from llmling_models.openai_server.models import (
         ToolDefinitionSchema,
@@ -151,13 +155,74 @@ def pydantic_response_to_openai(
         id=f"chatcmpl-{int(time.time() * 1000)}",
         created=int(time.time()),
         model=model_name,
-        choices=[Choice(message=message)],
+        choices=[
+            Choice(message=message, finish_reason="tool_calls" if tool_call_parts else "stop")
+        ],
         usage={
             "prompt_tokens": 0,  # These will be populated later
             "completion_tokens": 0,
             "total_tokens": 0,
         },
     )
+
+
+class StreamDeltaConverter:
+    """Turn pydantic-ai stream events into OpenAI `chat.completion.chunk` deltas.
+
+    Keeps per-part state: each text part is tracked by its part index (a later text part
+    must not be sliced by an earlier one's length), and each tool call part gets its own
+    OpenAI `tool_calls` index.
+    """
+
+    def __init__(self, allow_tools: bool = True) -> None:
+        self.allow_tools = allow_tools
+        self._text_lengths: dict[int, int] = {}
+        self._tool_indices: dict[int, int] = {}
+
+    @property
+    def finish_reason(self) -> str:
+        return "tool_calls" if self._tool_indices else "stop"
+
+    def convert(self, event: ModelResponseStreamEvent) -> dict[str, Any] | None:
+        """Return the OpenAI delta for an event, or None if there is nothing to send."""
+        if isinstance(event, PartStartEvent):
+            part = event.part
+            if isinstance(part, TextPart):
+                seen = self._text_lengths.get(event.index, 0)
+                self._text_lengths[event.index] = len(part.content)
+                new = part.content[seen:]
+                return {"content": new} if new else None
+            if isinstance(part, ToolCallPart) and self.allow_tools:
+                index = self._tool_indices.setdefault(event.index, len(self._tool_indices))
+                args = part.args_as_json_str() if part.args else ""
+                call = {
+                    "index": index,
+                    "id": part.tool_call_id or str(uuid.uuid4()),
+                    "type": "function",
+                    "function": {"name": part.tool_name, "arguments": args},
+                }
+                return {"tool_calls": [call]}
+        elif isinstance(event, PartDeltaEvent):
+            delta = event.delta
+            if isinstance(delta, TextPartDelta):
+                self._text_lengths[event.index] = self._text_lengths.get(event.index, 0) + len(
+                    delta.content_delta
+                )
+                return {"content": delta.content_delta} if delta.content_delta else None
+            if isinstance(delta, ToolCallPartDelta) and event.index in self._tool_indices:
+                function: dict[str, str] = {}
+                if delta.tool_name_delta:
+                    function["name"] = delta.tool_name_delta
+                if delta.args_delta:
+                    args_delta = delta.args_delta
+                    function["arguments"] = (
+                        args_delta if isinstance(args_delta, str) else anyenv.dump_json(args_delta)
+                    )
+                if not function:
+                    return None
+                call = {"index": self._tool_indices[event.index], "function": function}
+                return {"tool_calls": [call]}
+        return None
 
 
 async def generate_stream_chunks(

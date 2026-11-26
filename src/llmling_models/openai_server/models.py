@@ -54,8 +54,8 @@ class FunctionDefinition(Schema):
     """Function definition."""
 
     name: str
-    description: str
-    parameters: dict[str, Any]
+    description: str | None = None
+    parameters: dict[str, Any] = Field(default_factory=lambda: {"type": "object", "properties": {}})
 
 
 class ToolDefinitionSchema(Schema):
