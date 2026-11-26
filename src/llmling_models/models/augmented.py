@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
 from pydantic import ConfigDict
-from pydantic_ai import ModelRequest, RequestUsage, UserPromptPart
-from pydantic_ai.models import Model
+from pydantic_ai import ModelRequest, RequestUsage, TextPart, ToolCallPart, UserPromptPart
+from pydantic_ai.models import Model, ModelRequestParameters
 from schemez import Schema
 
 from llmling_models.log import get_logger
@@ -20,7 +21,7 @@ if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
     from pydantic_ai import ModelMessage, ModelResponse, ModelSettings, RunContext
-    from pydantic_ai.models import KnownModelName, ModelRequestParameters, StreamedResponse
+    from pydantic_ai.models import KnownModelName, StreamedResponse
 
 
 class PrePostPromptConfig(Schema):
@@ -101,6 +102,41 @@ class AugmentedModel(Model):
                     return str(part.content)  # TODO: could also be media content
         return ""
 
+    async def _expand_prompt(
+        self, messages: list[ModelMessage], model_settings: ModelSettings | None
+    ) -> tuple[list[ModelMessage], RequestUsage]:
+        """Run the pre-prompt and put the expanded question into the last request.
+
+        Only the user prompt part is replaced: system prompts and instructions of the
+        request stay. A request without a user prompt (tool returns) is left alone.
+        """
+        last = messages[-1] if messages else None
+        if not self.pre_prompt or not isinstance(last, ModelRequest):
+            return messages, RequestUsage()
+        if not any(isinstance(part, UserPromptPart) for part in last.parts):
+            return messages, RequestUsage()
+
+        input_question = self._get_last_content(messages)
+        pre_request = ModelRequest(
+            parts=[UserPromptPart(content=self.pre_prompt.text.format(input=input_question))]
+        )
+        pre_response = await self._get_model("pre").request(
+            [pre_request], model_settings, ModelRequestParameters()
+        )
+        expanded_question: str | None = _text_of(pre_response)
+        logger.debug("Original question: %s", input_question)
+        logger.debug("Expanded question: %s", expanded_question)
+        # The expanded question takes the place of the (first) user prompt part.
+        new_parts = []
+        for part in last.parts:
+            if not isinstance(part, UserPromptPart):
+                new_parts.append(part)
+            elif expanded_question is not None:
+                new_parts.append(UserPromptPart(content=expanded_question))
+                expanded_question = None
+        expanded = [*messages[:-1], replace(last, parts=new_parts)]
+        return expanded, pre_response.usage
+
     async def request(
         self,
         messages: list[ModelMessage],
@@ -108,68 +144,30 @@ class AugmentedModel(Model):
         model_request_parameters: ModelRequestParameters,
     ) -> ModelResponse:
         """Process request with pre/post prompting."""
-        total_cost = RequestUsage()
-        all_messages = messages.copy()
-
-        # Pre-process the question if configured
-        if self.pre_prompt:
-            pre_model = self._get_model("pre")
-            input_question = self._get_last_content(messages)
-            pre_prompt = self.pre_prompt.text.format(input=input_question)
-
-            # Get expanded question
-            pre_request = ModelRequest(parts=[UserPromptPart(content=pre_prompt)])
-            pre_response = await pre_model.request(
-                [pre_request],
-                model_settings,
-                model_request_parameters,
-            )
-            total_cost += pre_response.usage
-
-            # Replace original question with expanded version
-            expanded_question = str(pre_response.parts[0].content)  # type: ignore
-            logger.debug("Original question: %s", input_question)
-            logger.debug("Expanded question: %s", expanded_question)
-            expanded_part = UserPromptPart(content=expanded_question)
-            all_messages[-1] = ModelRequest(parts=[expanded_part])
+        all_messages, total_cost = await self._expand_prompt(messages, model_settings)
 
         # Process with main model
-        main_model = self._get_model("main")
-        main_response = await main_model.request(
+        main_response = await self._get_model("main").request(
             all_messages,
             model_settings,
             model_request_parameters,
         )
         total_cost += main_response.usage
-        logger.debug("Main response: %s", str(main_response.parts[0].content))  # type: ignore
 
-        # Post-process if configured
-        if self.post_prompt:
-            post_model = self._get_model("post")
-            post_prompt = self.post_prompt.text.format(
-                output=str(main_response.parts[0].content)  # type: ignore
-            )
-
-            # Create post-processing request
+        # Post-process the final answer only: a response with tool calls goes back to
+        # the agent unchanged.
+        has_tool_calls = any(isinstance(p, ToolCallPart) for p in main_response.parts)
+        if self.post_prompt and not has_tool_calls:
+            post_prompt = self.post_prompt.text.format(output=_text_of(main_response))
             post_request = ModelRequest(parts=[UserPromptPart(content=post_prompt)])
-            post_response = await post_model.request(
-                [post_request],
-                model_settings,
-                model_request_parameters,
+            post_response = await self._get_model("post").request(
+                [post_request], model_settings, ModelRequestParameters()
             )
             total_cost += post_response.usage
-            logger.debug(
-                "Post-processed response: %s",
-                str(post_response.parts[0].content),  # type: ignore
-            )
-
-            # Add post-prompt messages to the chain
-            all_messages.extend([main_response, post_request, post_response])
+            logger.debug("Post-processed response: %s", _text_of(post_response))
             post_response.usage = total_cost
             return post_response
 
-        # If no post-processing, add main response to message chain
-        all_messages.append(main_response)
         main_response.usage = total_cost
         return main_response
 
@@ -181,27 +179,8 @@ class AugmentedModel(Model):
         model_request_parameters: ModelRequestParameters,
         run_context: RunContext[Any] | None = None,
     ) -> AsyncGenerator[StreamedResponse]:
-        """Stream response with pre/post processing."""
-        all_messages = messages.copy()
-
-        # Pre-process if configured
-        if self.pre_prompt:
-            pre_model = self._get_model("pre")
-            input_question = self._get_last_content(messages)
-            pre_prompt = self.pre_prompt.text.format(input=input_question)
-
-            # Get expanded question
-            pre_request = ModelRequest(parts=[UserPromptPart(content=pre_prompt)])
-            pre_response = await pre_model.request(
-                [pre_request],
-                model_settings,
-                model_request_parameters,
-            )
-
-            # Replace original question
-            expanded_question = str(pre_response.parts[0].content)  # type: ignore
-            expanded_part = UserPromptPart(content=expanded_question)
-            all_messages[-1] = ModelRequest(parts=[expanded_part])
+        """Stream response with pre-processing (the post-prompt is not applied)."""
+        all_messages, _ = await self._expand_prompt(messages, model_settings)
 
         # Stream from main model
         main_model = self._get_model("main")
@@ -212,6 +191,10 @@ class AugmentedModel(Model):
             run_context,
         ) as stream:
             yield stream
+
+
+def _text_of(response: ModelResponse) -> str:
+    return "".join(part.content for part in response.parts if isinstance(part, TextPart))
 
 
 if __name__ == "__main__":
