@@ -10,7 +10,6 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 from pydantic import ConfigDict, Field, ImportString, SecretStr
-from pydantic_ai import ModelSettings as PyAIModelSettings
 from schemez import Schema
 from tokonomics.model_names import ModelId
 from tokonomics.model_names.anthropic import AnthropicModelName
@@ -20,6 +19,7 @@ from tokonomics.model_names.openrouter import OpenrouterModelName
 
 
 if TYPE_CHECKING:
+    from pydantic_ai import ModelSettings as PyAIModelSettings
     from pydantic_ai.models import Model
     from pydantic_ai.models.anthropic import AnthropicModelSettings
     from pydantic_ai.models.fallback import FallbackModel
@@ -58,7 +58,24 @@ class BaseModelConfig(Schema):
 
     def get_model_settings(self) -> PyAIModelSettings:
         """Return model settings as a dictionary."""
-        return PyAIModelSettings()
+        return {}
+
+
+def _build_model(config: ModelId | str | BaseModelConfig) -> Model:
+    """Create the model of a nested config, with that config's settings attached.
+
+    The settings of a top-level config are passed to the agent; nested ones (the models
+    of a fallback, delegation or augmented model) would be lost otherwise.
+    """
+    if not isinstance(config, BaseModelConfig):
+        return StringModelConfig(identifier=config).get_model()
+    from pydantic_ai.models import Model
+    from pydantic_ai.settings import merge_model_settings
+
+    model = config.get_model()
+    if isinstance(model, Model) and (settings := config.get_model_settings()):
+        model._settings = merge_model_settings(model.settings, settings)
+    return model
 
 
 class PrePostPromptConfig(Schema):
@@ -106,17 +123,20 @@ class AugmentedModelConfig(BaseModelConfig):
     """Optional configuration for prompt postprocessing."""
 
     def get_model(self) -> AugmentedModel:
-        from llmling_models.models.augmented import AugmentedModel
-
-        main_model = (
-            self.main_model.get_model()
-            if isinstance(self.main_model, BaseModelConfig)
-            else StringModelConfig(identifier=self.main_model).get_model()
+        from llmling_models.models.augmented import (
+            AugmentedModel,
+            PrePostPromptConfig as RuntimePrePostPromptConfig,
         )
+
+        def convert(cfg: PrePostPromptConfig | None) -> RuntimePrePostPromptConfig | None:
+            if cfg is None:
+                return None
+            return RuntimePrePostPromptConfig(text=cfg.text, model=_build_model(cfg.model))
+
         return AugmentedModel(
-            main_model=main_model,
-            pre_prompt=self.pre_prompt,  # type: ignore
-            post_prompt=self.post_prompt,  # type: ignore
+            main_model=_build_model(self.main_model),
+            pre_prompt=convert(self.pre_prompt),
+            post_prompt=convert(self.post_prompt),
         )
 
 
@@ -162,25 +182,16 @@ class DelegationModelConfig(BaseModelConfig):
     def get_model(self) -> DelegationMultiModel:
         from llmling_models.models import DelegationMultiModel
 
-        # Convert selector if it's a config
-        selector = (
-            self.selector_model.get_model()
-            if isinstance(self.selector_model, BaseModelConfig)
-            else StringModelConfig(identifier=self.selector_model).get_model()
+        # String ids stay strings: the selector answers with them.
+        models = [_build_model(m) if isinstance(m, BaseModelConfig) else m for m in self.models]
+        descriptions: dict[str | Model, str] | None = (
+            {**self.model_descriptions} if self.model_descriptions else None
         )
-
-        # Convert model list
-        converted_models = [
-            m.get_model()
-            if isinstance(m, BaseModelConfig)
-            else StringModelConfig(identifier=m).get_model()
-            for m in self.models
-        ]
-
         return DelegationMultiModel(
-            selector_model=selector,
-            models=converted_models,
+            selector_model=_build_model(self.selector_model),
+            models=models,
             selection_prompt=self.selection_prompt,
+            model_descriptions=descriptions,
         )
 
 
@@ -202,14 +213,7 @@ class FallbackModelConfig(BaseModelConfig):
     def get_model(self) -> FallbackModel:
         from pydantic_ai.models.fallback import FallbackModel
 
-        # Convert nested configs to models
-        converted_models = [
-            m.get_model()
-            if isinstance(m, BaseModelConfig)
-            else StringModelConfig(identifier=m).get_model()
-            for m in self.models
-        ]
-        return FallbackModel(*converted_models)
+        return FallbackModel(*[_build_model(m) for m in self.models])
 
 
 class ImportModelConfig(BaseModelConfig):
@@ -371,12 +375,7 @@ class UserSelectModelConfig(BaseModelConfig):
     def get_model(self) -> Any:
         from llmling_models.models import UserSelectModel
 
-        converted_models = [
-            m.get_model()
-            if isinstance(m, BaseModelConfig)
-            else StringModelConfig(identifier=m).get_model()
-            for m in self.models
-        ]
+        converted_models = [_build_model(m) for m in self.models]
         return UserSelectModel(
             models=converted_models,
             prompt_template=self.prompt_template,

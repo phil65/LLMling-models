@@ -50,3 +50,44 @@ def test_provider_configs_accept_unlisted_identifiers() -> None:
     assert OpenRouterModelConfig(identifier="openai/gpt-4o").identifier == "openai/gpt-4o"
     assert AnthropicModelConfig(identifier="claude-future-9").identifier == "claude-future-9"
     assert GeminiModelConfig(identifier="gemini-future-9").identifier == "gemini-future-9"
+
+
+def test_nested_config_settings_reach_the_inner_models() -> None:
+    from llmling_models_config.configs import (
+        AugmentedModelConfig,
+        DelegationModelConfig,
+        FallbackModelConfig,
+        OpenAIModelConfig,
+        PrePostPromptConfig,
+    )
+
+    inner = OpenAIModelConfig(identifier="gpt-4o", temperature=0.1)
+    fallback = FallbackModelConfig(models=[inner, "test"]).get_model()
+    assert fallback.models[0].settings == {"temperature": 0.1}
+
+    delegation = DelegationModelConfig(
+        selector_model="test",
+        models=[inner, "openai:gpt-4o-mini"],
+        selection_prompt="pick",
+        model_descriptions={"openai:gpt-4o-mini": "small"},
+    ).get_model()
+    assert delegation.available_models[0].settings == {"temperature": 0.1}
+    assert delegation.model_descriptions == {"openai:gpt-4o-mini": "small"}
+    assert "openai:gpt-4o-mini" in delegation._models_by_id()
+
+    augmented = AugmentedModelConfig(
+        main_model=inner,
+        pre_prompt=PrePostPromptConfig(text="x {input}", model=inner),
+    ).get_model()
+    assert augmented._main_model.settings == {"temperature": 0.1}
+    assert augmented.pre_prompt is not None
+    assert augmented.pre_prompt.model_instance.settings == {"temperature": 0.1}
+
+
+def test_config_package_does_not_import_pydantic_ai() -> None:
+    import subprocess
+    import sys
+
+    code = "import sys, llmling_models_config; print('pydantic_ai' in sys.modules)"
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
+    assert out.stdout.strip() == "False"
