@@ -62,12 +62,12 @@ claude = ["claude-agent-sdk>=0.1.16"]
 codemode = ["fastmcp>=2.0.0"]
 default = ["pydantic-ai"]
 openai = ["openai"]
-remote = ["fastapi", "uvicorn", "websockets"]
+remote = ["fastapi", "uvicorn", "websockets>=14.0"]
 server = [
   "uvicorn>=0.25.0",
   "fastapi>=0.109.0",
   "pyyaml>=6.0",
-  "websockets>=12.0",
+  "websockets>=14.0",
 ]
 tokenizers = ["tokenizers"]
 transformers = ["transformers"]

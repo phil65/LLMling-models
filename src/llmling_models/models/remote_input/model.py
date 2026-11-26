@@ -115,7 +115,7 @@ class RemoteInputModel(Model):
 
         headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
 
-        async with websockets.connect(self.url, extra_headers=headers) as websocket:
+        async with websockets.connect(self.url, additional_headers=headers) as websocket:
             try:
                 # Get current prompt and history
                 prompt = ""
@@ -160,7 +160,7 @@ class RemoteInputModel(Model):
         import websockets
 
         headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
-        websocket = await websockets.connect(self.url, extra_headers=headers)
+        websocket = await websockets.connect(self.url, additional_headers=headers)
 
         try:
             # Send prompt and history
