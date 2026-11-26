@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import stat
+import sys
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -30,6 +31,10 @@ def _token(n: int, expired: bool = False) -> OpenAICodexToken:
     return OpenAICodexToken(f"access{n}", f"refresh{n}", expires, "acct")
 
 
+posix_modes = pytest.mark.skipif(sys.platform == "win32", reason="POSIX file modes")
+
+
+@posix_modes
 def test_token_files_are_private_from_the_start(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -53,6 +58,7 @@ def test_token_files_are_private_from_the_start(
     ]
 
 
+@posix_modes
 @pytest.mark.parametrize(
     ("store_cls", "args"),
     [
