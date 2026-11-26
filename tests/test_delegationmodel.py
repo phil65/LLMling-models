@@ -92,3 +92,51 @@ async def test_delegation_invalid_selection():
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+async def test_delegation_matches_configured_ids_and_hides_agent_tools():
+    """The selector answers with the configured id, sees descriptions, not the tools."""
+    from pydantic_ai import ModelResponse, TextPart
+    from pydantic_ai.models.function import AgentInfo, FunctionModel
+    from pydantic_ai.usage import RequestUsage
+
+    seen: dict[str, object] = {}
+
+    def select(messages, info: AgentInfo) -> ModelResponse:
+        seen["tools"] = [t.name for t in info.function_tools]
+        seen["prompt"] = messages[-1].parts[0].content
+        return ModelResponse(
+            parts=[TextPart("'openai:gpt-4o-mini'\n")],
+            usage=RequestUsage(input_tokens=7, output_tokens=1),
+        )
+
+    delegation_model = DelegationMultiModel(
+        selector_model=FunctionModel(select),
+        models={  # type: ignore[arg-type]
+            "openai:gpt-4o-mini": "coding",
+            "test": "chat",
+        },
+        selection_prompt="Pick a model.",
+    )
+    coding_model = delegation_model.available_models[0]
+
+    def delete_everything() -> str:
+        return "gone"
+
+    agent = Agent[None, str](delegation_model, tools=[delete_everything])
+    selected = await delegation_model._select_model("write code", None)
+    assert selected[0] is coding_model
+    assert selected[1].input_tokens == 7  # noqa: PLR2004
+    assert "coding" in str(seen["prompt"])
+    assert "openai:gpt-4o-mini" in str(seen["prompt"])
+
+    # A full run with an agent tool (TestModel calls it): the selector never sees it,
+    # and the step after the tool call still finds the user prompt.
+    def select_test(messages, info: AgentInfo) -> ModelResponse:
+        seen["tools"] = [t.name for t in info.function_tools]
+        return ModelResponse(parts=[TextPart("test")])
+
+    delegation_model.selector_model = FunctionModel(select_test)
+    result = await agent.run("chat with me")
+    assert seen["tools"] == []
+    assert result.output

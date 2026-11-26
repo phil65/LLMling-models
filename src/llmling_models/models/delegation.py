@@ -6,8 +6,8 @@ from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, model_validator
-from pydantic_ai import ModelRequest, UserPromptPart
-from pydantic_ai.models import Model  # noqa: TC002
+from pydantic_ai import ModelRequest, TextPart, UserPromptPart
+from pydantic_ai.models import Model, ModelRequestParameters
 from tokonomics import ModelName  # noqa: TC002
 
 from llmling_models.log import get_logger
@@ -19,7 +19,8 @@ if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
     from pydantic_ai import ModelMessage, ModelResponse, ModelSettings, RunContext
-    from pydantic_ai.models import ModelRequestParameters, StreamedResponse
+    from pydantic_ai.models import StreamedResponse
+    from pydantic_ai.usage import RequestUsage
 
 logger = get_logger(__name__)
 
@@ -54,69 +55,74 @@ class DelegationMultiModel(MultiModel):
         """Return the system/provider name."""
         return "delegation"
 
+    def _models_by_id(self) -> dict[str, Model]:
+        """Map the configured ids ("openai:gpt-4o-mini") to the model instances."""
+        models: dict[str, Model] = {}
+        for spec, model in zip(self.models, self.available_models, strict=True):
+            models.setdefault(spec if isinstance(spec, str) else model.model_name, model)
+        return models
+
     def _format_selection_text(self, base_prompt: str) -> str:
         """Format selection text using prompt and optional model descriptions."""
         if not self.model_descriptions:
             return base_prompt
 
         model_hints = "\n".join(
-            f"Pick '{model}' for: {desc}" for model, desc in self.model_descriptions.items()
+            f"Pick '{model if isinstance(model, str) else model.model_name}' for: {desc}"
+            for model, desc in self.model_descriptions.items()
         )
         return f"{model_hints}\n\n{base_prompt}"
 
     async def _select_model(
-        self,
-        prompt: str,
-        model_settings: ModelSettings | None,
-        model_request_parameters: ModelRequestParameters,
-    ) -> Model:
-        """Use selector model to choose appropriate model for prompt."""
-        # Initialize selector
+        self, prompt: str, model_settings: ModelSettings | None
+    ) -> tuple[Model, RequestUsage]:
+        """Use selector model to choose appropriate model for prompt.
+
+        Returns the chosen model and the selector's usage.
+        """
         selector = (
             infer_model(self.selector_model)
             if isinstance(self.selector_model, str)
             else self.selector_model
         )
-
-        # Create selection request
+        models = self._models_by_id()
         selection_text = (
-            f"{self.selection_prompt}\n\n"
+            f"{self._format_selection_text(self.selection_prompt)}\n\n"
+            f"Available models: {', '.join(models)}\n\n"
             f"Task: {prompt}\n\n"
             "Return only the name of the model to use."
         )
-        part = UserPromptPart(content=selection_text)
-        selection_msg = ModelRequest(parts=[part])
+        selection_msg = ModelRequest(parts=[UserPromptPart(content=selection_text)])
+        # Plain parameters: the agent's function and output tools are not for the selector.
+        response = await selector.request([selection_msg], None, ModelRequestParameters())
+        text = next((p.content for p in response.parts if isinstance(p, TextPart)), "")
+        selected_name = text.strip().strip("'\"`").strip()
 
-        response = await selector.request(
-            [selection_msg],
-            model_settings,
-            model_request_parameters,
+        model = models.get(selected_name) or next(
+            (m for m in models.values() if m.model_name == selected_name), None
         )
-        selected_name = str(response.parts[0].content).strip()  # type: ignore
-
-        # Find matching model
-        for model in self.available_models:
-            if model.model_name == selected_name:
-                logger.debug("Selected model %s for prompt: %s", model.model_name, prompt)
-                return model
-
-        msg = f"Selector returned unknown model: {selected_name}"
-        raise ValueError(msg)
+        if model is None:
+            msg = f"Selector returned unknown model: {selected_name}"
+            raise ValueError(msg)
+        logger.debug("Selected model %s for prompt: %s", selected_name, prompt)
+        return model, response.usage
 
     def _get_last_prompt(self, messages: list[ModelMessage]) -> str:
-        """Extract the last user prompt from messages."""
+        """Extract the last user prompt from messages.
+
+        After a tool call the last request holds only tool returns: the prompt is the
+        one of an earlier request.
+        """
         if not messages:
             msg = "No messages provided"
             raise ValueError(msg)
 
-        last_message = messages[-1]
-        if not isinstance(last_message, ModelRequest):
-            msg = "Last message must be a request"
-            raise ValueError(msg)  # noqa: TRY004
-
-        for part in last_message.parts:
-            if isinstance(part, UserPromptPart):
-                return str(part.content)  # TODO: could also be media content
+        for message in reversed(messages):
+            if not isinstance(message, ModelRequest):
+                continue
+            for part in message.parts:
+                if isinstance(part, UserPromptPart):
+                    return str(part.content)  # TODO: could also be media content
 
         msg = "No user prompt found in messages"
         raise ValueError(msg)
@@ -131,17 +137,14 @@ class DelegationMultiModel(MultiModel):
         # Extract the actual prompt
         prompt = self._get_last_prompt(messages)
 
-        # Select and use appropriate model
-        selected_model = await self._select_model(
-            prompt,
-            model_settings,
-            model_request_parameters,
-        )
-        return await selected_model.request(
+        selected_model, selector_usage = await self._select_model(prompt, model_settings)
+        response = await selected_model.request(
             messages,
             model_settings,
             model_request_parameters,
         )
+        response.usage = response.usage + selector_usage
+        return response
 
     @asynccontextmanager
     async def request_stream(
@@ -155,12 +158,7 @@ class DelegationMultiModel(MultiModel):
         # Extract the actual prompt
         prompt = self._get_last_prompt(messages)
 
-        # Select appropriate model
-        selected_model = await self._select_model(
-            prompt,
-            model_settings,
-            model_request_parameters,
-        )
+        selected_model, _ = await self._select_model(prompt, model_settings)
 
         # Stream from selected model
         async with selected_model.request_stream(
