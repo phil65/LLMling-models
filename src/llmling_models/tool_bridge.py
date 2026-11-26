@@ -1,4 +1,4 @@
-"""MCP server bridge for exposing Python functions to Claude Code.
+"""MCP server bridge for exposing Python functions to MCP clients.
 
 This module provides a bridge that exposes Python functions as an MCP server
 using HTTP transport. This allows Agents to use custom
@@ -115,10 +115,10 @@ class ToolBridgeConfig:
 
 @dataclass
 class ToolBridge:
-    """Exposes Python functions as an MCP server for Claude Code.
+    """Exposes Python functions as an MCP server.
 
-    This bridge allows ClaudeCodeModel to access custom Python functions
-    via MCP transport.
+    This bridge lets an MCP client (a model or agent that can connect to MCP
+    servers) call custom Python functions via MCP transport.
 
     Example:
         ```python
@@ -206,7 +206,7 @@ class ToolBridge:
         return f"http://{self.config.host}:{self.port}{path}"
 
     def get_mcp_server_tool(self) -> MCPServerTool:
-        """Get pydantic-ai MCPServerTool for use with ClaudeCodeModel.
+        """Get a pydantic-ai MCPServerTool for a model that supports MCP servers.
 
         Returns:
             MCPServerTool configured to connect to this bridge.
@@ -325,7 +325,7 @@ async def create_tool_bridge(
 
         async with create_tool_bridge([greet]) as bridge:
             mcp_tool = bridge.get_mcp_server_tool()
-            # Use mcp_tool with ClaudeCodeModel
+            # Pass NativeTool(mcp_tool) to the agent's capabilities
         ```
     """
     config = ToolBridgeConfig(

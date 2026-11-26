@@ -15,16 +15,14 @@ Two import packages live under `src/` (both built into one wheel, see
 
 - `src/llmling_models/`: the runtime implementation.
   - `__init__.py`: public API re-exports (`MultiModel`, `InputModel`, `DelegationMultiModel`,
-    `UserSelectModel`, `ClaudeCodeModel`, `CodeModeToolset`, `infer_model`,
-    `function_to_model`, the `ClaudeCode*Tool` classes).
+    `UserSelectModel`, `CodeModeToolset`, `infer_model`, `function_to_model`).
   - `models/`: `Model` subclasses. `multi.py` (`MultiModel` base, a `schemez.Schema` +
     `Model`), `delegation.py`, `userselect.py`, `augmented.py` (pre/post prompts),
     `input_model/` (human input), `remote_input/` and `remote_model/` (each with a client
-    `model.py` and a FastAPI `server.py`), `claude_code_model.py` (Claude Agent SDK),
-    `function_to_model.py`, `test_model.py` (`FixedArgsTestModel`).
+    `model.py` and a FastAPI `server.py`), `function_to_model.py`, `test_model.py` (`FixedArgsTestModel`).
   - `models/helpers.py`: `infer_model()`, which resolves string ids. It handles custom
     prefixes (`openrouter:`, `grok:`, `copilot:`, `lm-studio:`, `zen:`,
-    `input`, `remote_model:`, `remote_input:`, `import:`, `test:`, `claude-code:`, ...) and
+    `input`, `remote_model:`, `remote_input:`, `import:`, `test:`, ...) and
     falls back to pydantic-ai.
   - `providers/`: pydantic-ai `Provider` subclasses (Copilot, LM Studio, Requesty, Moondream,
     Zen/opencode). `providers/__init__.py:infer_provider()` extends
@@ -32,11 +30,9 @@ Two import packages live under `src/` (both built into one wheel, see
   - `auth/`: OAuth/device-flow token handling per provider (`github_auth.py`,
     `openai_codex_auth.py`, `poe_auth.py`, `zen_auth.py`).
     `base.py`/`auth_service.py`/`models.py` define a common backend registry.
-  - `builtin_tools.py`: `AbstractNativeTool` subclasses mapping to Claude Code tools (passed
-    via `pydantic_ai.capabilities.NativeTool`).
   - `toolsets/codemode_toolset.py`: `CodeModeToolset`, wraps toolsets into one
     "execute_python" tool. Uses `schemez.ToolsetCodeGenerator`.
-  - `tool_bridge.py`: in-process MCP server exposing Python callables to Claude Code.
+  - `tool_bridge.py`: in-process MCP server exposing Python callables to MCP clients.
   - `openai_server/`: OpenAI-compatible FastAPI server (`server.py:OpenAIServer`,
     `model_registry.py:ModelRegistry`).
   - `__main__.py`: argparse CLI `llmling-models` (`serve`, `copilot-auth`).
@@ -56,7 +52,6 @@ Two import packages live under `src/` (both built into one wheel, see
 | New provider | `src/llmling_models/providers/`, register in `providers/__init__.py` |
 | New config type | `src/llmling_models_config/configs.py` + `AnyModelConfig` + `__init__.py` |
 | OAuth / tokens | `src/llmling_models/auth/` |
-| Claude Code integration | `models/claude_code_model.py`, `builtin_tools.py`, `tool_bridge.py` |
 | OpenAI-compatible server / CLI | `openai_server/`, `__main__.py` |
 | Public exports | `src/llmling_models/__init__.py` |
 | Tests | `tests/` |
@@ -83,7 +78,7 @@ uv build
   line length 100, Google-style docstrings.
 - Type checking is ty only (no mypy). Use `# ty: ignore[rule]` sparingly; no mypy-style
   ignores.
-- Optional third-party imports (fastapi, uvicorn, claude_agent_sdk, fastmcp) are done
+- Optional third-party imports (fastapi, uvicorn, fastmcp) are done
   lazily inside functions or in modules that are only imported on demand.
 - HTTP: everything uses `httpx2` (pydantic-ai v2 / openai / anthropic SDKs expect httpx2
   clients); don't import `httpx`.
@@ -99,7 +94,6 @@ reference implementation).
 |---|---|---|---|---|
 | OpenAI Codex (ChatGPT Plus/Pro) OAuth | https://github.com/earendil-works/pi/blob/main/packages/ai/src/auth/oauth/openai-codex.ts | mirrors the Codex CLI login (`codex-rs/login`), version unknown; pi-mono port, commit unrecorded | `src/llmling_models/auth/openai_codex_auth.py` | https://github.com/openai/codex/tree/main/codex-rs/login, pi-mono `openai-codex.ts` history |
 | GitHub Copilot device flow + API | https://github.com/earendil-works/pi/blob/main/packages/ai/src/auth/oauth/github-copilot.ts | mirrors Copilot Chat 0.35.0 / VS Code 1.107.0 (headers in `auth/github_auth.py`) | `src/llmling_models/auth/github_auth.py`, `src/llmling_models/providers/copilot_provider.py` | pi-mono `github-copilot.ts` history |
-| Claude Agent SDK (Python) | https://github.com/anthropics/claude-agent-sdk-python | `claude-agent-sdk>=0.1.16` (`claude` extra; unpinned, tracks latest) | `src/llmling_models/models/claude_code_model.py`, `builtin_tools.py`, `tool_bridge.py` | https://github.com/anthropics/claude-agent-sdk-python/blob/main/CHANGELOG.md |
 
 ## Pitfalls
 
@@ -111,15 +105,16 @@ reference implementation).
   `capabilities=[NativeTool(...)]`. Check imports after `uv lock --upgrade`.
 - `llmling_models` imports `pydantic_ai.models.openai` eagerly, hence the
   `pydantic-ai-slim[openai]` dependency.
-- Extras: `server`/`remote` (FastAPI), `claude` (claude-agent-sdk), `codemode` (fastmcp),
+- Extras: `server`/`remote` (FastAPI), `codemode` (fastmcp),
   `default` (full pydantic-ai).
 - Env vars: `OPENROUTER_API_KEY`, `X_AI_API_KEY`/`GROK_API_KEY`, `DEEPSEEK_API_KEY`,
   `PERPLEXITY_API_KEY`, `GITHUB_COPILOT_API_KEY`, `LM_STUDIO_BASE_URL`, `REQUESTY_API_KEY`,
   `OPENCODE_API_KEY`. OAuth tokens are stored on disk by the `auth/` token stores.
 - Anthropic Claude Pro/Max OAuth (`anthropic-max:`, `anthropic-auth`) was removed: Anthropic
   does not permit third-party tools to log in with or route requests through Claude plan
-  credentials (https://code.claude.com/docs/en/legal-and-compliance). For a Claude plan use
-  `claude-code:` (`ClaudeCodeModel`, runs the unmodified Claude Code CLI).
+  credentials (https://code.claude.com/docs/en/legal-and-compliance).
+- `ClaudeCodeModel` (`claude-code:`, the `claude` extra) and the `ClaudeCode*Tool` native tools
+  were removed (2026-11-26); agentpool has its own Claude Code agent.
 - Gemini CLI and Antigravity OAuth logins were removed: Google ended "Login with Google" for
   Gemini CLI on consumer tiers (2026-06-18) and the Antigravity terms forbid using Antigravity
   OAuth from third-party tools (account suspension). Use `GEMINI_API_KEY` / Vertex instead.

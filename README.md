@@ -23,7 +23,7 @@
 [![PyUp](https://pyup.io/repos/github/phil65/llmling-models/shield.svg)](https://pyup.io/repos/github/phil65/llmling-models/)
 
 Extra [pydantic-ai](https://ai.pydantic.dev/) models, providers and toolsets: human-in-the-loop
-models, model routing, prompt augmentation, remote models, a Claude Code model, a "code mode"
+models, model routing, prompt augmentation, remote models, a "code mode"
 toolset and an extended `infer_model()`. Built for
 [AgentPool](https://github.com/phil65/agentpool), but everything works with plain pydantic-ai.
 
@@ -41,7 +41,6 @@ Optional extras:
 |---|---|
 | `server` | OpenAI-compatible server and the `llmling-models` CLI |
 | `remote` | Remote model / remote input servers (FastAPI, websockets) |
-| `claude` | `ClaudeCodeModel` (claude-agent-sdk) |
 | `codemode` | fastmcp, for the MCP tool bridge (`llmling_models.tool_bridge`) |
 | `default` | The full `pydantic-ai` package with all of its providers |
 
@@ -61,10 +60,10 @@ print(result.output)  # Hello from llmling-models
 ## Features
 
 - **Extended `infer_model()`**: extra prefixes (`openrouter:`, `grok:`, `deepseek:`,
-  `perplexity:`, `copilot:`, `lm-studio:`, `zen:`, `claude-code:`, `input`,
+  `perplexity:`, `copilot:`, `lm-studio:`, `zen:`, `input`,
   `remote_model:`, `remote_input:`, `import:`, `test:`) and comma-separated fallback chains.
 - **Models**: `InputModel`, `UserSelectModel`, `DelegationMultiModel`, `AugmentedModel`,
-  `RemoteInputModel`, `RemoteProxyModel`, `ClaudeCodeModel`, `function_to_model()`.
+  `RemoteInputModel`, `RemoteProxyModel`, `function_to_model()`.
 - **Providers**: GitHub Copilot, LM Studio, Requesty, Moondream, OpenCode Zen.
 - **`CodeModeToolset`**: exposes tools as a Python API the model can script against.
 - **Config models**: `llmling_models_config` holds pydantic configs (`StringModelConfig`,
@@ -185,6 +184,9 @@ agent = Agent(model)
 result = await agent.run("What is AI?")
 ```
 
+When streaming (`agent.run_stream()`, `agent.iter()`), only the pre-prompt is applied: the main
+model's stream is passed through unchanged, so the post-prompt is skipped.
+
 ### Remote Input and Remote Proxy Models
 
 Forward requests to a remote human operator (`RemoteInputModel`) or to a model served elsewhere
@@ -210,34 +212,6 @@ server.run(host="0.0.0.0", port=8000)
 
 The matching operator server for `RemoteInputModel` lives in
 `llmling_models.models.remote_input.server`.
-
-### Claude Code Model
-
-Delegates to the Claude Code CLI via the Claude Agent SDK (`claude` extra; authenticate with
-`claude login`). Claude Code's own tools are enabled per agent as pydantic-ai native tools:
-
-```python
-from pydantic_ai import Agent
-from pydantic_ai.capabilities import NativeTool
-from llmling_models import ClaudeCodeGlobTool, ClaudeCodeModel, ClaudeCodeReadTool
-
-model = ClaudeCodeModel(model="sonnet", cwd="/path/to/project", max_turns=10)
-
-# Without native tools, Claude has no tool access
-agent = Agent(model)
-
-# With native tools
-agent = Agent(
-    model,
-    capabilities=[NativeTool(ClaudeCodeGlobTool()), NativeTool(ClaudeCodeReadTool())],
-)
-result = await agent.run("What files are in the current directory?")
-```
-
-Available tools: `ClaudeCodeReadTool`, `ClaudeCodeWriteTool`, `ClaudeCodeEditTool`,
-`ClaudeCodeBashTool`, `ClaudeCodeGlobTool`, `ClaudeCodeGrepTool`, `ClaudeCodeWebSearchTool`,
-`ClaudeCodeWebFetchTool`, `ClaudeCodeTaskTool`, `ClaudeCodeNotebookEditTool`.
-`claude_code_all_tools()` and `claude_code_read_only_tools()` return ready-made lists.
 
 ## CodeModeToolset
 
@@ -307,10 +281,9 @@ llmling-models serve --auto-discover
 llmling-models copilot-auth
 ```
 
-To use a Claude Pro/Max subscription, use the `claude-code:` prefix (`ClaudeCodeModel`,
-`claude` extra): it runs the official Claude Code CLI, which is the supported way to use a
-Claude plan outside claude.ai. Anthropic does not permit other tools to log in with a Claude
-plan ([Claude Code legal and compliance](https://code.claude.com/docs/en/legal-and-compliance)).
+Anthropic does not permit other tools to log in with a Claude plan
+([Claude Code legal and compliance](https://code.claude.com/docs/en/legal-and-compliance)), so
+there is no Claude Pro/Max login here; use an Anthropic API key.
 
 ## License
 

@@ -137,14 +137,6 @@ def _infer_single_model(model: str | Model) -> Model:  # noqa: PLR0911
         model = "google:" + model.split(":", maxsplit=1)[1]
     elif model.startswith("google-vertex:"):
         model = "google-cloud:" + model.removeprefix("google-vertex:")
-    if model.startswith("claude-code:"):
-        from llmling_models.models.claude_code_model import ClaudeCodeModel
-
-        return ClaudeCodeModel(model=model.removeprefix("claude-code:"))
-    if model == "claude-code":
-        from llmling_models.models.claude_code_model import ClaudeCodeModel
-
-        return ClaudeCodeModel()
     return infer_model_(model)
 
 

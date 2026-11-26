@@ -33,8 +33,6 @@ from llmling_models.openai_server.models import (
 
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
-
     from pydantic_ai import ModelMessage, ModelResponsePart, ModelResponseStreamEvent
 
     from llmling_models.openai_server.models import (
@@ -223,91 +221,3 @@ class StreamDeltaConverter:
                 call = {"index": self._tool_indices[event.index], "function": function}
                 return {"tool_calls": [call]}
         return None
-
-
-async def generate_stream_chunks(
-    response_id: str,
-    model_name: str,
-    stream: AsyncGenerator[str],
-    allow_tools: bool = True,
-) -> AsyncGenerator[str]:
-    """Generate streaming response chunks in OpenAI format."""
-    created = int(time.time())
-
-    # First chunk with role
-    first_chunk = {
-        "id": response_id,
-        "object": "chat.completion.chunk",
-        "created": created,
-        "model": model_name,
-        "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}],
-    }
-    yield f"data: {anyenv.dump_json(first_chunk)}\n\n"
-
-    # Tool call tracking
-    tool_calls: dict[str, dict[str, Any]] = {}
-    sending_tool_calls = False
-    content_complete = False
-
-    # Process content chunks
-    async for chunk in stream:
-        if not chunk and content_complete:
-            continue
-
-        # If we've started sending tool calls and get more content,
-        # we need to finish the tool calls first
-        if sending_tool_calls:
-            if tool_calls:
-                # Send final tool call chunk
-                for i, tool_call in enumerate(tool_calls.values()):
-                    chunk_data = {
-                        "id": response_id,
-                        "object": "chat.completion.chunk",
-                        "created": created,
-                        "model": model_name,
-                        "choices": [
-                            {
-                                "index": 0,
-                                "delta": {
-                                    "tool_calls": [
-                                        {
-                                            "index": i,
-                                            "id": tool_call["id"],
-                                            "type": "function",
-                                            "function": tool_call["function"],
-                                        }
-                                    ]
-                                },
-                                "finish_reason": None,
-                            }
-                        ],
-                    }
-                    yield f"data: {anyenv.dump_json(chunk_data)}\n\n"
-                tool_calls = {}
-
-            sending_tool_calls = False
-
-        # Regular content chunk
-        if chunk:
-            content_complete = False
-            chunk_data = {
-                "id": response_id,
-                "object": "chat.completion.chunk",
-                "created": created,
-                "model": model_name,
-                "choices": [{"index": 0, "delta": {"content": chunk}, "finish_reason": None}],
-            }
-            yield f"data: {anyenv.dump_json(chunk_data)}\n\n"
-        else:
-            content_complete = True
-
-    # Final chunk
-    final_chunk = {
-        "id": response_id,
-        "object": "chat.completion.chunk",
-        "created": created,
-        "model": model_name,
-        "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
-    }
-    yield f"data: {anyenv.dump_json(final_chunk)}\n\n"
-    yield "data: [DONE]\n\n"

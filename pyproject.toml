@@ -3,7 +3,7 @@
 [project]
 name = "llmling-models"
 version = "1.8.1"
-description = "Extra pydantic-ai models, providers and toolsets (human-in-the-loop, model routing, Claude Code, code mode) for AgentPool"
+description = "Extra pydantic-ai models, providers and toolsets (human-in-the-loop, model routing, code mode) for AgentPool"
 readme = "README.md"
 requires-python = ">=3.14"
 license = "MIT"
@@ -15,7 +15,6 @@ keywords = [
   "agentpool",
   "agents",
   "ai",
-  "claude-code",
   "human-in-the-loop",
   "llm",
   "openai-compatible",
@@ -51,14 +50,12 @@ Documentation = "https://phil65.github.io/LLMling-models/"
 Homepage = "https://github.com/phil65/LLMling-models"
 Issues = "https://github.com/phil65/LLMling-models/issues"
 Source = "https://github.com/phil65/LLMling-models"
-"Spec: Claude Agent SDK" = "https://github.com/anthropics/claude-agent-sdk-python"
 "Spec: OAuth flows (pi reference)" = "https://github.com/earendil-works/pi/tree/main/packages/ai/src/auth/oauth"
 
 [project.scripts]
 llmling-models = "llmling_models.__main__:main_cli"
 
 [project.optional-dependencies]
-claude = ["claude-agent-sdk>=0.1.16"]
 codemode = ["fastmcp>=2.0.0"]
 default = ["pydantic-ai"]
 openai = ["openai"]

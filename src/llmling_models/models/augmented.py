@@ -41,7 +41,15 @@ class PrePostPromptConfig(Schema):
 
 
 class AugmentedModel(Model):
-    """Model with pre/post prompt processing."""
+    """Model with pre/post prompt processing.
+
+    The pre-prompt rewrites the last user prompt before the main model sees it; the
+    post-prompt rewrites the main model's final answer (not responses with tool calls).
+
+    When streaming (`request_stream`, e.g. `agent.run_stream()` / `agent.iter()`), only the
+    pre-prompt is applied: the main model's stream is passed through as it arrives, so the
+    post-prompt is not applied. Use `request` (`agent.run()`) if you need the post-prompt.
+    """
 
     def __init__(
         self,
