@@ -1,7 +1,5 @@
 """Git hook to generate commit messages using AI."""
 
-from __future__ import annotations
-
 import os
 import subprocess
 import sys

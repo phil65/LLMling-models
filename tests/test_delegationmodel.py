@@ -1,7 +1,5 @@
 """Tests for delegation model implementation."""
 
-from __future__ import annotations
-
 from pydantic_ai import Agent
 from pydantic_ai.models.test import TestModel
 import pytest

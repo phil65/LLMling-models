@@ -7,8 +7,6 @@ subscription through the OpenAI API.
 Based on the pi-mono implementation by badlogic.
 """
 
-from __future__ import annotations
-
 import argparse
 import asyncio
 import base64

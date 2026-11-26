@@ -1,7 +1,5 @@
 """Remote model implementation that supports full message protocol."""
 
-from __future__ import annotations
-
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime

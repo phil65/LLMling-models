@@ -1,8 +1,5 @@
 """Multi-models."""
 
-from __future__ import annotations
-
-
 from llmling_models.models.delegation import DelegationMultiModel
 from llmling_models.models.augmented import AugmentedModel
 from llmling_models.models.userselect import UserSelectModel

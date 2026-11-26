@@ -1,7 +1,5 @@
 """Model that delegates responses to human input."""
 
-from __future__ import annotations
-
 from collections.abc import AsyncGenerator, Awaitable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field

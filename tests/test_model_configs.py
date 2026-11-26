@@ -1,7 +1,5 @@
 """Tests for provider-specific model configs."""
 
-from __future__ import annotations
-
 from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.models.google import GoogleModel
 import pytest

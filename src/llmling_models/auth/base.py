@@ -5,8 +5,6 @@ Each provider registers a backend that handles its specific auth flow
 (OAuth PKCE, device code, API key, etc.).
 """
 
-from __future__ import annotations
-
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 

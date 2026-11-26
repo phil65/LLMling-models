@@ -161,7 +161,6 @@ extend-exclude = ["docs"]
 target-version = "py314"
 
 [tool.ruff.lint]
-future-annotations = true
 select = [
   "A",  # Flake8-builtins
   "ANN",  # Flake8-Annotations (enforces complete annotations; ty does not)
@@ -181,7 +180,6 @@ select = [
   # "ERA",  #  Eradicate
   "EXE",  # flake8-executable
   "F",  # PyFlakes
-  "FA",  # flake8-future-annotations
   # "FBT",  # flake8-boolean-trap
   # "FIX",  # flake8-fixme
   "FLY",  # flynt
@@ -267,6 +265,9 @@ ignore = [
 [tool.ruff.lint.flake8-quotes]
 docstring-quotes = "double"
 
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"__future__.annotations" = { msg = "Not needed on Python 3.14 (PEP 649)." }
+
 [tool.ruff.lint.flake8-type-checking]
 runtime-evaluated-base-classes = [
   "pydantic.BaseModel",
@@ -295,6 +296,7 @@ max-complexity = 15
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["E402", "I001"]
 "scripts/*" = ["INP001", "ANN"]
+"src/llmling_models/scripts/*" = ["INP001"]
 "*tests/*" = ["D100", "ANN"]  # tests need not be fully annotated
 "duties.py" = ["ANN"]  # tooling, not package code
 "examples/**/*.py" = ["ANN"]

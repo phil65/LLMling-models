@@ -4,8 +4,6 @@ This is a lightweight config-only package for fast imports.
 For the actual models, use `from llmling_models import ...`.
 """
 
-from __future__ import annotations
-
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Annotated, Any, Literal
 

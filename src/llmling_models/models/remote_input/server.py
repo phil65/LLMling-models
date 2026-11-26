@@ -1,7 +1,5 @@
 """FastAPI server for remote human-in-the-loop conversations."""
 
-from __future__ import annotations
-
 from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel

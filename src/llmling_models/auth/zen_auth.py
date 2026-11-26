@@ -6,8 +6,6 @@ multiple coding models through a single API key.
 Get your API key at: https://opencode.ai/zen
 """
 
-from __future__ import annotations
-
 import argparse
 from pathlib import Path
 import sys

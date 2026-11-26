@@ -7,8 +7,6 @@ tools which have runtime access to our internals via Context objects.
 The bridge runs in-process and handles the MCP protocol automatically.
 """
 
-from __future__ import annotations
-
 import asyncio
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, field

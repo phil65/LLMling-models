@@ -1,7 +1,5 @@
 """Tests for FixedArgsTestModel and TestModelConfig with tool_args."""
 
-from __future__ import annotations
-
 from pydantic_ai import Agent, ToolDefinition
 from pydantic_ai.models.test import TestModel
 import pytest

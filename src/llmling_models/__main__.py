@@ -1,7 +1,5 @@
 """Command-line interface for llmling-models."""
 
-from __future__ import annotations
-
 import argparse
 import asyncio
 import logging

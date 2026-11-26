@@ -6,8 +6,6 @@ The API key can also be entered manually as a fallback.
 Manage your API keys at: https://poe.com/api_key
 """
 
-from __future__ import annotations
-
 import argparse
 import base64
 import hashlib

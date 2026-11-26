@@ -1,7 +1,5 @@
 """Providers package."""
 
-from __future__ import annotations
-
 from typing import Any, TYPE_CHECKING
 from pydantic_ai.providers import infer_provider as _infer_provider
 import os

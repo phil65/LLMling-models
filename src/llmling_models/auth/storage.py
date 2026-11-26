@@ -1,7 +1,5 @@
 """Private, atomic token files and a cross-process lock for token refreshes."""
 
-from __future__ import annotations
-
 from contextlib import contextmanager
 import json
 import os

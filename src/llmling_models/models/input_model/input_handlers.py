@@ -1,7 +1,5 @@
 """Input handling for interactive models."""
 
-from __future__ import annotations
-
 import sys
 from typing import TYPE_CHECKING, Annotated, Protocol, runtime_checkable
 

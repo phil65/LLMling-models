@@ -1,7 +1,5 @@
 """Models with pre/post prompt processing."""
 
-from __future__ import annotations
-
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any

@@ -1,7 +1,5 @@
 """FastAPI server that serves a pydantic-ai model."""
 
-from __future__ import annotations
-
 import contextlib
 from dataclasses import asdict
 from typing import TYPE_CHECKING, Any

@@ -6,8 +6,6 @@ After login, exchanges the GitHub access token for a Copilot API token.
 Based on the pi-mono implementation by badlogic.
 """
 
-from __future__ import annotations
-
 import argparse
 from pathlib import Path
 import sys

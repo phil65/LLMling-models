@@ -1,7 +1,5 @@
 """Tests for the provider auth backend registry."""
 
-from __future__ import annotations
-
 from llmling_models.auth import ProviderAuthService
 
 

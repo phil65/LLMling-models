@@ -1,7 +1,5 @@
 """Utilities for working with pydantic-ai types and objects."""
 
-from __future__ import annotations
-
 from pydantic_ai import BinaryContent, FileUrl, messages
 
 

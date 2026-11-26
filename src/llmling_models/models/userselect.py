@@ -1,7 +1,5 @@
 """Model that lets users interactively select from multiple models."""
 
-from __future__ import annotations
-
 from collections.abc import AsyncGenerator, Awaitable
 from contextlib import asynccontextmanager
 import inspect

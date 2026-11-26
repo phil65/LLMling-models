@@ -7,8 +7,6 @@ Submodules:
 - poe_auth: Poe OAuth / API key authentication
 """
 
-from __future__ import annotations
-
 from .models import (
     OAuthAuthInfo,
     ApiAuthInfo,

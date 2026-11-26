@@ -1,7 +1,5 @@
 """Multi-model implementations."""
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 
 from pydantic import Field, model_validator

@@ -1,7 +1,5 @@
 """Utility functions for model handling."""
 
-from __future__ import annotations
-
 import functools
 import inspect
 import logging

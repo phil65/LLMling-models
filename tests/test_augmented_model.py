@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Any
 
 from pydantic_ai import Agent, ModelRequest, ModelResponse, TextPart, ToolCallPart

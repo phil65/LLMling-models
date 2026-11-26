@@ -1,7 +1,5 @@
 """LM Studio provider implementation."""
 
-from __future__ import annotations
-
 import os
 from typing import TYPE_CHECKING, overload
 
