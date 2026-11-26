@@ -16,7 +16,7 @@ import inspect
 import socket
 from typing import TYPE_CHECKING, Any, Literal, Self, get_type_hints
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, create_model
 from pydantic_ai import MCPServerTool
 
 
@@ -58,51 +58,33 @@ def _convert_to_tool_result(result: Any) -> ToolResult:
     return ToolResult(content=result or "")
 
 
-def _get_function_schema(func: Callable[..., Any]) -> dict[str, Any]:
-    """Extract JSON schema from a function's signature and docstring."""
+def _get_args_model(func: Callable[..., Any]) -> type[BaseModel]:
+    """Build a pydantic model of a function's parameters (schema and validation)."""
     sig = inspect.signature(func)
     hints = get_type_hints(func) if hasattr(func, "__annotations__") else {}
-    # Build properties from parameters
-    properties: dict[str, Any] = {}
-    required: list[str] = []
+    fields: dict[str, Any] = {}
     for name, param in sig.parameters.items():
-        if name in ("self", "cls"):
+        if name in ("self", "cls") or param.kind in (
+            inspect.Parameter.VAR_POSITIONAL,
+            inspect.Parameter.VAR_KEYWORD,
+        ):
             continue
+        default = ... if param.default is inspect.Parameter.empty else param.default
+        fields[name] = (hints.get(name, Any), default)
+    name = getattr(func, "__name__", "tool")
+    return create_model(
+        f"{name}_args", __config__=ConfigDict(arbitrary_types_allowed=True), **fields
+    )
 
-        prop: dict[str, Any] = {}
-        hint = hints.get(name)
 
-        # Map Python types to JSON schema types
-        if hint is str:
-            prop["type"] = "string"
-        elif hint is int:
-            prop["type"] = "integer"
-        elif hint is float:
-            prop["type"] = "number"
-        elif hint is bool:
-            prop["type"] = "boolean"
-        elif hint is list:
-            prop["type"] = "array"
-        elif hint is dict:
-            prop["type"] = "object"
-        elif hint is not None and hasattr(hint, "__origin__"):
-            origin = getattr(hint, "__origin__", None)
-            if origin is list:
-                prop["type"] = "array"
-            elif origin is dict:
-                prop["type"] = "object"
-            else:
-                prop["type"] = "string"
-        else:
-            prop["type"] = "string"  # Default fallback
-
-        properties[name] = prop
-
-        # Check if required (no default value)
-        if param.default is inspect.Parameter.empty:
-            required.append(name)
-
-    return {"type": "object", "properties": properties, "required": required}
+def _get_function_schema(
+    func: Callable[..., Any], args_model: type[BaseModel] | None = None
+) -> dict[str, Any]:
+    """Extract JSON schema from a function's signature."""
+    schema = (args_model or _get_args_model(func)).model_json_schema()
+    schema.pop("title", None)
+    schema.setdefault("required", [])
+    return schema
 
 
 def _get_function_description(func: Callable[..., Any]) -> str:
@@ -171,6 +153,9 @@ class ToolBridge:
     _tool_funcs: dict[str, Callable[..., Any]] = field(default_factory=dict, init=False, repr=False)
     """Mapping of tool names to their callables."""
 
+    _tool_args: dict[str, type[BaseModel]] = field(default_factory=dict, init=False, repr=False)
+    """Mapping of tool names to the models validating their arguments."""
+
     async def __aenter__(self) -> Self:
         """Start the MCP server."""
         await self.start()
@@ -204,6 +189,7 @@ class ToolBridge:
         self._mcp = None
         self._actual_port = None
         self._tool_funcs.clear()
+        self._tool_args.clear()
 
     @property
     def port(self) -> int:
@@ -244,9 +230,11 @@ class ToolBridge:
 
         name = getattr(func, "__name__", "unknown")
         description = _get_function_description(func)
-        parameters = _get_function_schema(func)
+        args_model = _get_args_model(func)
+        parameters = _get_function_schema(func, args_model)
         # Store the function for invocation
         self._tool_funcs[name] = func
+        self._tool_args[name] = args_model
         # Create wrapper that bridges to our invocation
         bridge = self
 
@@ -271,12 +259,16 @@ class ToolBridge:
             raise KeyError(f"Tool {tool_name!r} not found")
 
         func = self._tool_funcs[tool_name]
-        # Call the function
-        result = func(**arguments)
-        # Handle async functions
+        # Validate and convert like a pydantic-ai tool would (dicts to models, ...).
+        args_model = self._tool_args.get(tool_name) or _get_args_model(func)
+        validated = args_model.model_validate(arguments)
+        kwargs = {name: getattr(validated, name) for name in args_model.model_fields}
+        if inspect.iscoroutinefunction(func):
+            return await func(**kwargs)
+        # Sync tools run in a thread: the loop also serves the bridge and the agent.
+        result = await asyncio.to_thread(func, **kwargs)
         if inspect.isawaitable(result):
             result = await result
-
         return result
 
     async def _start_server(self) -> None:
