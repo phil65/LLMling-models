@@ -40,7 +40,7 @@ dependencies = [
   "httpx2>=2.16.0",
   "pydantic",
   "pydantic-ai-slim[openai]>=2.68.0",
-  "schemez>=0.0.1",
+  "schemez>=2.5.0",
   "tokonomics>=0.4.0",
 ]
 
