@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 import json
@@ -59,6 +59,28 @@ logger = get_logger(__name__)
 
 # Permission modes supported by Claude Code
 PermissionMode = Literal["default", "acceptEdits", "plan", "bypassPermissions"]
+
+
+async def _cancel_and_wait(task: asyncio.Task[None]) -> None:
+    if not task.done():
+        task.cancel()
+    with suppress(asyncio.CancelledError):
+        await task
+
+
+def _usage_from_result(u: dict[str, Any]) -> RequestUsage:
+    """Convert the SDK's Anthropic-style usage to pydantic-ai's.
+
+    Anthropic's `input_tokens` excludes the cache tokens; pydantic-ai's includes them.
+    """
+    cache_read = u.get("cache_read_input_tokens") or 0
+    cache_write = u.get("cache_creation_input_tokens") or 0
+    return RequestUsage(
+        input_tokens=(u.get("input_tokens") or 0) + cache_read + cache_write,
+        output_tokens=u.get("output_tokens") or 0,
+        cache_read_tokens=cache_read,
+        cache_write_tokens=cache_write,
+    )
 
 
 def _extract_system_prompt(messages: list[ModelMessage]) -> str | None:
@@ -186,6 +208,13 @@ class ClaudeCodeStreamedResponse(StreamedResponse):
         from claude_agent_sdk.types import StreamEvent
 
         tool_use_names: dict[str, str] = {}
+        # Text and thinking arrive as StreamEvents only with include_partial_messages;
+        # without them, the blocks of the AssistantMessages are the only source.
+        saw_stream_events = False
+        # One vendor part id per API message (and content block), so text of a later turn
+        # gets its own part after the tool calls instead of joining the first one.
+        message_index = 0
+        block_index = 0
 
         while True:
             # Check if collection is done and queue is empty
@@ -201,8 +230,10 @@ class ClaudeCodeStreamedResponse(StreamedResponse):
 
             # Handle StreamEvent for real-time token streaming
             if isinstance(message, StreamEvent):
+                saw_stream_events = True
                 event = message.event
                 event_type = event.get("type")
+                block = event.get("index", 0)
 
                 if event_type == "content_block_delta":
                     delta = event.get("delta", {})
@@ -212,7 +243,7 @@ class ClaudeCodeStreamedResponse(StreamedResponse):
                         text = delta.get("text", "")
                         if text:
                             for ev in self._parts_manager.handle_text_delta(
-                                vendor_part_id="text",
+                                vendor_part_id=f"text-{message_index}-{block}",
                                 content=text,
                             ):
                                 yield ev
@@ -221,12 +252,13 @@ class ClaudeCodeStreamedResponse(StreamedResponse):
                         thinking = delta.get("thinking", "")
                         if thinking:
                             for ev in self._parts_manager.handle_thinking_delta(
-                                vendor_part_id="thinking",
+                                vendor_part_id=f"thinking-{message_index}-{block}",
                                 content=thinking,
                             ):
                                 yield ev
 
                 elif event_type == "message_start":
+                    message_index += 1
                     # Extract model name from message_start
                     msg = event.get("message", {})
                     if model := msg.get("model"):
@@ -238,11 +270,23 @@ class ClaudeCodeStreamedResponse(StreamedResponse):
             if isinstance(message, AssistantMessage):
                 self._model_name = f"claude-code:{message.model}"
                 for block in message.content:
-                    # Text is already streamed via StreamEvent, skip here
+                    # With StreamEvents, text and thinking were streamed already.
                     if isinstance(block, TextBlock):
-                        pass
+                        if not saw_stream_events:
+                            block_index += 1
+                            for ev in self._parts_manager.handle_text_delta(
+                                vendor_part_id=f"block-{block_index}", content=block.text
+                            ):
+                                yield ev
                     elif isinstance(block, ThinkingBlock):
-                        pass  # Already streamed via thinking_delta
+                        if not saw_stream_events:
+                            block_index += 1
+                            for ev in self._parts_manager.handle_thinking_delta(
+                                vendor_part_id=f"block-{block_index}",
+                                content=block.thinking,
+                                signature=block.signature,
+                            ):
+                                yield ev
                     elif isinstance(block, ToolUseBlock):
                         # Track tool name and emit builtin tool call
                         tool_use_names[block.id] = block.name
@@ -277,13 +321,7 @@ class ClaudeCodeStreamedResponse(StreamedResponse):
                                 index=len(self._parts_manager._parts) - 1, part=return_part
                             )
             elif isinstance(message, ResultMessage) and message.usage:
-                u = message.usage
-                self._usage = RequestUsage(
-                    input_tokens=u.get("input_tokens", 0),
-                    output_tokens=u.get("output_tokens", 0),
-                    cache_read_tokens=u.get("cache_read_input_tokens", 0),
-                    cache_write_tokens=u.get("cache_creation_input_tokens", 0),
-                )
+                self._usage = _usage_from_result(message.usage)
 
     @property
     def timestamp(self) -> datetime:
@@ -556,13 +594,7 @@ class ClaudeCodeModel(Model):
                             )
 
             elif isinstance(message, ResultMessage) and message.usage:
-                u = message.usage
-                usage = RequestUsage(
-                    input_tokens=u.get("input_tokens", 0),
-                    output_tokens=u.get("output_tokens", 0),
-                    cache_read_tokens=u.get("cache_read_input_tokens", 0),
-                    cache_write_tokens=u.get("cache_creation_input_tokens", 0),
-                )
+                usage = _usage_from_result(message.usage)
         now = datetime.now(UTC)
         return ModelResponse(parts=parts, usage=usage, model_name=model_name, timestamp=now)
 
@@ -593,25 +625,30 @@ class ClaudeCodeModel(Model):
 
         async def collect_messages() -> None:
             """Collect messages from SDK in background task."""
-            try:
-                # Handle multimodal vs text-only prompts
-                if isinstance(prompt_content, list):
-                    # Multimodal: use streaming format with structured content
-                    async def multimodal_prompt() -> AsyncIterator[dict[str, Any]]:
-                        yield {
-                            "type": "user",
-                            "message": {"role": "user", "content": prompt_content},
-                        }
+            prompt: str | AsyncIterator[dict[str, Any]]
+            if isinstance(prompt_content, list):
+                # Multimodal: use streaming format with structured content
+                async def multimodal_prompt() -> AsyncIterator[dict[str, Any]]:
+                    yield {
+                        "type": "user",
+                        "message": {"role": "user", "content": prompt_content},
+                    }
 
-                    async for message in query(prompt=multimodal_prompt(), options=options):
-                        await message_queue.put(message)
-                else:
-                    # Text-only: use simple string format
-                    async for message in query(prompt=prompt_content, options=options):
-                        await message_queue.put(message)
+                prompt = multimodal_prompt()
+            else:
+                prompt = prompt_content
+            sdk_messages = query(prompt=prompt, options=options)
+            try:
+                async for message in sdk_messages:
+                    await message_queue.put(message)
             except Exception as e:  # noqa: BLE001
                 collection_error.append(e)
             finally:
+                # A cancelled run closes the SDK generator here, which ends the Claude
+                # Code process instead of leaving that to the garbage collector.
+                if aclose := getattr(sdk_messages, "aclose", None):
+                    with suppress(Exception):
+                        await aclose()
                 collection_done.set()
 
         # Start collection in background
@@ -625,12 +662,14 @@ class ClaudeCodeModel(Model):
                 _collection_error=collection_error,
                 _model_name=self.model_name,
             )
-        finally:
-            # Ensure collection task completes
-            if not collection_task.done():
-                # Wait for it to finish naturally
-                await collection_done.wait()
-            # Check for errors
+        except BaseException:
+            # Cancelled or failed consumer: stop the Claude Code run (it may be running
+            # tools with bypassPermissions) and let the original exception propagate.
+            await _cancel_and_wait(collection_task)
+            raise
+        else:
+            # A consumer that stops reading early is done with the run too.
+            await _cancel_and_wait(collection_task)
             if collection_error:
                 raise collection_error[0]
 
